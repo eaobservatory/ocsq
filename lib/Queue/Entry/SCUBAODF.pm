@@ -139,8 +139,11 @@ sub prepare {
   return unless defined $odf;
 
   # Now verify that the ODF is okay and catch the exception
+  # We do a fixup and a verify here. Note that fixup tries to correct
+  # stuff that can be fixed without asking for more information
   my $r;
   try {
+    $odf->fixup;
     $odf->verify;
   } catch SCUBA::ODFError::MissingTarget with {
     # if the target is missing we cannot send this ODF
