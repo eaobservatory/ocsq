@@ -848,6 +848,14 @@ sub POLL {
   # Poll the queue
   my ($pstat, $scuba_status, $message) = $QUEUE->backend->poll;
 
+  # Update the DRAMA parameters
+  # Do this before checking the status because we want to make
+  # sure that everything is up-to-date before we trigger FAILURE
+  # responses since some of these routines clear FAILURE parameter
+  update_contents_param($status);
+  update_index_param($status);
+  update_status_param($status);
+
   # If pstat is false, set status to bad
   # If scuba status is bad also set status to bad.
   # Stop the queue in both cases, report the errors but then
@@ -891,11 +899,6 @@ sub POLL {
   } elsif ($message) {
     &addmessage($scuba_status, $message);
   }
-
-  # Update the DRAMA parameters
-  update_contents_param($status);
-  update_index_param($status);
-  update_status_param($status);
 
   # Need to reschedule $RESCHED seconds
   Dits::PutDelay($RESCHED, $status);
