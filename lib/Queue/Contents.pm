@@ -278,12 +278,19 @@ No arguments are allowed.
 
   $queue->clearq;
 
+MSB accept/reject triggers are respected.
+
 =cut
 
 sub clearq {
   my $self = shift;
   $self->lastindex(undef);
-  @{$self->contents} = ();
+
+  # Need to worry about removing MSBs that have been started.
+  # Rather than duplicate code or worry about the subtle distinction
+  # we simply run cutq with all the entries selected.
+  $self->cutq(0, $self->countq);
+
 }
 
 =item B<cutq>
@@ -501,11 +508,13 @@ in the process). This is similar to the Perl pop() command.
 
   $bottom = $queue->popq;
 
+This is implemented as a cut. MSB completion triggers are respected.
+
 =cut
 
 sub popq {
   my $self = shift;
-  return pop(@{$self->contents});
+  return $self->cutq($self->maxindex);
 }
 
 =item B<insertq>
@@ -629,9 +638,10 @@ The propagation stops for the following two conditions:
  2. Once we hit a calibration observation we continue
     to propogate until we are no longer doing calibrations.
     This allows us to propogate through a set of 6 scan maps.
+ 3. We hit the last observation in an MSB.
 
 This should probably not need to know about the iscal method in "entity".
-An entry should probably be modified to no about calibrations.
+An entry should probably be modified to know about calibrations.
 
 =cut
 
@@ -654,7 +664,16 @@ sub propsrc {
   #print "On entry: foundcal   = $foundcal\n";
   #print "Ref entry: " . $entry->string ."\n";
 
+  # True if we hit an MSB boundary
+  my $boundary = 0;
+
   while (defined( my $thisentry = $self->getentry($index) ) ) {
+
+    # Abort if we hit an MSB boundary on the previous loop
+    last if $boundary;
+
+    # If this entry is the end of an MSB flag it for next time
+    $boundary = 1 if $thisentry->lastObs;
 
     # if we have a target abort from search
     last if $thisentry->getTarget;
