@@ -531,6 +531,17 @@ sub cvtsub {
   } elsif ($param eq 'MESSAGES') {
     if ($tie{STATUS} == 0) {
       write_info_message( $MsgText, $tie{MESSAGE} );
+
+      # look for errors from the queue/scucd that are not coming
+      # to us directly because we did not initiate the action
+      for (@{$tie{MESSAGE}}) {
+	if ($_ =~ /^ERROR/) {
+	  play_sound('alert.wav');
+	  last;
+	}
+      }
+
+
     } else {
       write_info_message( $ErsText, $tie{MESSAGE} );
     }
