@@ -226,17 +226,17 @@ sub _send {
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1", $odfname, $status);
 
-  DRAMA::MsgOut( $status, "INFO: ArgID: " . ${$arg->id} );
-
   # Create callbacks
-  # - There seems to be a bug in the DRAMA/perl interface. If
-  # I do not store a reference to the argument structure in one of the
-  # callbacks (to stop it being destroyed) I get a SDS-E-BADID error
-  # from Uface handler. This may well generate a descriptor leak.
+
+  # First the success handler
   my $success = sub { 
     # print "SUCCESS\n";
     $self->_pushmessage( 0, "CLIENT: Observation completed successfully");
-    $self->accepting(1);
+
+    # Do post-observation stuff. Includes incrementing the index.
+    # Only want to do this if the observations was completed succesfully
+    $self->post_obs_tidy;
+
   };
 
   my $error   = sub {
@@ -246,8 +246,10 @@ sub _send {
   };
 
   my $complete = sub {
-    # print "COMPLETE\n";
-    $self->post_obs_tidy;
+    # The queue must be configured to accept again even if an error was
+    # triggered. The assumption is that the queue will be stopped on
+    # error anyway but we must be able to accept when the queue restarts.
+    $self->accepting(1);
   };
 
   my $info = sub {
@@ -312,12 +314,19 @@ observation should be selected. If the index is not incremented (no
 more observations remanining) the queue is stopped and the index is
 reset to the start.
 
+Additionally, the MSB should be marked as complete at this point.
+This will require additional status flags to make sure that
+the observer is prompted if the queue is reloaded without the MSB
+having been completed.
+
 =cut
 
 sub post_obs_tidy {
   my $self = shift;
   my $status = $self->qcontents->incindex;
   if (!$status) {
+    # The associated parameters must be updated independently since
+    # we do not have access to the DRAMA parameters from here
     $self->qrunning(0);
     $self->qcontents->curindex(0);
     $self->_pushmessage( 0, "No more entries to process. Queue is stopped");
