@@ -565,7 +565,7 @@ sub respond_to_failure {
 
     }
 
-    $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub {},
+    $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub { $FAIL_GUI = undef;},
 				    -upDate => sub {},
 				    -addCmd => sub {
 				      # First reset the gui object
