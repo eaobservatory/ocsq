@@ -391,7 +391,7 @@ sub shutdown {
 sub cvtsub {
   my ($param, $value) = @_;
 
-  #print "PARAMETER: $param\n";
+  #print "Received PARAMETER trigger: $param\n";
 
   if ($param eq 'STATUS') {
     if ($value =~ /Stop/i) {
@@ -418,12 +418,12 @@ sub cvtsub {
     my %queue = %tie;
 
     # Strip trailing space and reduce array size
-    foreach (@{$queue{'Contents'}}) {
-      s/\s+$//;
-    }
-
+    #foreach (@{$queue{'Contents'}}) {
+    #  s/\s+$//;
+    #}
 
     # Update the Contents in the listbox
+    # print "UPDATING QUEUE CONTENTS\n";
     &update_listboxes(\%queue);
 
     return \%queue;
@@ -450,15 +450,21 @@ sub cvtsub {
     if ($FAIL_GUI) {
       # Can not use the Exists method because we do not yet
       # treat this as a real Tk widget
-      $FAIL_GUI->destroy; # if Exists($FAIL_GUI);
+      # print "Removing pre-existing FAIL_GUI\n";
+      $FAIL_GUI->destroy;
       undef $FAIL_GUI;
     }
 
     # first check that we have to react
     if (exists $tie{DETAILS}) {
 
-      # Trigger a callback
-      $MW->after(1, sub {respond_to_failure($tie{DETAILS})});
+      # Put up the failure GUI (usually the pointing selection)
+      # Note that we can call this directly from this event
+      # because this sub does not block waiting for a reponse
+      # (unlike a DialogBox). You can not call a DRAMA obey
+      # from a monitor trigger.
+      # print "Creating a new FAIL_GUI\n";
+      respond_to_failure($tie{DETAILS});
 
     }
 
@@ -471,21 +477,24 @@ sub cvtsub {
     # Always delete the window if it is up since the details might
     # be different
     if ($QCOMP_GUI) {
-      print "Removing pre-existing GUI\n";
       $QCOMP_GUI->destroy if Exists($QCOMP_GUI);
       undef $QCOMP_GUI;
     }
 
     # first check that we have to react
     if (keys %tie) {
-      # Trigger a callback
-      print "Got keys, so instantiating window\n";
-      $MW->after(1, sub { respond_to_qcomplete(\%tie)});
+      # Put up the window requsting clarification on accept/reject
+      # We can do this without an after() because this method
+      # just puts up a GUI rather than blocking and waiting
+      # for a response directly.
+      print "Creating MSBCOMPLETE GUI\n";
+      respond_to_qcomplete(\%tie);
     }
   } elsif ($param eq 'MESSAGES') {
     write_info_message( $MsgText, $tie{MESSAGE} );
 
   }
+  #print "*********** Completed Monitor conversion [$param]\n";
   return $value;
 }
 
@@ -537,7 +546,8 @@ sub update_listboxes {
 
   # Remove blank lines from the end of the array
   # Assume that all blank lines are bad
-  my @contents = grep { /\w/ } @{$href->{Contents}};
+  my @contents = @{ $href->{Contents} };
+  clean_array( \@contents );
 
   # Fill it
   my $counter = 0;
@@ -1151,7 +1161,12 @@ sub nbs_cvtsub {
     if ($value =~ /paused/i) {
       # Must put up ACCEPT/REFUSE request
       # Remember that we can not send an obey from
-      # a monitor callback
+      # a monitor callback directly without first returning to
+      # the main event loop. Here we use a DialogBox with Show
+      # so that this callback is still active when the obey triggers.
+      # To get around this problem we trigger a callback in 1ms
+      # This does not suffer from a race condition so long as
+      # the SCUBA status messages change regularly enough.
       $MW->after(1, \&handle_accept)
 	unless defined $ACC_GUI; # this deals with the multiple triggers;
 
