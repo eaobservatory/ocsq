@@ -183,7 +183,7 @@ use constant TASKNAME => "QTK_$$"; # Name of this task
 # %MONITOR contains the monitored variables
 # $TOGGLE is used to determine the state of the START/STOPQ button
 # $MORE_INFO is true if we are displaying the MsgOut text window
-use vars qw/%MONITOR %NBS_MONITOR $TOGGLE $MORE_INFO/;
+use vars qw/%MONITOR %NBS_MONITOR $TOGGLE $MORE_INFO $MORE_DISPLAYED_ONCE/;
 
 $TOGGLE = '---';
 
@@ -295,7 +295,8 @@ $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy 
 
 # Setup a Text widget that will take all the output sent to MsgOut
 
-$MORE_INFO = 0;
+$MORE_INFO = 0;  # is the window visible
+$MORE_DISPLAYED_ONCE = 0; # Has it been visible at least once?
 
 my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
 			     -height=>16,
@@ -521,8 +522,14 @@ sub write_info_message {
   my $yview = ($w->yview)[1];
 
   # If $yview is 1.0 this means that 'end' is visible in the window
+  # If the window has never been displayed yview will return 0
+  # this means that we need to view the end unless the window
+  # has been displayed 
   my $update = 0;
   $update = 1 if $yview == 1.0;
+
+  # Force update to end if we have not yet been displayed
+  $update = 1 unless $MORE_DISPLAYED_ONCE;
 
   # Insert the text
   $w->insert('end',join("\n",@lines)."\n");
@@ -724,6 +731,8 @@ sub show_info {
   my $w = shift;  # The text widget
   if ($MORE_INFO) {
     $w->grid(-row=>1,-col=>1,-sticky=>'ens');
+    # Indicate that we have been displayed at least once
+    $MORE_DISPLAYED_ONCE = 1;
   } else {
     $w->gridForget;
   }
