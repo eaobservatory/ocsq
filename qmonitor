@@ -48,8 +48,10 @@ use vars qw/$VERSION/;
 
 use Astro::SLA;
 use Astro::Coords;
+use Astro::SourcePlot qw/ sourceplot /;
 use Astro::Telescope;
 use Time::Piece qw/ :override /;
+use Time::Seconds qw/ ONE_HOUR /;
 use File::Spec;
 
 # Need an OMP class for user handling
@@ -912,7 +914,9 @@ sub respond_to_failure {
       # Add a reference position if we have one
       my $refcoord = new Astro::Coords(az=> $details->{AZ},
 				       el=> $details->{EL},
-				       units=>'rad');
+				       units=>'rad',
+				       name => 'Ref'
+				      );
 
       $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
 
@@ -935,7 +939,6 @@ sub respond_to_failure {
 
     # and put up the GUI
     $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub { $FAIL_GUI = undef;},
-				    -upDate => sub {},
 				    -addCmd => sub {
 				      # The actual coordinate (come in as an array)
 				      my $arr = shift;
@@ -972,6 +975,39 @@ sub respond_to_failure {
 									       },
 									       -error => \&drama_error,
 									    } );
+
+				    },
+				    # On update we trigger a source plot
+				    -upDate => sub {
+				      my $w = shift;
+				      my $cat = $w->Catalog;
+				      return if not defined $cat;
+				      my $curr = $cat->current;
+				      return if !defined $curr;
+				      my @current = @$curr;
+
+				      # plot no more than 10 tracks
+				      my $max = 9; # this is an index
+				      my $n = ($#current <= $max ? $#current : $max);
+				      return if $n == 0;
+
+				      # Must include the reference coordinate if one exists
+				      my $refc = $cat->reference;
+				      unshift(@current, $refc) if defined $refc;
+
+				      # Want to plot the current time and 1 hour in the future
+				      my $start = gmtime;
+				      my $end = $start + ONE_HOUR;
+
+				      # plot on xwindow
+				      @current = @current[0..$n];
+				      sourceplot( coords => \@current,
+						  hdevice => '/xserve', output => '',
+						  format => 'AZEL',
+						  start => $start, end => $end,
+						  objlabel => 'list',
+						  annotrack => 0,
+						);
 
 				    },
 				    -catalog => $cat,
