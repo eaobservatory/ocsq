@@ -1,0 +1,400 @@
+#!/usr/local/bin/perl
+
+# Simple GUI to display queue status
+use strict;
+
+use subs qw/update_status obeyw DoDramaEvents/;
+use subs qw/cutq pasteq startq clearq stopq addback addfront/;
+use vars qw/$VERSION/;
+
+# Work out where local software is
+use FindBin;
+use lib "$FindBin::Bin/../site_perl";
+
+# Start up Tk early and put up a status bar
+
+my ($MW, $TKSTATUS, $BAR);
+
+BEGIN {
+  $VERSION = '0.10';
+  use Tk;
+  use Tk::ProgressBar;
+
+  # Create a new main window
+  $MW = MainWindow->new;
+  $MW->title('JCMT OCS Queue monitor');
+  $MW->iconname('JCMT_Q');
+
+  $TKSTATUS = $MW->Label(qw(-width 40 -anchor w -foreground blue),
+                       -text => "QMonitor $VERSION ...");
+  $TKSTATUS->grid(-row => 0, -column => 0, -sticky => 'w'); 
+  $BAR = $MW->ProgressBar(-from =>0, -to=>100, 
+                            -width=>15, '-length'=>270,
+                            -blocks => 20, -anchor => 'w',
+                            -colors => [0, 'blue'],
+                            -relief => 'sunken',
+                            -borderwidth => 3,
+                            -troughcolor => 'grey',
+                           )->grid(-sticky => 's');
+  $MW->update;
+}
+
+# File selection widget
+require Tk::FileSelect;
+
+update_status 'Loading DRAMA...',5;
+eval "use DRAMA::Tk; use DRAMA";
+if ($@) {
+  die "Error loading DRAMA:\n$@";
+}
+
+update_status 'Loading Qcontrol class',50;
+eval "use Queue::Control::DRAMA";
+if ($@) {
+  die "Error loading Queue::Control::DRAMA:\n$@";
+}
+
+
+#use Data::Dumper;
+
+# Define the number of entries stored in QUEUE and PASTE parameters
+
+# DEfine some constants - these are the same as used in the DQueue itseld
+use constant NENTRIES => 10; # Number of entries in Queue parameters
+use constant SZSTRING => 40; # Size of strings in Queue parameters
+use constant QNAME    => 'SCUQUEUE'; # Name of Queue task
+use constant TASKNAME => "QTK_$$"; # Name of this task
+
+# Monitor variable
+# %MONITOR contains the monitored variables
+# $TOGGLE is used to determine the state of the START/STOPQ button
+# $MORE_INFO is true if we are displaying the MsgOut text window
+use vars qw/%MONITOR $TOGGLE $MORE_INFO/;
+
+$TOGGLE = '---';
+
+$| = 1;
+
+# Initialise DRAMA system
+update_status 'Initialise DRAMA',60;
+DPerlTkInit(TASKNAME);
+
+
+# Set the parameters for the Queue::Control::DRAMA class
+# May want to import this parameter list from an external list
+
+$Queue::Control::DRAMA::DEFAULTS = {
+                OBSMODE => undef,
+                CENTRE_OFFSET_X => 0,
+                CENTRE_OFFSET_Y =>  0,
+                CELL_X => 0,
+                CELL_Y => 0,
+                REFERENCE_X => 0,
+                REFERENCE_Y => 0,
+                CELL_COORDS => undef,
+                SOURCE => undef,
+                AZ_RANGE=> undef,
+                CENTRE_TYPE => undef,
+                CAROUSEL_TRACK=> undef,
+                CATALOG => undef,
+               };
+
+$Queue::Control::DRAMA::QUEUE = QNAME;
+
+
+############# G U I   C R E A T I O N ###############################
+
+# Create three frames in top level
+# Dont pack them until we are ready
+
+my $Fr1 = $MW->Frame;
+my $Fr2 = $MW->Frame;
+my $Fr3 = $MW->Frame;
+my $Fr4 = $MW->Frame;
+
+# Make sure it is deleted correctly
+$MW->protocol('WM_DELETE_WINDOW' => \&shutdown);
+
+# Exit button
+update_status 'Creating buttons',75;
+$Fr3->Button( -text => 'EXIT', -command => \&shutdown)->pack(-side => 'left');
+$Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
+		      )->pack(-side => 'left');
+$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
+$Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
+$Fr3->Button( -text => 'CUT',  -command => \&gui_cutq)->pack(-side => 'left');
+$Fr3->Button( -text => 'PASTE',-command =>\&gui_pasteq)->pack(-side => 'left');
+
+# Create a label for Queue status
+$Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-col=>0,-sticky=>'w');
+my $Qstatus = $Fr1->Label(-textvariable => \$MONITOR{STATUS},
+			)->grid(-row=>0,-col=>1,-sticky=>'w');
+
+$Fr1->Label(-text => 'Current entry:')->grid(-row => 1,-col=>0,-sticky=>'w');
+my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
+			)->grid(-row=>1,-col=>1,-sticky=>'w');
+
+update_status 'Creating listboxes',85;
+# Create listbox in frame 2
+$Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
+
+
+my $ContentsBox = $Fr2->ScrlListbox(-height => NENTRIES, 
+				-width  => SZSTRING,
+				-selectmode => 'single',
+			       )->grid(-row=>1,-col=>1);
+
+# Bind single click to a parameter set
+$ContentsBox->bind("<Button-1>" => sub { my $w = shift; 
+					 my ($index) = $w->curselection;
+					 pset(QNAME, "INDEX", $index);
+				       });
+
+# A numbered listbox
+my $countBox = $Fr2->Listbox(-height => NENTRIES,
+			     -width  => length(NENTRIES),
+			     -relief => 'flat',
+			    )->grid(-row=>1,-col=>0);
+
+# Insert the numbers, padding with zeroes to right justify
+$countBox->insert('end', 
+		  map { ' 'x(length(NENTRIES)-length($_)).$_ } 1..NENTRIES);
+
+# Make it look like we cant select anything
+$countBox->configure(-selectbackground => $countBox->cget('-background'),
+		     -selectforeground => $countBox->cget('-foreground'),
+		    );
+
+# Setup a Text widget that will take all the output sent to MsgOut
+
+$MORE_INFO = 0;
+
+my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
+			     -height=>8,
+			     -width=>(2*SZSTRING)+2,
+			    );
+
+my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
+			       -text     => 'Info messages...',
+			       -command => [\&show_info, $MsgText],
+			      )->grid(-row=>0,-col=>1,-sticky=>'w');
+
+
+# print information to this text widget
+Dits::UfacePutMsgOut( sub { $MsgText->insert('end',"$_[0]\n");
+			    $MsgText->see('end');
+			  }, 
+		      new DRAMA::Status);
+
+
+
+# Set up a monitor - assumes that the QUEUE is running already
+update_status 'Setting up monitor',95;
+
+my $CANCELLED = 0;  # True if monitor is ended
+monitor(QNAME, "START", 
+	"STATUS", "Queue", "CURRENT", "INDEX",
+	{ -monitorvar => \%MONITOR,
+	  -sendcur    => 1,
+	  -repmonloss => 1,
+	  -complete   => sub { $CANCELLED=1 },
+	  -info       => sub { print "INFO callback\n"},
+	  -cvtsub     => \&cvtsub,
+	  -error      => \&monerror,
+	});
+
+# Destroy the progress bar
+destroy $TKSTATUS if Exists($TKSTATUS);
+destroy $BAR      if Exists($BAR);
+
+# Finally, pack frames into top frame and enter main loop
+$Fr1->grid(-row => 0, -col =>0, -sticky=>'w');
+$Fr2->grid(-row => 1, -col =>0);
+$Fr3->grid(-row => 2, -col =>0);
+$Fr4->grid(-row => 3, -col =>0, -sticky=>'w');
+
+#################### M A I N L O O P #####################################
+
+# Start MainLoop;
+MainLoop;
+
+exit;
+
+
+#################### S U B R O U T I N E S ###############################
+
+# Subroutines go here
+
+
+sub shutdown {
+
+  # Need to release the monitor (unless that has been done already)
+  if (exists $MONITOR{MONITOR_ID}) {
+    monitor(QNAME, "CANCEL", $MONITOR{MONITOR_ID})
+      unless $CANCELLED;
+    select undef,undef,undef,0.1; # Wait for any shutdown messages
+    DoDramaEvents;
+  }
+  # Need to clear the MsgOut tie
+  Dits::UfacePutMsgOut( undef, new DRAMA::Status);
+
+  # Destroy the window
+  destroy $MW if Exists($MW);
+}
+
+
+# Convert subroutine - converts the parameter value
+# to a value.
+# For CURRENT and STATUS do nothing.
+# For Queue convert to a hash and return
+# Could do this in a trigger routine just as easily...
+
+sub cvtsub {
+  my ($param, $value) = @_;
+
+  print "PARAMETER: $param\n";
+
+  if ($param eq 'STATUS') {
+    if ($value =~ /Stop/i) {
+      $Qstatus->configure(-background=>'red',-foreground=>'black');
+      $TOGGLE = 'STARTQ';
+    } else {
+      $Qstatus->configure(-background=>'green',-foreground=>'black');
+      $TOGGLE = 'STOPQ';
+    }
+  } elsif ($param eq 'INDEX') {
+    # Set the highlight position
+    $ContentsBox->selectionClear(0,"end");
+    $ContentsBox->selectionSet($value);
+  }
+
+  return $value if not ref($value);
+
+  # Assume we have a Sds
+  my %tie;
+  tie %tie, "Sds::Tie", $value;
+
+  my %queue = %tie;
+
+  # Strip trailing space and reduce array size
+  foreach (@{$queue{'Contents'}}) {
+    s/\s+$//;
+  }
+
+
+  # Update the Contents in the listbox
+  &update_listboxes(\%queue);
+
+  return \%queue;
+}
+
+
+# Update the contents of the listbox. Usually called when monitor
+# updates
+
+sub update_listboxes {
+  # Read the hash ref
+  my $href = shift;
+
+  # Clear the contents listbox
+  $ContentsBox->delete(0,'end');
+  # Fill it
+  $ContentsBox->insert('end',@{$href->{Contents}});
+
+}
+
+
+# Routine called during an error in the monitor
+
+sub monerror {
+  # Flush status
+  $_[2]->Flush;
+  $CANCELLED = 1;
+}
+
+
+
+
+# Start or stop the queue
+
+sub toggleq {
+  if ($MONITOR{STATUS} =~ /^Stop/i) {
+#    print "Starting Q\n";
+    startq;
+  } else {
+#    print "Stopping Q\n";
+    stopq;
+  }
+
+}
+
+# This subroutine updates the display widget on startup
+
+sub update_status {
+ 
+    my($status_text, $something) = @_;
+ 
+    $TKSTATUS->configure(-text => "$status_text ...");
+    $BAR->value($something);
+    $MW->update;
+ 
+}
+
+
+# This routine withdraws or shows the MsgOut text widget
+# depending on the value of $MORE_INFO.
+
+sub show_info {
+  my $w = shift;  # The text widget
+  if ($MORE_INFO) {
+    $w->grid(-row=>1,-col=>1,-sticky=>'e');
+  } else {
+    $w->gridForget;
+  }
+}
+
+
+# Routine to launch a file selection widget that can be used
+# to add ODFs to the queue
+
+sub launchFS {
+  $MW->FileSelect(-transient => 0,
+		  -command => \&gui_addq,
+		  -selectmode => 'extended',
+		  -filelabel => 'Selected ODF File',
+		  -filelistlabel => 'ODF files',
+		 )->Show;
+}
+
+
+# Routine to actually take the output from the file selector
+# and place it in the quueue.
+# The location will be the back unless an entry in the queue
+# is selected.
+# This takes arguments of an array of file names including
+# the full path
+
+sub gui_addq {
+  my @Odfs = @_;
+  return unless scalar(@Odfs) > 0;
+
+  # Read the selection from the listbox
+  my @sel = $ContentsBox->curselection;
+
+  print "Selection = @sel\n";
+
+  if (@sel) {
+    my $posn = $sel[0] + 1; # Start at 1
+
+    print "PASTING at position $posn\n";
+
+    # Paste to selected position
+    pasteq $posn, @Odfs;
+
+  } else {
+    print "ADDBACK\n";
+    # Paste at end of queue by default
+    addback @Odfs;
+  }
+
+}
