@@ -368,8 +368,12 @@ index position).
 
   $q->insertq(4,@entries);
 
-If the specified position is greater than or equal to the maximum
+If the specified position is greater than the maximum
 allowed array index, the entries are sent to C<addback>.
+
+If the specified position is equal to the maximum position
+the new entries are inserted at that position such that the
+entry that was at the end is still at the end.
 
 If the specified position is 0 or less the entries are sent
 to C<addfront>.
@@ -387,7 +391,7 @@ sub insertq {
 
   # If the queue is empty or if the supplied index is >= max
   # simply call addback
-  if ($self->countq == 0 || $pos >= $self->maxindex) {
+  if ($self->countq == 0 || $pos > $self->maxindex) {
     # add the elements to the back of the queue
     $self->addback(@_);
   } elsif ($pos <=0) {
