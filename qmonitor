@@ -918,7 +918,8 @@ sub respond_to_failure {
 				    -addCmd => sub {
 				      # The actual coordinate (come in as an array)
 				      my $arr = shift;
-				      my $c = $arr->[0];
+				      # Get the most recently selected item
+				      my $c = $arr->[-1];
 
 				      # if nothing has been selected
 				      # must simply do nothing
