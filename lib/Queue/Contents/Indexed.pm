@@ -62,7 +62,13 @@ Index of the active entry.
 
 When a new index is provided, it must lay in the range 0 to max index
 (total number of elements minus 1). If it lies outside this range the
-index will not be modified and the current index is returned.
+index will not be modified and the current index is returned. In the
+special case where the current index itself is out of range (larger
+than the number of entries) and the new index is also out of range but
+less than this value, the new value will be accepted. This is
+important if an MSB is removed from the end of the queue since we
+would like new MSBs added to the end to retain the now valid highlight
+position.
 
 Index must be an integer.
 
@@ -88,9 +94,17 @@ sub curindex {
   if (@_) {
     my $new = shift;
     if (defined $new) {
-      if ($new =~ /^\d+$/ && $self->indexwithin($new) ) {
-	# A number and it is in range
-	$self->{CurIndex} = $new;
+      # Check we have a number
+      if ($new =~ /^\d+$/) {
+
+	if ($self->indexwithin($new) ) {
+	  # it is in range - just set it
+	  $self->{CurIndex} = $new;
+	} elsif (defined $self->{CurIndex} && $new >= 0 &&
+		 $new < $self->{CurIndex} ) {
+	  # it is out of range but less than the current value
+	  $self->{CurIndex} = $new
+	}
       }
     }
   } else {
@@ -103,6 +117,7 @@ sub curindex {
   }
 
   # undefine the index if needs be
+  # (we have nothing on the queue)
   if ($self->countq == 0) {
     $self->{CurIndex} = undef;
     $self->lastindex(undef);
@@ -419,7 +434,7 @@ sub cutq {
   my $num = shift;
 
   # Get the current index value
-  # before the cur
+  # before the cut
   my $cur = $self->curindex;
 
   # We need to go through each MSB that will be affected 
@@ -442,9 +457,9 @@ sub cutq {
 	$msbs{ $msb } = $msb unless exists $msbs{$msb};
       }
       # Now register the current entry
-      my $cur = $self->curentry;
+      my $curentry = $self->curentry;
       for my $msb (values %msbs) {
-	$msb->refentry( $cur );
+	$msb->refentry( $curentry );
       }
     }
   }
@@ -467,14 +482,14 @@ sub cutq {
     } elsif ($cur > $startindex && $cur <= $endindex) {
       # Curindex must be set to the startindex
       $newcur = $startindex;
+
     } else {
       # Curindex must be decremented by the number of entries
-      # removed [not necessarily the same as $num if we removed
-      # from the end of the queue]
+      # removed if the cut was above the current index.
       $newcur = $cur - scalar(@cut);
     }
 
-    # Set the new index
+    # Set the new index. This could be out of range
     $self->curindex( $newcur );
   }
 
