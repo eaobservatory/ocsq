@@ -312,6 +312,9 @@ sub shutdown {
 
   # Destroy the window
   destroy $MW if Exists($MW);
+
+  # and exit
+  exit;
 }
 
 
