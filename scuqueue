@@ -124,7 +124,7 @@ use OMP::Constants qw/ :done /;
 
 # Load the DRAMA system
 use DRAMA;
-$DRAMA::MAXREPLIES = 20;
+$DRAMA::MAXREPLIES = 40;
 
 # Parameter system
 use Sdp;
