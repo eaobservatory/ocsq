@@ -384,8 +384,8 @@ sub send_entry {
   # Get the thing that is to be sent
   my $entity = $entry->be_object;
 
-  # Now send to this to the backend
-  my $status = $self->_send($entity);
+  # Now send to this to the backend (along with the entry)
+  my $status = $self->_send($entity, $entry);
 
   # note that $entity is probably destroyed immediately after
   # we exit this routine. This will cause problems if an Entry
@@ -524,9 +524,12 @@ This requires knowledge of the type of object stored in
 connection(). Argument is the actual thing that is passed to
 the backend. Returns a status.
 
-  $status = $be->_send("hello");
+  $status = $be->_send("hello", $entry);
 
 The base class simply prints data to stdout.
+
+The entry itself is an argument in case it needs to be modified
+during callbacks (eg to change its status on completion).
 
 =cut
 
