@@ -261,7 +261,7 @@ sub msbtidy {
   # so dd not change the parameter
   if ($msbid && $projectid) {
 
-    if ($projectid eq 'SCUBA' || $projectid =~ /CAL/ ) {
+    if ($projectid eq 'SCUBA' || $projectid =~ /JCMTCAL/ ) {
       addmessage($status, "Completed JCMT 'calibration' observations. No doneMSB");
       addmessage($status, "Project ID was $projectid");
 
@@ -796,6 +796,8 @@ sub MSBCOMPLETE {
       OMP::MSBServer->addMSBcomment($COMPLETE_DETAILS{PROJECTID},
 				    $COMPLETE_DETAILS{MSBID},
 				    $comment);
+
+      %COMPLETE_DETAILS = ();
 
     }
 
