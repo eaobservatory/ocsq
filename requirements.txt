@@ -72,7 +72,7 @@ eg for target:
 
 where AZ and EL are the azimuth and elevation of the next entry
 (well, the next entry that includes a target). EL = -1 if none
-of the entries include targets.
+of the entries include targets. The actual ODF must also be made available.
 
 - When the final ODF on the queue is completed (or sent?) the doneMSB
 should trigger. If loadq becomes the equivalent of "addback" we will need
@@ -180,9 +180,18 @@ SCUBA::ODF
      to retain comments (this is essentially Astro::FITS::Header)
        [only important if we dont care about existing comments
         and dont want to use order to indicate anything important.
-        What about processor directives?
+        What about processor directives? Do we have processor directives?
 
    - Knows how to calculate some things if they are missing
+
+   - Must be able to accept an Astro::Coords object to specify full
+     target details.
+
+   - Must be able to accept a SCUBA::ODF object when fixing up the
+   current ODF. This will allow a skydip to have the azimuth of a
+   following observation. Somehow the next available ODF with target
+   must be supplied.
+
 
 SCUBA::ODFs
 
@@ -190,3 +199,87 @@ SCUBA::ODFs
 
    - has "writeodf" method that will write all constituent odfs
      and macro file
+
+Astro::Coords
+
+   - Must have an ability to label a coordinate with a target name.
+     This will allow a pointing catalogue to be represented as an
+     array of Astro::Coords objects.
+
+
+   - Should be able to recognizea SCUBA::ODF in the constructor
+     for Astro::Coords. Will require an additional class that can interpolate
+     apparent RA/Dec from MJD1 and MJD2.
+
+        Astro::Coords::Interpolated ???
+
+
+
+------------------------------------------------------------------------------
+
+
+Data flow:
+
+  - Add ODFs onto queue from QT (via ditscmd?)
+
+         Result: Queue must have LOADQ action that accepts a file name
+                 that can either be a single ODF or file of ODFs
+
+  - If queue is running start sending ODFs to SCUCD
+
+  - When an ODF is prepared for sending it must first be verified.
+    If it is okay it is written to disk and sent to the SCUCD
+
+    - If the ODF is to be modified we can't modify the actual ODF
+    entry since the next time we send it (if we resend it) it will
+    probably need to be recalculated. This suggests we need to
+    write the copy to disk. A Queue::Entry object will probably need
+    to keep track of two SCUBA::ODF objects.
+
+    - If the ODF is missing a sample_pa and the scan area is not
+    square the sample_pa must be calculated to be optimum direction.
+
+    - If the ODF is a scan map and is square the SAMPLE_PA must be
+    cycled through the normal allowed values. It makes sense for this
+    to be an attribute of the SCUCD Queue - cycling through them
+    automatically as the night progresses.
+
+    - If the ODF is a skydip, the next ODF that has a target must be
+    located such that the AZimuth can be correctly set to the azimuth
+    of that target.
+
+    - When "beam control" becomes an issue the queue should insert
+    a parameter controlling whether the telescope can be moved or not.
+
+    - If the ODF is missing a target (and requires one) then the queue
+    must be paused, the next observation that does have a target must
+    be obtained, the az and el obtained from it and that information
+    published in a parameter. The user must then retrieve the ODF
+    (which will be the current index), publish a list of nearby
+    pointing targets or calibrators (depending on mode), allow the observer
+    to select a source and then insert the ODF back into the queue.
+
+      Requires: OVERWRITE action
+
+      Must protect against two people trying to overwrite at the same
+      time. Suggests that the over writable index has a state that
+      is twiddled when it has been overwritten or the index has been
+      updated.
+
+    - Messages from SCUCD are passed back to the Backend object which
+      in turn puts them in a parameter. Messages are stored in the backend
+      object until the queue is polled for activity (this is a limitation
+      of the design that can support none event driven architectures). This
+      means that the rescheduling action must happen fairly often and that
+      for each poll *ALL* messages are dumped into a parameter. This
+      will lead to updates of informational messsages in discrete lumps
+      rather than as a continous flow as they are generated.
+
+    - When the observation has completed (ie the action is complete)
+    the ODF can be removed from disk and the next observation can be
+    retrieved and we start again. If we have reached the end of the
+    queue the queue is stopped and the high lighter is moved back up
+    to the start. Additionally we trigger the doneMSB at this
+    point. This is fine for SCUBA but what happens if we are queueing
+    ACSIS as well?
+
