@@ -61,6 +61,8 @@ require Tk::FileSelect;
 require Tk::DialogBox;
 require Tk::LabEntry;
 
+
+# Read options early so that we can choose targets
 # Get the options
 use Getopt::Long;
 my $SIM;
@@ -68,11 +70,13 @@ my $status = GetOptions(
 			"sim"     => \$SIM,
 		       );
 
+
 our ($SCUCD,$NBSTASK,$QNAME);
 if ($SIM) {
   $QNAME = "SCUQUEUE";
   $SCUCD = "SCUCD_PERL";
   $NBSTASK = "";
+  $MW->title("JCMT OCS Queue monitor - Simulation mode");
 } else {
   $QNAME = 'SCUQUEUE@palila'; # Name of Queue task
   $SCUCD = 'SCUCD@SCUVAX';
