@@ -136,6 +136,10 @@ use lib "$FindBin::RealBin/lib";
 
 # Need OMP class for done msb
 use lib "/jac_sw/omp/msbserver";
+BEGIN {
+  $ENV{OMP_CFG_DIR} = "/jac_sw/omp/msbserver/cfg"
+    unless exists $ENV{OMP_CFG_DIR};
+}
 
 # Load the DRAMA system
 use Queue::Server::DRAMA;
