@@ -284,8 +284,10 @@ sub shutdown {
     monitor($QNAME, "CANCEL", $MONITOR{MONITOR_ID})
       unless $CANCELLED;
     if ($NBSTASK) {
-      monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID})
-	unless $NBS_CANCELLED;
+      if ($NBS_MONITOR(MONITOR_ID}) {
+	monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID})
+	  unless $NBS_CANCELLED;
+      }
     }
     select undef,undef,undef,0.1; # Wait for any shutdown messages
     DoDramaEvents;
