@@ -798,8 +798,20 @@ sub set_msbcomplete_parameter {
 
   # Generate a timestamp (not that it really needs to be
   # unique since Sds will handle it if we keep on adding
-  # identical entries but they are hard to remove)
+  # identical entries but they are hard to remove AND
+  # we have problems with the systems monitoring us tying
+  # to a hash AND the MSBCOMPLETE method only taking the unique
+  # key as argument). Make sure that the key is unique, adding
+  # a second if another MSB is accepted at the same time (e.g.
+  # if you clear the queue with multiple active MSBs!)
   my $tstamp = time();
+
+  my $loop = 0;
+  while (exists $self->_msbcomplete_table->{$tstamp}) {
+    $tstamp++;
+    $loop++;
+    croak "Unable to determine unique key for MSB complete parameter after 100 iteration" if $loop > 100;
+  }
 
   # The MSB object should not go in the SDS structure
   # so we store all this information in a hash outside
@@ -815,7 +827,7 @@ sub set_msbcomplete_parameter {
   # standard kluge
   bless $sds, "Sds";
 
-  # put in the inormation
+  # put in the information
   $sds->PutHash( \%details, "$tstamp", $status);
 
   $sds->List($status);
