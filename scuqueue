@@ -112,6 +112,8 @@ use 5.006;
 use strict;
 use warnings;
 
+BEGIN { $ENV{SYBASE} = "/local/progs/sybase" unless exists $ENV{SYBASE}; }
+
 use Data::Dumper;
 use SCUBA::ODFGroup;
 
@@ -144,7 +146,7 @@ use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS $TRANS_DIR/;
 use constant NENTRIES => 200;
 
 # Define size of string representation used in QUEUE contents
-use constant SZSTRING => 100;
+use constant SZSTRING => 110;
 
 # The task name
 use constant TASKNAME => 'SCUQUEUE';

@@ -171,7 +171,7 @@ if ($@) {
 # DEfine some constants - these are the same as used in the DQueue itseld
 # KLUGE - should do this properly
 # This should really match the queue
-use constant SZSTRING => 100; # Size of strings in Queue parameters
+use constant SZSTRING => 110; # Size of strings in Queue parameters
 
 # This one actually governs the size of the Text widget
 use constant NENTRIES => 10; # Number of entries in Queue parameters

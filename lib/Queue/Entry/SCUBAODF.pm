@@ -299,7 +299,11 @@ sub string {
   my $self = shift;
   my $odf = $self->entity;
   my $posn = $self->msb_status;
-  return sprintf("%-10s%-14s%s",$self->status,$posn,$odf->summary);
+  my $project = $self->projectid;
+  $project = "NONE" unless defined $project;
+  $project = substr($project, 0, 10);
+  return sprintf("%-10s%-10s%-14s%s",$self->status,
+		 $project,$posn,$odf->summary);
 }
 
 =back

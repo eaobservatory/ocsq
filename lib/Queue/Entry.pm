@@ -394,7 +394,11 @@ There are no arguments. Includes the status.
 sub string {
   my $self = shift;
   my $posn = $self->msb_status;
-  return sprintf("%-10s%-14s%s",$self->status,$self->msb_status,$self->label);
+  my $project = $self->projectid;
+  $project = "NONE" unless defined $project;
+  $project = substr($project, 0, 10);
+  return sprintf("%-10s%-10s%-14s%s",$self->status,
+		 $project,$self->msb_status,$self->label);
 }
 
 =item B<msb_status>
