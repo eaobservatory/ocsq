@@ -128,7 +128,7 @@ use constant SZSTRING => 40;
 use constant TASKNAME => 'SCUQUEUE';
 
 # Declare subs (actions)
-use subs qw/ LOADQ STARTQ STOPQ CUTQ POLL EXIT
+use subs qw/ LOADQ STARTQ STOPQ CUTQ POLL EXIT GETODF
   update_contents_param update_status_param update_current_param
   /;
 
@@ -154,6 +154,7 @@ Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("CUTQ",    \&CUTQ,    undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(1,250);
@@ -412,6 +413,33 @@ sub KICK_POLL {
   return $status;
 }
 
+# retrieve an ODF
+# ODF contents are put in an Sds structure using key
+# ODF
+# Index number is present in arg Argument1
+sub GETODF {
+  my $status = shift;
+  my $arg = Dits::GetArgument( $status );
+  my $index = $arg->Geti( "Argument1", $status );
+  print "Request for index $index\n";
+
+  my $entry = $QUEUE->contents->getentry($index);
+
+  if ($entry) {
+    my %odf = $entry->entity->odf;
+
+    # Add entries as strings
+    my $sds = Sds->PutHash( \%odf, "ODF", $status);
+    print Dumper($sds);
+    Dits::PutArgument($sds, Dits::ARG_COPY,$status);
+
+  } else {
+    # set status to bad
+    die "Error retrieving ODF $index\n";
+  }
+
+}
+
 
 #--------------------------------------------------------------
 # Utility routines (not ACTIONS)
@@ -489,6 +517,9 @@ sub update_contents_param {
 
   # Notify the parameter system
   $sdp->Update($sds,$_[0]) if $update;
+
+  # Clear any failure reasons if we have changed the Entries
+  clear_failure_parameter($_[0]) if $update;
 
   # Check for the current value on the queue
   update_current_param($_[0]);

@@ -118,6 +118,7 @@ will hopefully include keys:
   EL - reference EL of related target
   MODE - observing mode
   FILTER - filter used for observations
+  ENTRY - Additional information from the entry (optional)
 
 Returns hash reference in scalar context, hash in list context.
 If a hash is provided as an argument, all content will be overwritten.

@@ -9,6 +9,8 @@ use subs qw/update_status obeyw DoDramaEvents/;
 use subs qw/cutq pasteq startq clearq stopq addback addfront/;
 use vars qw/$VERSION/;
 
+use Astro::SLA;
+
 # Work out where local software is
 use FindBin;
 use lib "$FindBin::Bin/../site_perl";
@@ -18,7 +20,7 @@ use lib "$FindBin::Bin/../site_perl";
 my ($MW, $TKSTATUS, $BAR);
 
 BEGIN {
-  $VERSION = '0.10';
+  $VERSION = '0.11';
   use Tk;
   use Tk::ProgressBar;
 
@@ -41,6 +43,9 @@ BEGIN {
   $MW->update;
 }
 
+# The FAILURE response GUI
+my $FAIL_GUI;
+
 # File selection widget
 require Tk::FileSelect;
 
@@ -56,6 +61,17 @@ if ($@) {
   die "Error loading Queue::Control::DRAMA:\n$@";
 }
 
+update_status 'Loading ODF class',51;
+eval "use SCUBA::ODF";
+if ($@) {
+  die "Error loading SCUBA::ODF:\n$@";
+}
+
+update_status 'Loading SrcCatalog class',52;
+eval "use Tk::SrcCatalog";
+if ($@) {
+  die "Error loading Tk::SrcCatalog:\n$@";
+}
 
 #use Data::Dumper;
 
@@ -295,8 +311,37 @@ sub cvtsub {
     return \%queue;
 
   } elsif ($param eq 'FAILURE') {
+    # When FAILURE triggers we should obtain the ODF, see what the problem
+    # is, pop up a gui to request help.
+    # Problem is that you can not do this until the monitor has completed.
+    # If you try to do an obey to retrieve the ODF (if we decide not to publish
+    # it as part of the FAILURE Sds parameter) you cannot use an "obeyw"
+    # you can also not do any Tk event handling. The problem is the monitor
+    # must complete before you go into any other event handling. This implies
+    # that we have to set a variable from to indicate that FAILURE has returned
+    # and then work that out when we enter the event loop. Easiest thing
+    # is to do an after() for a few milliseconds later.
+
     use Data::Dumper;
     print Dumper(\%tie);
+
+    # first check that we have to react
+    if (exists $tie{DETAILS}) {
+
+      # Trigger a callback
+      $MW->after(1, sub {respond_to_failure($tie{DETAILS})});
+
+    } else {
+      # if we are prompting for changes to the ODF we
+      # need to destroy that widget here because this may
+      # indicate that someone else has responded
+      if ($FAIL_GUI) {
+	$FAIL_GUI->destroy;
+	undef $FAIL_GUI;
+      }
+
+    }
+
   }
 
 }
@@ -465,6 +510,69 @@ sub gui_addq {
     print "ADDBACK\n";
     # Paste at end of queue by default
     addback @Odfs;
+  }
+
+}
+
+
+# GUI dealing with responding to a failure of an ODF to load
+# because it is missing information
+# Arguments are: The ODF, the failure details
+
+sub respond_to_failure {
+  my $details = shift;
+
+  print Dumper($details);
+
+  if ($details->{REASON} eq 'MissingTarget') {
+
+    # Let us try to get the ODF
+    my $odf = new SCUBA::ODF( Hash => $details->{ENTRY});
+
+    # First need to inform user of the request
+    # (hopefully part of a single window)
+
+    # Now create src catalog object
+    # If we are a science observation (PHOTOM, MAP) then
+    # the assumption is we are looking for a calibrator
+    # (either secondary calibrator or planet)
+
+    # if we are a POINTING or FOCUS then we need the pointing catalog
+    my $cat = new SrcCatalog::JCMT( '/home/timj/jcmt/ocs/queue2/pointing.cat' );
+
+    # in both cases we want to add the planets
+    # for now just use pointing catalog
+
+    # Now reduce list to those that are within 20 degrees of the
+    # reference position
+
+    # really want to sort by increasing distance from reference
+    # and include the distance (in degrees) from the target.
+
+    # there may be times (at the end of an MSB) when the previous
+    # position should be included. That would require a change
+    # to Queue::Backend::SCUCD
+
+    # Create object based on AZEL
+    # can only do distance if we know where we are now. May require
+    # access to the TCS
+    if (exists $details->{AZ}) {
+      my $refcoord = new Astro::Coords(az=> $details->{AZ},
+				       el=> $details->{EL},
+				       units=>'rad');
+
+      # first 10 degrees
+      my @results = $cat->findByArea( $refcoord,(10*60*60*Astro::SLA::DAS2R));
+
+      my $w = new Tk::SrcCatalog( $MW,-onDestroy => sub {},
+                            -upDate => sub {},
+                            -addCmd => sub { print "object: $_[0]\n"; },
+                            -catalog => $cat);
+
+    }
+
+  } else {
+    print "Unable to deal with reason: " . $details->{REASON}. "\n";
   }
 
 }

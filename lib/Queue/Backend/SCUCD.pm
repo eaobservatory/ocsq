@@ -358,6 +358,9 @@ sub addFailureContext {
   # Set the index of the entry
   $r->index( $q->curindex );
 
+  # Add general details from the entry
+  $r->details->{ENTRY} = $q->curentry->entity->odf;
+
   if ($r->type eq 'MissingTarget') {
     # Need to go through the queue starting at the current index
     # looking for target information
