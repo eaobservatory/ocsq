@@ -1,5 +1,42 @@
 #!/usr/local/bin/perl
 
+=head1 NAME
+
+qmonitor - GUI to monitor the status of the JCMT OCS queue
+
+=head1 SYNOPSIS
+
+  qmonitor
+  qmonitor -sim
+
+=head1 DESCRIPTION
+
+This is the monitor GUI that complements the new OCS queue (see
+L<scuqueue>).
+
+=head1 OPTIONS
+
+The following command-line options are supported:
+
+=over 4
+
+=item B<-sim>
+
+Run the task in simulate mode. When running in this mode no attempt
+is made to contact the vax notice board task or the TCS.
+
+=item B<-help>
+
+Print a small help message.
+
+=item B<-man>
+
+Print the full manual page.
+
+=back
+
+=cut
+
 # Simple GUI to display queue status
 use 5.006;
 use strict;
@@ -66,13 +103,23 @@ require Tk::LabEntry;
 
 
 # Read options early so that we can choose targets
+# Really Need to be able to preempt the GUI building if we choose -h and -sim
 # Get the options
 use Getopt::Long;
+use Pod::Usage;
 my $SIM;
+my ($man,$help);
 my $status = GetOptions(
 			"sim"     => \$SIM,
+			"help"    => \$help,
+			"man"     => \$man,
 		       );
 
+if ($help || $man) {
+  $MW->withdraw;
+  pod2usage(1)  if ($help);
+  pod2usage(-verbose => 2)  if ($man);
+}
 
 our ($SCUCD,$NBSTASK,$QNAME);
 if ($SIM) {
@@ -1177,3 +1224,17 @@ sub play_sound {
   system("/usr/bin/esdplay",$file);
   return;
 }
+
+=head1 SEE ALSO
+
+L<Queue::Contents>, L<scuqueue>
+
+=head1 AUTHOR
+
+Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) Particle Physics and Astronomy Research Council
+1999-2002. All Rights Reserved.
+
+=cut
+

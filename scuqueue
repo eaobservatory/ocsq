@@ -42,6 +42,14 @@ The directory in which translated ODFs will appear. It is also
 the directory  used to write rewritten ODFs prior to sending
 them to SCUBA. Default is to use C</observe/ompodf>.
 
+=item B<-help>
+
+Print a small help message.
+
+=item B<-man>
+
+Print the full manual page.
+
 =back
 
 =head1 PARAMETERS
