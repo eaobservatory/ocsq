@@ -190,7 +190,7 @@ my $Qstatus = $Fr1->Label(-textvariable => \$MONITOR{STATUS},
 
 # Integrations status
 $Fr1->Label(-text => 'Integrations:')->grid(-row => 1,-col=>0,-sticky=>'w');
-my $IntStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{SCUCD_STAT},
+my $IntStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{INT_NUM},
 			)->grid(-row=>1,-col=>1,-sticky=>'w');
 
 
