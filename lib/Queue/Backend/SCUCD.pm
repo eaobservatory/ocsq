@@ -255,7 +255,7 @@ sub _send {
 
   my $info = sub {
     my $msg = shift;
-    # print "MESSAGE: $msg\n";
+    print "SCUBA MESSAGE: $msg\n";
     $self->_pushmessage( 0, "REMOTE: $msg");
   };
 
