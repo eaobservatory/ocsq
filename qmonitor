@@ -237,6 +237,7 @@ $Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
 		      )->pack(-side => 'left');
 #$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
 $Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
+$Fr3->Button( -text => 'DISPOSE MSB',  -command => \&disposemsb)->pack(-side => 'left');
 $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 $Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
 $Fr3->Button( -text => 'TERMINATE',-command =>\&gui_term)->pack(-side => 'left');
@@ -447,7 +448,7 @@ sub cvtsub {
     # indicate that someone else has responded or that another
     # problem is requested
     if ($FAIL_GUI) {
-      $FAIL_GUI->destroy;
+      $FAIL_GUI->destroy if Exists($FAIL_GUI);
       undef $FAIL_GUI;
     }
 
@@ -469,7 +470,7 @@ sub cvtsub {
     # be different
     if ($QCOMP_GUI) {
       print "Removing pre-existing GUI\n";
-      $QCOMP_GUI->destroy;
+      $QCOMP_GUI->destroy if Exists($QCOMP_GUI);
       undef $QCOMP_GUI;
     }
 
@@ -992,7 +993,7 @@ sub msbcompletion {
 
   # need to undefine the gui variable
   # Note that this is strange when we have multiple MSBs
-  destroy $QCOMP_GUI;
+  destroy $QCOMP_GUI if defined $QCOMP_GUI && Exists($QCOMP_GUI);
   undef $QCOMP_GUI;
 
 }
@@ -1056,6 +1057,14 @@ sub scuba_2cals {
 
 sub suspendmsb {
   &DRAMA::obey($QNAME, "SUSPENDMSB");
+}
+
+# Dispose of an MSB. This is functionally identical to cutmsb
+# since we just cut the MSB and rely on the parameter callback
+# rather than sending explicit DONEMSB and REJECTMSB actions
+# [or a single DONEMSB with argument indicating accept/reject]
+sub disposemsb {
+  &DRAMA::obey( $QNAME, "CUTMSB");
 }
 
 # Send messages to SCUCD - these messages should be in  a class
@@ -1142,8 +1151,8 @@ sub nbs_cvtsub {
     } else {
       # do nothing unless we have an open widget. In which case
       # we should remove the widget
-      if ($ACC_GUI) {
-	$ACC_GUI->destroy;
+      if (defined $ACC_GUI) {
+	$ACC_GUI->destroy if Exists($ACC_GUI);
 	undef $ACC_GUI;
       }
     }
