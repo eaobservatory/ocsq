@@ -911,11 +911,16 @@ sub respond_to_failure {
     # can only do distance if we know where we are now. May require
     # access to the TCS. If we do not have AZ just give everything
     if (exists $details->{AZ}) {
+      # The name of the position is either "Ref" or the name supplied
+      # in the REFNAME field
+      my $refname = ( exists $details->{REFNAME} && defined $details->{REFNAME} ? 
+		      $details->{REFNAME} ."[Ref]" : "Ref" );
+
       # Add a reference position if we have one
       my $refcoord = new Astro::Coords(az=> $details->{AZ},
 				       el=> $details->{EL},
 				       units=>'rad',
-				       name => 'Ref'
+				       name => $refname,
 				      );
 
       $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
