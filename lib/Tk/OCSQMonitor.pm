@@ -9,11 +9,11 @@ Tk::OCSQMonitor - MegaWidget for monitoring an OCS Queue
   use Tk::OCSQMonitor;
 
   my $w = $MW->OCSQMonitor(
-                           qtask => 'OCSQUEUE',
-                           qwidth => 110,
-                           qheight => 10,
-                           msgwidth => 100,
-                           user => new OMP::User(),
+                           -qtask => 'OCSQUEUE',
+                           -qwidth => 110,
+                           -qheight => 10,
+                           -msgwidth => 100,
+                           -user => new OMP::User(),
                           );
 
 =head1 DESCRIPTION
@@ -62,13 +62,13 @@ sub Populate {
   my ($w, $args) = @_;
 
   # Provide defaults for width and height
-  my %def = ( qwidth => 110, qheight => 10, msgwidth => 100 );
+  my %def = ( -qwidth => 110, -qheight => 10, -msgwidth => 100 );
 
   # merge with supplied arguments
   %$args = ( %def, %$args );
 
   croak "Must supply a queue name [qtask]"
-    unless exists $args->{qtask};
+    unless exists $args->{'-qtask'};
 
   # Configure options
   $w->ConfigSpecs( -qtask => ['PASSIVE'],
@@ -82,16 +82,17 @@ sub Populate {
   $w->SUPER::Populate($args);
 
   # Copy args to configure options
-  $w->configure('-qtask' => $args->{qtask});
-  $w->configure('-qwidth' => $args->{qwidth});
-  $w->configure('-qheight' => $args->{qheight});
-  $w->configure('-msgwidth' => $args->{msgwidth});
+  $w->configure('-qtask' => $args->{'-qtask'});
+  $w->configure('-qwidth' => $args->{'-qwidth'});
+  $w->configure('-qheight' => $args->{'-qheight'});
+  $w->configure('-msgwidth' => $args->{'-msgwidth'});
+  $w->configure('-user' => $args->{'-user'});
 
   # Get the internal hash data
   my $priv = $w->privateData();
 
   # Associate ourselves with the remote control of the named queue
-  $priv->{QCONTROL} = new Queue::Control::DRAMA( $args->{qtask} );
+  $priv->{QCONTROL} = new Queue::Control::DRAMA( $args->{'-qtask'} );
 
   # Create three frames in top level
   # Dont pack them until we are ready
@@ -126,36 +127,36 @@ sub Populate {
 #  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 
   # Create a label for Queue status
-  $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-col=>0,-sticky=>'w');
+  $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-column=>0,-sticky=>'w');
   my $Qstatus = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{STATUS},
-			   )->grid(-row=>0,-col=>1,-sticky=>'w');
+			   )->grid(-row=>0,-column=>1,-sticky=>'w');
 
 
   # We must be allowed to access the Q status widget
   $w->Advertise( '_qstatus' => $Qstatus);
 
   # Label for current entry information
-  $Fr1->Label(-text => 'Current entry:')->grid(-row => 3,-col=>0,-sticky=>'w');
+  $Fr1->Label(-text => 'Current entry:')->grid(-row => 3,-column=>0,-sticky=>'w');
   my $CurrStatus = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{CURRENT},
-			      )->grid(-row=>3,-col=>1,-sticky=>'w');
+			      )->grid(-row=>3,-column=>1,-sticky=>'w');
 
   # Time remaining on the queue
-  $Fr1->Label(-text => 'Time on Queue (minutes):')->grid(-row => 4,-col=>0,-sticky=>'w');
+  $Fr1->Label(-text => 'Time on Queue (minutes):')->grid(-row => 4,-column=>0,-sticky=>'w');
   my $TimeOnQueue = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{TIMEONQUEUE},
-			       )->grid(-row=>4,-col=>1,-sticky=>'w');
+			       )->grid(-row=>4,-column=>1,-sticky=>'w');
 
 
   # Create listbox in frame 2
-  $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
+  $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-column=>1);
 
 
   my $ContentsBox = $Fr2->Scrolled('Text',
 				   -scrollbars => 'e',
 				   -wrap => 'none',
-				   -height => $args->{qheight},
-				   -width  => $args->{qwidth},
+				   -height => $args->{'-qheight'},
+				   -width  => $args->{'-qwidth'},
 				   #		 -state  => 'disabled',
-				  )->grid(-row=>1,-col=>1);
+				  )->grid(-row=>1,-column=>1);
 
   $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
 
@@ -168,24 +169,24 @@ sub Populate {
 
   my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
 			       -height=>16,
-			       -width=>$args->{msgwidth},
+			       -width=>$args->{'-msgwidth'},
 			      );
 
   my $MsgBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_INFO},
 				 -text     => 'Info messages...',
 				 -command => [ 'show_info', $w ],
-				)->grid(-row=>0,-col=>1,-sticky=>'w');
+				)->grid(-row=>0,-column=>1,-sticky=>'w');
 
   my $ErsText = $Fr4->Scrolled('Text',-scrollbars=>'w',
 			       -height=>4,
-			       -width=>$args->{msgwidth},
+			       -width=>$args->{'-msgwidth'},
 			      );
 
   $priv->{MORE_ERS} = 0;
   my $ErsBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_ERS},
 				 -text     => 'Error messages...',
 				 -command => ['show_ers', $w],
-				)->grid(-row=>2,-col=>1,-sticky=>'w');
+				)->grid(-row=>2,-column=>1,-sticky=>'w');
 
 
   # Advertise the messages and error text widgets
@@ -222,16 +223,11 @@ sub Populate {
   # Kick them off for 30 second repeat
   $w->check_monitors(30);
 
-  # Ask for the OMP user ID [but do not put up a popup]
-#  my $OMP_User_Obj = OMP::General->determine_user();
-#  my $OMP_User;
-#  $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
-
   # Finally, pack frames into top frame
-  $Fr1->grid(-row => 0, -col =>0, -sticky=>'w');
-  $Fr2->grid(-row => 1, -col =>0);
-  $Fr3->grid(-row => 2, -col =>0);
-  $Fr4->grid(-row => 3, -col =>0, -sticky=>'w');
+  $Fr1->grid(-row => 0, -column =>0, -sticky=>'w');
+  $Fr2->grid(-row => 1, -column =>0);
+  $Fr3->grid(-row => 2, -column =>0);
+  $Fr4->grid(-row => 3, -column =>0, -sticky=>'w');
 
   return;
 }
@@ -393,7 +389,7 @@ sub show_info {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('messages');
   if ($priv->{MORE_INFO}) {
-    $w->grid(-row=>1,-col=>1,-sticky=>'ens');
+    $w->grid(-row=>1,-column=>1,-sticky=>'ens');
     # Indicate that we have been displayed at least once
     $priv->{MORE_DISPLAYED_ONCE} = 1;
   } else {
@@ -408,7 +404,7 @@ sub show_ers {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('errors');
   if ($priv->{MORE_ERS}) {
-    $w->grid(-row=>3,-col=>1,-sticky=>'ens');
+    $w->grid(-row=>3,-column=>1,-sticky=>'ens');
   } else {
     $w->gridForget;
   }
@@ -817,7 +813,7 @@ The list box associated with the actual queue contents.
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>.
 
-Copyright (C) 2002-2003 Particle Physics and Astronomy Research Council.
+Copyright (C) 2002-2004 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
