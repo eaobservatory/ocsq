@@ -50,6 +50,9 @@ BEGIN {
 # The FAILURE response GUI
 my $FAIL_GUI;
 
+# The MSBDone gui
+my $QCOMP_GUI;
+
 # This is the variable associated with ACCEPT/REFUSE
 my $ACC_GUI;
 
@@ -357,6 +360,26 @@ sub cvtsub {
 
     }
 
+  } elsif ($param eq 'QCOMPLETE') {
+
+    use Data::Dumper;
+    print Dumper(\%tie);
+
+    # Always delete the window if it is up since the details might
+    # be different
+    if ($QCOMP_GUI) {
+      $QCOMP_GUI->destroy;
+      undef $QCOMP_GUI;
+    }
+
+    # first check that we have to react
+    if ($tie{REQUEST}) {
+
+      # Trigger a callback
+      $MW->after(1, sub { respond_to_qcomplete(%tie)});
+
+    }
+
   }
 
 }
@@ -647,6 +670,32 @@ sub respond_to_failure {
 
 }
 
+# Respond to a qompletion request
+sub respond_to_qcomplete {
+  my %details = @_;
+
+  # popup
+  $QCOMP_GUI = $MW->DialogBox(-title => "Mark MSB as done?",
+			     -buttons => ["Yes","No"]);
+
+  # add a label
+  $QCOMP_GUI->add('Label',-text => "Mark MSB $details{MSBID} for project $details{PROJECTID} as done?")->pack;
+
+  my $but = $QCOMP_GUI->Show;
+
+  # send the obey
+  my $val = ( $but eq "Yes" ? 1 : 0 );
+  my $arg = Arg->Create;
+  $arg->PutString("Argument1",$val);
+
+  obey(QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
+
+  # need to undefine the gui variable
+  undef $QCOMP_GUI;
+
+}
+
+
 
 # convert ISO date to Time::Piece object
 # should use OMP::General->parse_date
@@ -687,6 +736,12 @@ sub scuba_2cals {
 		 ra => '09 47 57.382',
 		 dec => '13 16 43.66',
 		 type => 'J2000',
+		},
+		{
+		 name => '16293-2422',
+		 type => 'J2000',
+		 ra => '16 32 22.909',
+		 dec => '-24 28 35.60',
 		},
 		{
 		 name => 'HLTau',
@@ -773,12 +828,21 @@ sub gui_extend {
 # Setup monitors of SCUBA parametera
 my $NBS_CANCELLED = 0;
 sub init_nbs_monitors {
+
   my $status = new DRAMA::Status;
-  my $arg = Arg->Create;
-  $arg->PutString("SDP_PARAM","SCUCD_STAT",$status);
-  $arg->PutString("NBS_PARAM","APB.SCUBA_SCUCD_STAT
-",$status);
-  &DRAMA::obeyw(NBSTASK,"ADD",$arg);
+  my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT");
+
+  for my $par (keys %params) {
+    my $arg = Arg->Create;
+    $arg->PutString("SDP_PARAM",$par,$status);
+    $arg->PutString("NBS_PARAM",$params{$par},$status);
+    &DRAMA::obey(NBSTASK,"ADD",$arg,{-deletearg => 0});
+  }
+
+  # After a suitable amount of delay (10 seconds)
+  # start the monitors
+  $MW->after(10_000, sub { start_nbs_monitors(keys %params)});
+}
 
 #  my $arg2 = Arg->Create;
 #  $arg2->PutString("SDP_PARAM","SCUCD_STAT",$status);
@@ -786,8 +850,11 @@ sub init_nbs_monitors {
 #  &DRAMA::obeyw(NBSTASK,"ADD",$arg2);
 #  sleep 1;
 
+sub start_nbs_monitors {
+  my @params = @_;
+
   monitor(NBSTASK, "START", 
-	  "SCUCD_STAT", # "SCUCD_STAT",
+	  @params,
 	{ -monitorvar => \%NBS_MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,
@@ -812,7 +879,8 @@ sub nbs_cvtsub {
       # Must put up ACCEPT/REFUSE request
       # Remember that we can not send an obey from
       # a monitor callback
-      $MW->after(1, \&handle_accept);
+      $MW->after(1, \&handle_accept)
+	unless defined $ACC_GUI; # this deals with the multiple triggers;
 
     } else {
       # do nothing unless we have an open widget. In which case
@@ -830,7 +898,7 @@ sub nbs_cvtsub {
 # Code to actually process a ACCEPT/REFUSE
 sub handle_accept {
   my $self = shift;
-  my $ACC_GUI = $MW->DialogBox( -title => "Accept/Refuse observation",
+  $ACC_GUI = $MW->DialogBox( -title => "Accept/Refuse observation",
 				-buttons => ["Accept","Refuse"],
 			      );
   my $button = $ACC_GUI->Show;
@@ -844,6 +912,9 @@ sub handle_accept {
   } elsif ($button eq 'Refuse') {
     &gui_refuse;
   }
+
+  # remove it
+  undef $ACC_GUI;
 
 }
 

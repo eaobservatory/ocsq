@@ -110,6 +110,10 @@ use SCUBA::ODFGroup;
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 
+# Need OMP class for done msb
+use lib "/jac_sw/omp/msbserver";
+use OMP::MSBServer;
+
 # Load the DRAMA system
 use DRAMA;
 
@@ -120,7 +124,7 @@ use Sdp;
 use Queue::SCUCD;
 
 # Declare global vars
-use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM/;
+use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS /;
 
 # Define the number of entries stored in QUEUE and PASTE parameters
 use constant NENTRIES => 100;
@@ -156,11 +160,12 @@ my $flag = 0;  # Not spawnable
 Dits::DperlPutActions("STARTQ",  \&STARTQ,  undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("STOPQ",   \&STOPQ,   undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("CUTQ",    \&CUTQ,    undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("CLEARQ", \&CLEARQ,    undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("QCOMPLETE",    \&QCOMPLETE,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(0,250);
@@ -178,6 +183,10 @@ $queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
 # This contains any information on ODFs that need more information
 my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
 
+# This contains queue completion triggers
+my $qcomplete_sds = Sds->Create("QCOMPLETE",undef, Sds::STRUCT,0,$STATUS);
+
+
 # Initialise the arrays
 {
   my @array = ();
@@ -188,6 +197,8 @@ my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
 # Store them in the parameter system
 $sdp->Create('','SDS',$queue_sds);
 $sdp->Create('','SDS',$failure_sds);
+$sdp->Create('','SDS',$qcomplete_sds);
+
 
 # Create a Queue
 # This is a global, make sure that we only have one
@@ -200,6 +211,40 @@ if ($SIM) {
 } else {
   $QUEUE->backend->TASK('SCUCD@SCUVAX');
 }
+
+# This is the callback when the queue finishes
+# all it needs to do is extract the MSBID and set the completion parameter
+sub qtidy {
+  # KLUGE - assumes  SCUBAODF
+  # would normally use a scuba sub class
+  my $entry = shift;
+  my $status = new DRAMA::Status;
+
+  my %data;
+  $data{REQUEST} = 1;
+
+  # Get the MSBID
+  my $odf = $entry->entity->odf;
+  my $msbid = $odf->{MSBID};
+
+  my $projectid = $odf->{PROJECT_ID};
+
+  # if we do not have an MSBID and project then we cant do anything else
+  # so dd not change the parameter
+  if ($msbid && $projectid) {
+    # Store it
+    $data{MSBID} = $msbid;
+    $data{PROJECTID} = $projectid;
+
+    %COMPLETE_DETAILS = %data;
+    set_qcomplete_parameter($status, %data);
+
+  } else {
+    Dits::MsgOut($status, "Queue contents fully observed but no MSBID or PROJECTID available.");
+  }
+}
+
+$QUEUE->backend->qcomplete( \&qtidy );
 
 
 # Start the polling
@@ -217,7 +262,8 @@ exit;
 # EXIT action
 sub EXIT {
   my $status = shift;
-  &CLEARQ($status);
+  # pre-emptive tidy
+  $QUEUE->contents->clearq;
   Dits::PutRequest(Dits::REQ_EXIT,$status);
   return $status;
 }
@@ -243,6 +289,7 @@ sub ADDBACK {
 
     # Update the DRAMA parameters
     update_contents_param($status);
+    set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
   }
   return $status;
 }
@@ -267,6 +314,7 @@ sub LOADQ {
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
+  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -342,6 +390,7 @@ sub ADDFRONT {
 
     # Update the DRAMA parameters
     update_contents_param($status);
+    set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
   }
   return $status;
 }
@@ -363,6 +412,8 @@ sub CLEARQ {
   $QUEUE->contents->clearq;
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
+  update_index_param($_[0]);
+  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 }
 
 sub CUTQ {
@@ -495,6 +546,34 @@ sub GETODF {
     # set status to bad
     die "Error retrieving ODF $index\n";
   }
+
+}
+
+# This action triggers MSBDONE
+sub QCOMPLETE {
+  my $status = shift;
+
+  # argument is a boolean governing whether or not we should
+  # mark the MSB as done or not
+  my $arg = Dits::GetArgument( $status );
+  my $mark = $arg->Geti( "Argument1", $status );
+
+  if ($mark) {
+    # Get the project details
+    if (exists $COMPLETE_DETAILS{MSBID} && exists $COMPLETE_DETAILS{PROJECTID}) {
+
+      # Need to mark it as done
+      OMP::MSBServer->doneMSB($project, $checksum );
+
+      # and clear the hash
+      %COMPLETE_DETAILS = ();
+
+    }
+
+  }
+
+  # reset the parameters regardless
+  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 
 }
 
@@ -756,6 +835,32 @@ sub set_failure_parameter {
   $sds->PutHash( \%details, "DETAILS", $status);
 
   #$sds->List($status);
+
+  # Notify the parameter system
+  $sdp->Update($sds,$status);
+
+  return;
+}
+
+# Set the contents of the qcomplete parameter
+# Arguments: Inherited status, information hash
+sub set_qcomplete_parameter {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the FAILURE parameter
+  my $sds = $sdp->GetSds('QCOMPLETE',$status);
+  return undef unless defined $sds;
+
+  # Read the arguments
+  my %details = @_;
+
+  # put in the inormation
+  $sds->PutString('MSBID',$details{MSBID}, $status);
+  $sds->PutString('PROJECTID',$details{PROJECTID}, $status);
+  $sds->Puti('REQUEST', $details{REQUEST}, $status);
+
+  $sds->List($status);
 
   # Notify the parameter system
   $sdp->Update($sds,$status);
