@@ -77,12 +77,6 @@ use base qw/ Queue::Backend /;
 use DRAMA;
 use Time::Piece qw/ :override /;
 
-# Init the drama system
-# Not required if we are already running drama
-# (so will be a no-op)
-# named QUEDOER for historical reasons
-#DPerlInit( "QUEDOER" );
-
 =head1 METHODS
 
 =head2 Class Methods
@@ -239,7 +233,8 @@ sub _send {
   # First the success handler
   my $success = sub { 
     # print "SUCCESS\n";
-    $self->_pushmessage( 0, "Observation completed successfully");
+    $self->_pushmessage( $self->_good,
+			 "Observation completed successfully");
 
     # change status
     $entry->status("OBSERVED");
@@ -270,8 +265,7 @@ sub _send {
   my $info = sub {
     my $msg = shift;
     print "SCUBA MESSAGE: $msg\n";
-    $self->_pushmessage( 0, "SCUCD: $msg");
-    use Data::Dumper;
+    $self->_pushmessage( $self->_good, "SCUCD: $msg");
   };
 
   # Indicate that we are not accepting at the moment
@@ -279,7 +273,7 @@ sub _send {
 
 
   my $retstatus = 1;
-  $self->_pushmessage( 0, "Sending ODF to SCUCD...");
+  $self->_pushmessage( $self->_good, "Sending ODF to SCUCD...");
   if ($MODE eq 'NONBLOCK') {
 
     # do the obey and return immediately but make sure we set
@@ -318,88 +312,6 @@ sub _send {
   # error connecting to the backend and an error from the backend)
   return $retstatus;
 
-}
-
-=item B<post_obs_tidy>
-
-Runs code that should occur after the observation has been completed
-but before the next observation is requested. The argument is the
-entry object that was sent.
-
-  $be->post_obs_tidy( $curentry );
-
-Increments the current index position by one to indicate that the next
-observation should be selected. If the index is not incremented (no
-more observations remanining) the queue is stopped and the index is
-reset to the start.
-
-Additionally, the MSB should be marked as complete at this point.
-This will require additional status flags to make sure that
-the observer is prompted if the queue is reloaded without the MSB
-having been completed.
-
-If a completion handler has been registered with the object (using
-method qcomplete()) it will be invoked with argument of the last entry
-when the last observation has been completed. Queue completion handler
-will not trigger if the queue has been reloaded.
-
-If a completion handler has been registered with the entry to trigger
-when an MSB has been completely observed (using the method
-msbcomplete()) it will be called with that entry. This callback
-triggers even if the queue has been modified in the mean time because
-the entry knows that it was the last entry in the MSB.
-
-If the index in the queue has been modified between sending this
-entry and it completing, the index will not be incremented.
-
-Does not yet trap to see whether the actual queue was reloaded.
-
-=cut
-
-sub post_obs_tidy {
-  my $self = shift;
-  my $entry = shift;
-  my $status;
-
-  # Indicate that an entry in the MSB has been observed
-  if ($entry->msb) {
-    $entry->msb->hasBeenObserved( 1 );
-  }
-
-  # if the index has changed we are in trouble
-  # so dont do any tidy. if lastindex is not defined that means
-  # we have reloaded the queue and so should not do any tidy up
-  if (defined $self->qcontents->lastindex &&
-     $self->qcontents->lastindex == $self->qcontents->curindex) {
-    print "LASTINDEX was defined and was equal to curindex\n";
-    $status = $self->qcontents->incindex;
-    if (!$status) {
-      # The associated parameters must be updated independently since
-      # we do not have access to the DRAMA parameters from here
-      $self->qrunning(0);
-      $self->qcontents->curindex(0);
-      $self->_pushmessage( 0, "No more entries to process. Queue is stopped");
-
-      # trigger when the queue hits the end
-      if ($entry && $self->qcomplete) {
-	$self->qcomplete->($entry);
-      }
-
-    }
-  } else {
-    print "LASTINDEX did not match so we do not change curindex\n";
-  }
-
-  # clear the lastindex field since we have done it now
-  $self->qcontents->lastindex(undef);
-
-  # call handler if we have one and if this is the last observation
-  # in the MSB
-  if ($entry && $entry->lastObs && $self->msbcomplete) {
-    $self->msbcomplete->($entry);
-  }
-
-  return;
 }
 
 =item B<addFailureContext>
@@ -526,125 +438,33 @@ sub addFailureContext {
 }
 
 
-=item B<messages>
-
-Retrieves messages (one at a time) that have been cached by the
-DRAMA interaction.
-
- ($msgstatus, $msg) = $be->messages;
-
-Empty list is returned if we have no pending messages.
-
-Note that messages can be present even if the queue is accepting
-again. Care must be taken that the method reading these messages clears
-the message stack before assuming further action can be taken.
-
-=cut
-
-sub messages {
-  my $self = shift;
-#  my ($status, $msg) = $self->_shiftmessage;
-
-  # clear all the messages but keep non-zero status
-  my ($status, $msg);
-  my @msgs;
-  $status = 0;
-  while (@msgs = $self->_shiftmessage) {
-    $status = $msgs[0] if $msgs[0] != 0;
-    $msg .= $msgs[1] . "\n";
-  }
-
-
-  if (defined $msg) {
-    return ($status, $msg);
-  } else {
-    return ();
-  }
-}
-
 =back
 
-=begin __PRIVATE_METHODS__
-
-=head2 Private Methods
-
-=over 4
-
-=item B<_pending>
-
-Array of arrays containing messages (and associated status) that have
-been recieved from the remote task and that are waiting to be read by
-the C<messages> method.
-
-The first element in each array is the status, the second element
-is the actual message. "0" indicates good status.
-
-=cut
-
-sub _pending {
-  my $self = shift;
-  # initialize first time in
-  $self->{PendingMessages} = [] unless $self->{PendingMessages};
-
-  # read arguments
-  @{$self->{PendingMessages}} = @_ if @_;
-
-  # Return ref in scalar context
-  if (wantarray) {
-    return @{$self->{PendingMessages}};
-  } else {
-    return $self->{PendingMessages};
-  }
-
-}
-
-=item B<_pushmessage>
-
-Push message (and status) onto pending stack.
-
-  $self->_pushmessage( $status, $message );
-
-=cut
-
-sub _pushmessage {
-  my $self = shift;
-  push(@{$self->_pending}, [ @_ ]);
-}
-
-=item B<_shiftmessage>
-
-Shift oldest message off the pending stack.
-
-  ($status, $message) = $self->_shiftmessage;
-
-=cut
-
-sub _shiftmessage {
-  my $self = shift;
-  my $arr = shift(@{$self->_pending});
-  if (defined $arr) {
-    return @$arr;
-  } else {
-    return ();
-  }
-
-}
-
-=back
-
-=end __PRIVATE_METHODS__
 
 =head1 SEE ALSO
 
-L<Queue>, L<Queue::Backend>, L<Queue::Entry>
+L<Queue>, L<Queue::Backend>, L<Queue::Entry>, L<Queue::Backend::JACInst>
 
 =head1 AUTHOR
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
-Copyright 2002 Particle Physics and Astronomy Research Council.
+
+Copyright 2002-2004 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
-=cut
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
 
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
+
+=cut
 
 1;
