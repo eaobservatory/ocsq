@@ -815,7 +815,7 @@ sub MSBCOMPLETE {
   my $arg = Dits::GetArgument( $status );
   my $mark = $arg->Geti( "Argument1", $status );
 
-  DRAMA::MsgOut($status,"Attempting to mark MSB as complete Mark=$mark")
+  DRAMA::MsgOut($status,"Attempting to mark MSB as complete Mark=$mark");
 
   # can do nothing if we do not have an MSBID or PROJECTID
   # Get the project details
@@ -829,7 +829,7 @@ sub MSBCOMPLETE {
       # and clear the hash
       %COMPLETE_DETAILS = ();
 
-      DRAMA::MsgOut($status,"MSB marked as done for project $COMPLETE_DETAILS{PROJECTID}")
+      DRAMA::MsgOut($status,"MSB marked as done for project $COMPLETE_DETAILS{PROJECTID}");
 
     } else {
       # file a comment to indicate that the MSB was rejected
@@ -843,7 +843,7 @@ sub MSBCOMPLETE {
 
       %COMPLETE_DETAILS = ();
 
-      DRAMA::MsgOut($status,"MSB rejected for project $COMPLETE_DETAILS{PROJECTID}")
+      DRAMA::MsgOut($status,"MSB rejected for project $COMPLETE_DETAILS{PROJECTID}");
 
     }
 
