@@ -982,6 +982,10 @@ sub nbs_cvtsub {
   if ($param eq 'SCUCD_STAT') {
     # update value in monitor gui
 
+    # it seems we sometimes get garbage at the end of the string
+    # so chop it down to 79 characters before we start
+    $value = substr($value,0,79);
+
     # trim it
     $value =~ s/\s+$//;
 
