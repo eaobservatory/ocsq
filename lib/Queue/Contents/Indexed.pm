@@ -84,6 +84,7 @@ sub curindex {
       if ($new =~ /^\d+$/ && $self->indexwithin($new) ) {
 	# A number and it is in range
 	$self->{CurIndex} = $new;
+	$self->lastindex(undef);
       }
     }
   } else {
@@ -91,12 +92,14 @@ sub curindex {
     # but the index is undef, set it to zero
     if ($self->countq > 0 && ! defined $self->{CurIndex}) {
       $self->{CurIndex} = 0;
+      $self->lastindex(undef);
     }
   }
 
   # undefine the index if needs be
   if ($self->countq == 0) {
     $self->{CurIndex} = undef;
+    $self->lastindex(undef);
   }
 
 
@@ -623,6 +626,7 @@ Returns the entry at the position of the highlight.
 
 sub get_for_observation {
   my $self = shift;
+  $self->lastindex( $self->curindex );
   return $self->curentry;
 }
 

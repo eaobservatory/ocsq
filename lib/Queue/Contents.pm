@@ -119,6 +119,24 @@ sub contents {
 
 }
 
+=item B<lastindex>
+
+Index of last entry retrieved from the queue via 
+
+Undefined by default and if the queue contents are changed or the index
+changed.
+
+Used to determine whether anything was modified between sending and
+dealing with the aftermath.
+
+=cut
+
+sub lastindex {
+  my $self = shift;
+  if (@_) { $self->{LastIndex} = shift; }
+  return $self->{LastIndex};
+}
+
 =back
 
 =head2 General Methods
@@ -208,6 +226,7 @@ No arguments are allowed.
 
 sub clearq {
   my $self = shift;
+  $self->lastindex(undef);
   @{$self->contents} = ();
 }
 
@@ -410,21 +429,6 @@ By default the top entry is shifted off the array.
 sub get_for_observation {
   my $self = shift;
   return $self->shiftq
-}
-
-=item B<post_obs_tidy>
-
-Runs code that should occur after the observation has been completed
-but before the next observation is requested.
-
-In the base class this does nothing. In an indexed subclass this
-may increment the index.
-
-=cut
-
-sub post_obs_tidy {
-  my $self = shift;
-  return;
 }
 
 =back

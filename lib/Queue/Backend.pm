@@ -68,6 +68,7 @@ sub new {
   $be->{QContents} = undef;
   $be->{LastSent} = undef;
   $be->{FailReason} = undef;
+  $be->{QComplete} = undef;
 
   bless($be, $class);
 
@@ -193,6 +194,25 @@ sub qcontents {
     }
   }
   return $self->{QContents};
+}
+
+=item qcomplete
+
+This is a callback invoked when the backend realises that the
+contents of the queue have been fully observed (usually triggered
+when the last entry is completed).
+
+  $handler = $be->qcomplete;
+  $be->qcomplete(sub {print "Done"});
+
+Some queue backends do not support this.
+
+=cut
+
+sub qcomplete {
+  my $self = shift;
+  $self->{QComplete} = shift if @_;
+  return $self->{QComplete};
 }
 
 

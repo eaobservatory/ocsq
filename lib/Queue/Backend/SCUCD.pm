@@ -236,7 +236,7 @@ sub _send {
 
     # Do post-observation stuff. Includes incrementing the index.
     # Only want to do this if the observations was completed succesfully
-    $self->post_obs_tidy;
+    $self->post_obs_tidy();
 
   };
 
@@ -264,7 +264,7 @@ sub _send {
 
 
   my $retstatus = 1;
-  $self->_pushmessage( 0, "Sending ODF to SCUCD");
+  $self->_pushmessage( 0, "Sending ODF to SCUCD [mode=$MODE]");
   if ($MODE eq 'NONBLOCK') {
 
     # do the obey and return immediately but make sure we set
@@ -308,7 +308,10 @@ sub _send {
 =item B<post_obs_tidy>
 
 Runs code that should occur after the observation has been completed
-but before the next observation is requested.
+but before the next observation is requested. The argument is the
+index of the observation that was sent.
+
+  $be->post_obs_tidy;
 
 Increments the current index position by one to indicate that the next
 observation should be selected. If the index is not incremented (no
@@ -320,17 +323,37 @@ This will require additional status flags to make sure that
 the observer is prompted if the queue is reloaded without the MSB
 having been completed.
 
+If a completion handler has been registered with the object (using
+method qcompletionHandler() method) it will be invoked with argument
+of the last entry when the queue has been completely observed.
+
+If the index in the queue has been modified between sending this
+entry and it completing, the index will not be incremented.
+
+Does not yet trap to see whether the actual queue was reloaded.
+
 =cut
 
 sub post_obs_tidy {
   my $self = shift;
-  my $status = $self->qcontents->incindex;
-  if (!$status) {
-    # The associated parameters must be updated independently since
-    # we do not have access to the DRAMA parameters from here
-    $self->qrunning(0);
-    $self->qcontents->curindex(0);
-    $self->_pushmessage( 0, "No more entries to process. Queue is stopped");
+  my $status;
+  # if the index has changed we are in trouble
+  # so dont do any tidy. if lastindex is not defined that means
+  # we have reloaded the queue and so should not do any tidy up
+  if ($self->qcontents->lastindex) {
+    $status = $self->qcontents->incindex;
+    if (!$status) {
+      # The associated parameters must be updated independently since
+      # we do not have access to the DRAMA parameters from here
+      $self->qrunning(0);
+      $self->qcontents->curindex(0);
+      $self->_pushmessage( 0, "No more entries to process. Queue is stopped");
+
+      # call handler
+      if ($self->qcomplete) {
+	$self->qcomplete->($self->qcontents->getentry($self->qcontents->maxindex));
+      }
+    }
   }
   return;
 }
