@@ -192,6 +192,10 @@ $Fr1->Label(-text => 'Current entry:')->grid(-row => 1,-col=>0,-sticky=>'w');
 my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
 			)->grid(-row=>1,-col=>1,-sticky=>'w');
 
+$Fr1->Label(-text => 'SCUCD status:')->grid(-row => 1,-col=>0,-sticky=>'w');
+my $ScucdStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{SCUCD_STAT},
+			)->grid(-row=>1,-col=>1,-sticky=>'w');
+
 update_status 'Creating listboxes',85;
 # Create listbox in frame 2
 $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
@@ -476,6 +480,11 @@ sub update_listboxes {
     # bind the tag to button click
     $ContentsBox->tag('bind', $dtag, '<ButtonRelease-1>' =>
 		      sub {pset($QNAME,"INDEX", $index)});
+
+    # and to the right mouse button
+    $ContentsBox->tag('bind', $dtag, '<Button-2>' =>
+		      [ \&ContentsMenu, $index] ,
+		     );
 
     $counter++;
   }
@@ -958,6 +967,9 @@ sub nbs_cvtsub {
   if ($param eq 'SCUCD_STAT') {
     # update value in monitor gui
 
+    # trim it
+    $value =~ s/\s+//;
+
     # check to see if we are paused
     if ($value =~ /paused/i) {
       # Must put up ACCEPT/REFUSE request
@@ -976,6 +988,8 @@ sub nbs_cvtsub {
     }
 
   }
+
+  return $value if not ref($value);
 
 }
 
@@ -1005,3 +1019,24 @@ sub handle_accept {
 
 }
 
+# This handles the right mouse button click on the
+# contents window
+
+sub ContentsMenu {
+  my $w = shift;
+  my $index = shift;
+
+  my $menu = $MW->Menu(-tearoff => 0,
+		       -menuitems => [
+				      ["command" => "Clear target index $index",
+				       -command => sub {
+					 my $arg = Arg->Create;
+					 my $status = new DRAMA::Status;
+					 $arg->PutString("Argument1",$index,$status);
+					 DRAMA::obey($SCUCD,"CLEARTARG",
+						     $arg,{-deletearg=>0});}
+				      ],
+				     ],
+		      );
+  $menu->Popup(-popover => "cursor");
+}
