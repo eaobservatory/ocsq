@@ -635,7 +635,7 @@ sub SUSPENDMSB {
   # first get the current entry
   my $entry = $QUEUE->contents->curentry;
   unless ($entry) {
-    DRAMA::MsgOut($status, "Suspend MSB attempted but no entries in queue");
+    addmessage($status, "Suspend MSB attempted but no entries in queue");
     return $status;
   }
 
@@ -649,10 +649,10 @@ sub SUSPENDMSB {
   if ($proj && $msbid && $label) {
     OMP::MSBServer->suspendMSB($proj, $msbid, $label);
 
-    DRAMA::MsgOut($status, "MSB for project $proj has been suspended at the current observation");
+    addmessage($status, "MSB for project $proj has been suspended at the current observation");
 
   } else {
-    DRAMA::MsgOut($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
+    addmessage($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
   }
 
   return $status;
@@ -667,7 +667,7 @@ sub DONEMSB {
   # first get the current entry
   my $entry = $QUEUE->contents->curentry;
   unless ($entry) {
-    DRAMA::MsgOut($status, "Done MSB attempted but no entries in queue");
+    addmessage($status, "Explicit 'done MSB' attempted but no entries in queue");
     return $status;
   }
 
@@ -680,15 +680,15 @@ sub DONEMSB {
   if ($proj && $msbid) {
 
     if ($proj =~ /SCUBA|JCMTCAL/) {
-      DRAMA::MsgOut($status, "Can not mark a standard calibration as complete");
+      addmessage($status, "Can not mark a standard calibration as complete");
     } else {
       OMP::MSBServer->doneMSB($proj, $msbid);
 
-      DRAMA::MsgOut($status, "MSB for project $proj has been marked as completed");
+      addmessage($status, "MSB for project $proj has been marked as completed");
     }
 
   } else {
-    DRAMA::MsgOut($status, "Attempted to mark an MSB as complete but was unable to determine either the projectid or MSBID from the current entry");
+    addmessage($status, "Attempted to mark an MSB as complete but was unable to determine either the projectid or MSBID from the current entry");
   }
 
   return $status;
@@ -815,7 +815,7 @@ sub MSBCOMPLETE {
   my $arg = Dits::GetArgument( $status );
   my $mark = $arg->Geti( "Argument1", $status );
 
-  DRAMA::MsgOut($status,"Attempting to mark MSB as complete Mark=$mark");
+  addmessage($status,"Attempting to mark MSB as complete Mark=$mark");
 
   # can do nothing if we do not have an MSBID or PROJECTID
   # Get the project details
@@ -826,10 +826,7 @@ sub MSBCOMPLETE {
       OMP::MSBServer->doneMSB($COMPLETE_DETAILS{PROJECTID},
 			      $COMPLETE_DETAILS{MSBID} );
 
-      # and clear the hash
-      %COMPLETE_DETAILS = ();
-
-      DRAMA::MsgOut($status,"MSB marked as done for project $COMPLETE_DETAILS{PROJECTID}");
+      addmessage($status,"MSB marked as done for project $COMPLETE_DETAILS{PROJECTID}");
 
     } else {
       # file a comment to indicate that the MSB was rejected
@@ -841,11 +838,12 @@ sub MSBCOMPLETE {
 				    $COMPLETE_DETAILS{MSBID},
 				    $comment);
 
-      %COMPLETE_DETAILS = ();
-
-      DRAMA::MsgOut($status,"MSB rejected for project $COMPLETE_DETAILS{PROJECTID}");
+      addmessage($status,"MSB rejected for project $COMPLETE_DETAILS{PROJECTID}");
 
     }
+
+    # and clear the hash
+    %COMPLETE_DETAILS = ();
 
   }
 
