@@ -1,0 +1,10 @@
+Makefile.PL
+README
+t/contents.t
+t/1_compile.t
+lib/Queue.pm
+lib/Queue/Contents.pm
+lib/Queue/Contents/Indexed.pm
+lib/Queue/Contents/PasteBuff.pm
+lib/Queue/Entry.pm
+
