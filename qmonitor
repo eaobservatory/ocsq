@@ -13,10 +13,13 @@ use Astro::SLA;
 use Astro::Coords;
 use Astro::Telescope;
 use Time::Piece qw/ :override /;
+use File::Spec;
 
 # Work out where local software is
 use FindBin;
 use lib "$FindBin::RealBin/lib";
+
+our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
 
 # Start up Tk early and put up a status bar
 
@@ -738,6 +741,10 @@ sub respond_to_failure {
       $cat->sortList('az');
     }
 
+    # play sound
+    play_sound('chime.wav');
+
+    # and put up the GUI
     $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub { $FAIL_GUI = undef;},
 				    -upDate => sub {},
 				    -addCmd => sub {
@@ -777,6 +784,9 @@ sub respond_to_failure {
 
   } else {
     print "Unable to deal with reason: " . $details->{REASON}. "\n";
+    use Devel::Peek;
+    my $var = $details->{REASON};
+    Dump($var);
   }
 
 }
@@ -793,6 +803,7 @@ sub respond_to_qcomplete {
   $QCOMP_GUI->add('Label',-text => "Mark MSB ".$details->{MSBID}." for project ".
 		  $details->{PROJECTID}." as done?")->pack;
 
+  play_sound('chime.wav');
   my $but = $QCOMP_GUI->Show;
 
   # send the obey
@@ -1028,6 +1039,7 @@ sub handle_accept {
   $ACC_GUI = $MW->DialogBox( -title => "Accept/Refuse observation",
 				-buttons => ["Accept","Refuse","Accept+Stopq"],
 			      );
+  play_sound('chime.wav');
   my $button = $ACC_GUI->Show;
 
   # do not know what happens if the widget is destroyed
@@ -1083,4 +1095,14 @@ sub clean_array {
     s/\s+$//;
   }
 
+}
+
+
+# Subroutine to play a sound on the speaker. Do not test
+# return value since it should be non-fatal if it fails
+sub play_sound {
+  my $file = shift;
+  $file = File::Spec->catfile($AUDIO_DIR, $file);
+  system("/usr/bin/esdplay",$file);
+  return;
 }
