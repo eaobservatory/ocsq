@@ -471,8 +471,8 @@ sub propsrc {
   $index++;
   my $foundcal = 0;
   $foundcal = 1 if $entry->entity->iscal;
-  print "On entry: foundcal   = $foundcal\n";
-  print "Ref entry: " . $entry->string ."\n";
+  #print "On entry: foundcal   = $foundcal\n";
+  #print "Ref entry: " . $entry->string ."\n";
 
   while (defined( my $thisentry = $self->getentry($index) ) ) {
 
