@@ -563,7 +563,8 @@ sub QCOMPLETE {
     if (exists $COMPLETE_DETAILS{MSBID} && exists $COMPLETE_DETAILS{PROJECTID}) {
 
       # Need to mark it as done
-      OMP::MSBServer->doneMSB($project, $checksum );
+      OMP::MSBServer->doneMSB($COMPLETE_DETAILS{PROJECTID},
+			      $COMPLETE_DETAILS{MSBID} );
 
       # and clear the hash
       %COMPLETE_DETAILS = ();
