@@ -762,12 +762,17 @@ sub respond_to_failure {
     $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub { $FAIL_GUI = undef;},
 				    -upDate => sub {},
 				    -addCmd => sub {
-				      # First reset the gui object
-				      undef $FAIL_GUI;
-
 				      # The actual coordinate (come in as an array)
 				      my $arr = shift;
 				      my $c = $arr->[0];
+
+				      # if nothing has been selected
+				      # must simply do nothing
+				      return unless $c;
+
+				      # now reset the gui object
+				      undef $FAIL_GUI;
+
 				      print "C is ". $c->status;
 
 				      # Store that coordinate in the
