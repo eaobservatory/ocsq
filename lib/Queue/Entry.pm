@@ -30,11 +30,44 @@ use Time::Seconds;
 
 The following methods are provided:
 
+=head2 Class Methods
+
+The following class methods are provided:
+
+=over 4
+
+=item B<outputdir>
+
+Directory to which all queue entries should be sent during the C<prepare>
+phase. This is a class method since it assumes that all entries will
+write their files to the same location regardless of the instrument. This
+may be a bad assumption (in which case the method will have to be subclassed).
+
+  Queue::Entry->outputdir( "/tmp" );
+  my $outdir = $entry->outputdir();
+
+Can be used to set or retrieve the directory location. Default location
+is C</tmp>.
+
+=cut
+
+{
+  my $OUTPUTDIR;
+  sub {
+    if (@_) {
+      $OUTPUTDIR = shift;
+    }
+    return $OUTPUTDIR;
+  }
+}
+
+=back
+
 =head2 Constructors
 
 =over 4
 
-=item new
+=item B<new>
 
 This is the Contents constructor. Any arguments are passed to the
 configure() method.
@@ -51,6 +84,7 @@ sub new {
   $frame->{Entity} = undef;
   $frame->{Label}  = undef;
   $frame->{BE}     = undef;
+  $frame->{Duration} = undef;
   $frame->{Status} = "QUEUED";
   $frame->{MSB}    = undef;
   $frame->{QID}    = undef;
@@ -69,7 +103,7 @@ sub new {
 
 =over 4
 
-=item entity
+=item B<entity>
 
 Sets or returns the actual entity associated with the Entry in the 
 Queue. This could be as simple as a file name or something more complex
@@ -90,7 +124,7 @@ sub entity {
 
 
 
-=item label
+=item B<label>
 
 Sets or returns the label associated with this entry. This is not
 necessarily the same thing as returned by the string() method.
@@ -107,7 +141,37 @@ sub label {
   return $self->{Label};
 }
 
-=item status
+=item B<instrument>
+
+String describing the instrument associated with this queue entry.
+Usually a constant hard-wired into each subclass.
+
+  $inst = $e->instrument();
+
+This string is normally meant to match that used in the instrument
+attribute used for queue entry XML.
+
+=cut
+
+sub instrument {
+  return "BASECLASS";
+}
+
+=item B<telescope>
+
+String describing the telescope associated with this queue entry.
+This is simply used for sanity checking the Queue Entry XML and in most
+cases returns a constant value.
+
+ $tel = $e->telescope();
+
+=cut
+
+sub telescope {
+  return "BASECLASS";
+}
+
+=item B<status>
 
 Sets or returns the status associated with this entry. Current 
 recognized values are:
@@ -219,7 +283,7 @@ sub firstObs {
   return $self->{firstObs};
 }
 
-=item be_object
+=item B<be_object>
 
 This contains the information that is to be sent to the Queue
 backend. For example, this may be a filename, a FreezeThaw string 
@@ -243,7 +307,7 @@ These methods control object configuration.
 
 =over 4
 
-=item configure
+=item B<configure>
 
 Configure the class. Accepts 2 arguments, the entry label and
 the thing that is actually important for the entry. If only
@@ -277,7 +341,18 @@ sub configure {
 
 }
 
-=item prepare
+=item B<write_entry>
+
+Write the entry to disk. Usually called in conjunction with the
+prepare() method. The base class does not implement a routine.
+
+=cut
+
+sub write_entry {
+  croak "Must subclass write_entry";
+}
+
+=item B<prepare>
 
 This method prepares the Entry item for sending to a backend.  For the
 base class this stores the label() in be_object().  Sub-classes may
@@ -342,7 +417,7 @@ sub clearTarget {
   return undef;
 }
 
-=item projectid
+=item B<projectid>
 
 Returns the project ID associated with this entry.
 
@@ -357,7 +432,7 @@ sub projectid {
   return ();
 }
 
-=item msbid
+=item B<msbid>
 
 Returns the MSB ID associated with this entry.
 
@@ -380,7 +455,7 @@ These methods convert the object to something that can be displayed.
 
 =over 4
 
-=item string
+=item B<string>
 
 Returns a string representation of the object. The base class simply
 returns the output from the label() method.
@@ -441,16 +516,48 @@ sub msb_status {
 
 =item B<duration>
 
-Estimated time required for the entry to execute.
+Estimated time required for the entry to execute. An explicit value
+can be stored if known (e.g. supplied by the translator but not part
+of the low-level "sequence" or configuration information). A value
+can be stored as either a plain integer or a Time::Seconds object.
 
+  $e->duration( 5400 );
   $duration = $e->duration();
 
-Returns a C<Time::Seconds> object. Base class reeturns 0.
+Returns a C<Time::Seconds> object.
+
+On fetch, if no value is stored in the object, the duration method
+is called in the entity object (if present). That value is not
+stored in the object though so each subsequent call will force a
+recalculation unless the value is explicitly stored.
+
+Returns 0 seconds if the entity object is either not present or does
+not support a C<duration> method.
 
 =cut
 
 sub duration {
   my $self = shift;
+  if (@_) {
+    my $t = shift;
+    if (UNIVERSAL::isa($t, "Time::Seconds")) {
+      $self->{Duration} = $t;
+    } else {
+      $self->{Duration} = Time::Seconds->new( int($t) );
+    }
+  }
+  # Need to return a value
+  if (defined $self->{Duration}) {
+    # we have a value cached so return it
+    return $self->{Duration};
+  } else {
+    my $entity = $self->entity;
+    # if we have an entity that implements "duration" call it
+    if (defined $entity && $entity->can("duration")) {
+      return $entity->duration;
+    }
+  }
+  # else return 0 seconds
   return Time::Seconds->new(0);
 }
 
@@ -462,17 +569,30 @@ Object destructors may be supplied to tidy up any temporary files
 generated by the prepare() method. No destructor is defined in the
 base class.
 
-=cut
-
-1;
-
 =head1 SEE ALSO
 
-L<Queue>, L<Queue::Contents>
+L<Queue>, L<Queue::Contents>, L<Queue::Entry>, L<Queue::EntryXMLIO>.
 
 =head1 AUTHOR
 
-Tim Jenness (t.jenness@jach.hawaii.edu)
-(C) Copyright PPARC 1999.
+Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) 1999-2004 Particle Physics and Astronomy Research Council.
+All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
+
+1;
