@@ -427,8 +427,19 @@ sub string {
   my $project = $self->projectid;
   $project = "NONE" unless defined $project;
   $project = substr($project, 0, 10);
-  return sprintf("%-10s%-10s%-14s%s",$self->status,
-		 $project,$posn,$seq->summary);
+
+  # Duration
+  my $duration = $self->duration;
+  my $minutes;
+  if (defined $duration) {
+    $minutes = $duration->minutes;
+  } else {
+    $minutes = "0.00";
+  }
+
+
+  return sprintf("%-10s%-10s%-14s%s %4.1f min",$self->status,
+		 $project,$posn,$seq->summary, $minutes);
 }
 
 =back
