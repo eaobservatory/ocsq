@@ -53,6 +53,7 @@ sub new {
   $frame->{BE}     = undef;
   $frame->{Status} = "QUEUED";
   $frame->{MSB}    = undef;
+  $frame->{QID}    = undef;
 
   bless($frame, $class);
 
@@ -148,6 +149,36 @@ sub msb {
     $self->{MSB} = shift;
   }
   return $self->{MSB};
+}
+
+=item B<queueid>
+
+A tag that is used to track this particular entry, or its associated
+MSB, in the queue system. If an MSB is associated with this entry, the
+queue ID of the MSB will always be returned (to allow the MSB to be
+referenced by queue users). If no MSB is associated with this entry,
+or no queue ID can be retrieved from the MSB, then this can be treated
+as a normal accessor method.
+
+  $qid = $e->queueid;
+  $e->queueid( $qid );
+
+=cut
+
+sub queueid {
+  my $self = shift;
+  if (@_) {
+    $self->{QID} = shift;
+  }
+
+  # Now look for an MSB
+  my $msb = $self->msb;
+  if ($msb && defined $msb->queueid) {
+    return $msb->queueid;
+  } else {
+    return $self->{QID};
+  }
+
 }
 
 =item B<lastObs>
@@ -363,7 +394,7 @@ There are no arguments. Includes the status.
 sub string {
   my $self = shift;
   my $posn = $self->msb_status;
-  return sprintf("%-10s%-14s%s",$self->status,$self->posn,$self->label);
+  return sprintf("%-10s%-14s%s",$self->status,$self->msb_status,$self->label);
 }
 
 =item B<msb_status>
@@ -373,19 +404,29 @@ whether we are part of an MSB.
 
   $stat = $e->msb_status;
 
+Includes the queue id if defined.
+
 =cut
 
 sub msb_status {
   my $self = shift;
   my $string;
   if ($self->msb) {
-    $string = "MSB";
+    # Include the Queue ID. If we do not have one simply use the
+    # string "MSB"
+    my $qid = $self->queueid;
+    if (defined $qid) {
+      $qid = sprintf( "%03d", $qid);
+    } else {
+      $qid = "MSB";
+    }
+    $string = $qid;
     if ($self->firstObs && $self->lastObs) {
-      $string = "MSB Start&End";
+      $string .= " Start&End";
     } elsif ($self->firstObs) {
-      $string = "MSB Start";
+      $string .= " Start";
     } elsif ($self->lastObs) {
-      $string = "MSB End";
+      $string .= " End";
     }
   } else {
     $string = "CAL";

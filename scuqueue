@@ -141,7 +141,7 @@ use Queue::Entry::SCUBAODF;
 use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS $TRANS_DIR/;
 
 # Define the number of entries stored in QUEUE and PASTE parameters
-use constant NENTRIES => 100;
+use constant NENTRIES => 200;
 
 # Define size of string representation used in QUEUE contents
 use constant SZSTRING => 100;
@@ -1087,6 +1087,7 @@ as MSBs. Default is to group into MSBs.
 
 =cut
 
+my $QUEUE_ID = 0;
 sub Sds_to_Entry {
   my $argId = shift;
   my $iscal = shift;
@@ -1117,6 +1118,17 @@ sub Sds_to_Entry {
     # Register a completion handler
     $msb->msbcomplete( \&msbtidy );
 
+    # Increment the global queue ID
+    $QUEUE_ID++;
+
+    # Store the Queue ID
+    $msb->queueid( $QUEUE_ID );
+
+  } else {
+    # for queue id of 0
+    for my $ent (@entries) {
+      $ent->queueid( 0 );
+    }
   }
 
   untie $argId;
@@ -1733,6 +1745,8 @@ sub msbtidy {
   my %data;
   $data{REQUEST} = 1;
   $data{MSB}     = $msb;
+  $data{QUEUEID} = $msb->queueid;
+  $data{QUEUEID} = 0 unless defined $data{QUEUEID};
 
   # if we do not have an MSBID and project then we cant do anything else
   # so do not change the parameter

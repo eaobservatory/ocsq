@@ -65,6 +65,7 @@ sub new {
 		   HasBeenObserved => 0,
 		   MSBComplete => undef,
 		   RefEntry => undef,
+		   QID => undef,
 		  }, $class;
 
   # Go through the input args invoking relevant methods
@@ -124,6 +125,28 @@ sub msbid {
   }
   return $self->{MSBID};
 }
+
+=item B<queueid>
+
+The queue ID associated with this MSB.
+
+  $qid = $msb->queueid;
+  $msb->projectid( $qid );
+
+This is used to allow each MSB to be given a unique identifier
+to make it easier for users to track them. Will usually be a number
+that increments through the night.
+
+=cut
+
+sub queueid {
+  my $self = shift;
+  if (@_) {
+    $self->{QID} = uc(shift);
+  }
+  return $self->{QID};
+}
+
 
 =item B<entries>
 
