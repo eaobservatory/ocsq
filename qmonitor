@@ -241,8 +241,8 @@ $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy 
 $MORE_INFO = 0;
 
 my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
-			     -height=>8,
-			     -width=>132,
+			     -height=>16,
+			     -width=>100,
 			    );
 
 my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
@@ -618,7 +618,6 @@ sub update_status {
     $TKSTATUS->configure(-text => "$status_text ...");
     $BAR->value($something);
     $MW->update;
- 
 }
 
 
@@ -628,7 +627,7 @@ sub update_status {
 sub show_info {
   my $w = shift;  # The text widget
   if ($MORE_INFO) {
-    $w->grid(-row=>1,-col=>1,-sticky=>'e');
+    $w->grid(-row=>1,-col=>1,-sticky=>'ens');
   } else {
     $w->gridForget;
   }
