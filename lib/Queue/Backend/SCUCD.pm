@@ -433,6 +433,9 @@ sub addFailureContext {
   my $time = gmtime();
   $r->details->{TIME} = $time->datetime;
 
+  # True if we hit an MSB boundary
+  my $boundary = 0;
+
   if ($r->type eq 'MissingTarget') {
     # Need to go through the queue starting at the current index
     # looking for target information OR an indication that we are
@@ -441,6 +444,12 @@ sub addFailureContext {
     my $index = $q->curindex;
     my ($target,$iscal);
     while (defined( my $entry = $q->getentry($index) ) ) {
+
+      # Abort if we hit an MSB boundary on the previous loop
+      last if $boundary;
+
+      # If this entry is the end of an MSB flag it for next time
+      $boundary = 1 if $entry->lastObs;
 
       # retrieve the target - presence of a target takes
       # precedence over whether it is a calibrator since
@@ -456,16 +465,24 @@ sub addFailureContext {
       $index++;
     }
 
-    $r->details->{FOLLOWING} = 1;
+    $r->details->{FOLLOWING} = 1 if ($target || $iscal);
 
     # if we did not find a target or a calibrator
     # reverse the sense of the search and look behind us
     # since it may be that we should be using the same
     # target as the previous observation
+    # Do not go above the firstObs of the MSB though
     if (!$target && !$iscal) {
+      $boundary = 0;
       $index = $q->curindex - 1;
       while ($index > -1) {
 	my $entry = $q->getentry($index);
+
+	# Abort if we hit an MSB boundary on the previous loop
+	last if $boundary;
+
+	# If this entry is the start of an MSB flag it for next time
+	$boundary = 1 if $entry->firstObs;
 		
 	# retrieve the target
 	$target = $entry->getTarget;
@@ -477,10 +494,10 @@ sub addFailureContext {
 
 	$index--;
       }
-      $r->details->{FOLLOWING} = 0;
+      $r->details->{FOLLOWING} = 0 if ($target || $iscal);
     }
 
-    # We now either have a valid target or an indication of calness
+    # We now either have a valid target or an indication of CAL-ness
     # If we have nothing at all we can not help the observer
     $r->details->{CAL} = 0;
     if ($iscal) {
@@ -495,6 +512,8 @@ sub addFailureContext {
       print "EPOCH TIME: ".$target->datetime->epoch() ."\n";
       $r->details->{AZ} = $target->az;
       $r->details->{EL} = $target->el;
+      my $name = $target->name;
+      $r->details->{REFNAME} = $name if defined $name;
       $target->usenow( $un );
     } else {
       delete $r->details->{FOLLOWING};
