@@ -1,8 +1,8 @@
 #!perl
 
-# Test Queue::Contents
+# Test Queue::Contents with MSB observed triggers
 
-use Test::More tests => 39;
+use Test::More tests => 40;
 
 require_ok( 'Queue::Contents::Indexed' );
 require_ok( 'Queue::MSB' );
@@ -135,7 +135,7 @@ $q->curindex( $q->maxindex - 1);
 # Mark it as observed
 $msb1->hasBeenObserved( 1 );
 
-# Associate complet trigger
+# Associate complete trigger
 $triggered = 0;
 $msb1->msbcomplete( $cb );
 
@@ -146,3 +146,14 @@ $msb1->refentry( $q->curentry );
 $q->cutq( $q->maxindex - 1, 2);
 
 is($triggered, 1, "Remove last two entries from queue");
+
+
+# Test clearq functionality
+$q->clearq;
+$q->addback( @msb1 );
+$msb1 = new Queue::MSB( entries => \@msb1 );
+$msb1->hasBeenObserved(1);
+$triggered = 0;
+$msb1->msbcomplete( $cb );
+$q->clearq;
+is($triggered, 1, "Clear queue with an MSB observed");
