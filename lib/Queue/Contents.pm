@@ -471,24 +471,32 @@ sub propsrc {
   $index++;
   my $foundcal = 0;
   $foundcal = 1 if $entry->entity->iscal;
+  print "On entry: foundcal   = $foundcal\n";
+  print "Ref entry: " . $entry->string ."\n";
 
-  while (defined( my $entry = $self->getentry($index) ) ) {
+  while (defined( my $thisentry = $self->getentry($index) ) ) {
 
     # if we have a target abort from search
-    last if $entry->getTarget;
+    last if $thisentry->getTarget;
 
     # if we have a calibrator flag this fact
     # if we did have a calibrator and have now not got one
     # we abort
-    if ($entry->entity->iscal) {
+    if ($thisentry->entity->iscal) {
       $foundcal = 1;
+      # print "Found a calibrator: " . $thisentry->string."\n";
     } elsif ($foundcal) {
       # we have already found a calibrator and now we have not
       # got one so we stop here
+      #print "Found cal is true but this entry is not a cal so stop\n";
+      #print $thisentry->string ."\n";
       last;
+    } else {
+      #print "This is not a calibrator: " .$thisentry->string ."\n";
     }
+
     # set the target
-    $entry->setTarget( $c );
+    $thisentry->setTarget( $c );
 
     $index++;
   }
