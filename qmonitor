@@ -50,8 +50,13 @@ BEGIN {
 # The FAILURE response GUI
 my $FAIL_GUI;
 
+# This is the variable associated with ACCEPT/REFUSE
+my $ACC_GUI;
+
 # File selection widget
 require Tk::FileSelect;
+require Tk::DialogBox;
+require Tk::LabEntry;
 
 update_status 'Loading DRAMA...',5;
 eval "use DRAMA::Tk; use DRAMA";
@@ -84,7 +89,7 @@ if ($@) {
 # DEfine some constants - these are the same as used in the DQueue itseld
 use constant NENTRIES => 10; # Number of entries in Queue parameters
 use constant SZSTRING => 40; # Size of strings in Queue parameters
-use constant QNAME    => 'SCUQUEUE@kolea'; # Name of Queue task
+use constant QNAME    => 'SCUQUEUE@palila'; # Name of Queue task
 use constant TASKNAME => "QTK_$$"; # Name of this task
 use constant NBSTASK  => 'NBS2DRAMA@MWTTEL';
 use constant SCUCD    => 'SCUCD@SCUVAX';
@@ -144,12 +149,12 @@ update_status 'Creating buttons',75;
 $Fr3->Button( -text => 'EXIT', -command => \&shutdown)->pack(-side => 'left');
 $Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
 		      )->pack(-side => 'left');
-$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
+#$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
 $Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
 $Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
 $Fr3->Button( -text => 'TERMINATE',-command =>\&gui_term)->pack(-side => 'left');
-$Fr3->Button( -text => 'ACCEPT',-command =>\&gui_accept)->pack(-side => 'left');
-$Fr3->Button( -text => 'REFUSE',-command =>\&gui_refuse)->pack(-side => 'left');
+$Fr3->Button( -text => 'EXTEND',-command =>\&gui_extend)->pack(-side => 'left');
+#$Fr3->Button( -text => 'REFUSE',-command =>\&gui_refuse)->pack(-side => 'left');
 
 # Create a label for Queue status
 $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-col=>0,-sticky=>'w');
@@ -727,22 +732,40 @@ sub gui_accept {
   &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
 }
 
+# Also stops the q
 sub gui_refuse {
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1","CHOICE=NO",$status);
   &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+  stopq;
 }
 
 sub gui_extend {
   # First need to put up an entry widget in a window
-  my $n_extend;
+  # dialog box
+  my $dialog = $MW->DialogBox(-title => "Extend Observation",
+			      -buttons => ["Accept","Cancel"],
+			     );
 
-  # then read that and do the following in the callback
-  my $arg = Arg->Create;
-  my $status = new DRAMA::Status;
-  $arg->PutString("Argument1","$n_extend",$status);
-  &DRAMA::obey(SCUCD,"EXTEND",$arg,{-deletearg=>0});
+  # add on a entry widget
+  my $ent = $dialog->add( 'LabEntry', 
+			  -label => "Enter new number",
+			  -width => 10 )->pack;
+
+  # display it
+  my $but = $dialog->Show;
+
+  if ($but eq 'Accept') {
+    my $n_extend = $ent->get;
+    return unless $n_extend =~ /^\d+$/;
+
+    # then read that and do the following in the callback
+    my $arg = Arg->Create;
+    my $status = new DRAMA::Status;
+    $arg->PutString("Argument1","$n_extend",$status);
+    &DRAMA::obey(SCUCD,"EXTEND",$arg,{-deletearg=>0});
+  }
 
 }
 
@@ -787,14 +810,40 @@ sub nbs_cvtsub {
     # check to see if we are paused
     if ($value =~ /paused/i) {
       # Must put up ACCEPT/REFUSE request
+      # Remember that we can not send an obey from
+      # a monitor callback
+      $MW->after(1, \&handle_accept);
 
     } else {
-      # do nothing unless we have an open widget
+      # do nothing unless we have an open widget. In which case
+      # we should remove the widget
+      if ($ACC_GUI) {
+	$ACC_GUI->destroy;
+	undef $ACC_GUI;
+      }
     }
 
   }
 
 }
 
+# Code to actually process a ACCEPT/REFUSE
+sub handle_accept {
+  my $self = shift;
+  my $ACC_GUI = $MW->DialogBox( -title => "Accept/Refuse observation",
+				-buttons => ["Accept","Refuse"],
+			      );
+  my $button = $ACC_GUI->Show;
 
+  # do not know what happens if the widget is destroyed
+  # before the Show completes
+  return unless $button;
+
+  if ($button eq 'Accept') {
+    &gui_accept;
+  } elsif ($button eq 'Refuse') {
+    &gui_refuse;
+  }
+
+}
 
