@@ -118,6 +118,7 @@ use OMP::MSBServer;
 
 # Load the DRAMA system
 use DRAMA;
+$DRAMA::MAXREPLIES = 20;
 
 # Parameter system
 use Sdp;
