@@ -44,7 +44,7 @@ to a system where the ODF is sent as an array of strings or something]
 
 Cut entries from the queue. Two SDS arguments are supplied:
 
-  POSN - position in Queue to start cut (start at 1)
+  INDEX - position/index in Queue to start cut (start at 0)
   NCUT - Number of entries to cut from the queue.
 
 This may be reversed if followed by a PASTEQ before another
@@ -172,6 +172,7 @@ Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("MSBCOMPLETE",  \&MSBCOMPLETE,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("CUTQ",  \&CUTQ,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(1,0);
@@ -571,6 +572,10 @@ sub CLEARQ {
   set_msbcomplete_parameter( $_[0], REQUEST => 0, MSBID => '',PROJECTID=>'' );
 }
 
+# Remove the entry at INDEX 
+# Multiple entries can be cut at once using the second
+# optional argument.
+
 sub CUTQ {
   my $status = shift;
 
@@ -581,20 +586,32 @@ sub CUTQ {
   # If no argument simply return
   return unless defined $argId;
 
-  # Retrieve the POSN and NCUT integers from the Args
-  my $posn = $argId->Geti('POSN', $status);
-  my $ncut = $argId->Geti('NCUT', $status);
+  # Retrieve the INDEX and NCUT integers from the Args
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
 
-  DRAMA::MsgOut($status,"Position: $posn NCUT:$ncut");
+  print Dumper(\%sds);
+
+  my ($index, $ncut);
+  if (exists $sds{INDEX}) {
+    $index = $sds{INDEX};
+    $ncut = $sds{NCUT};
+  } elsif (exists $sds{Argument1}) {
+    $index = $sds{Argument1};
+    $ncut = $sds{Argument2};
+  } else {
+    DRAMA::MsgOut($status,"Unable to determine cut position");
+    return;
+  }
+  $ncut = 1 unless defined $ncut;
+
+  DRAMA::MsgOut($status,"Removing observation from index $index");
 
   # CUT
-  $posn--;  # correct for counting from 0
-  $QUEUE->contents->cutq($posn, $ncut);
+  $QUEUE->contents->cutq($index, $ncut);
 
   # Update the DRAMA parameters
   update_contents_param($status);
-
-  my @Cur_contents = $QUEUE->contents->stringified;
 
   return $status;
 }
