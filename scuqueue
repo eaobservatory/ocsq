@@ -718,7 +718,8 @@ sub CUTMSB {
 
 =item B<SUSPENDMSB>
 
-Suspend the MSB at the currently highlighted position.
+Suspend the MSB at the currently highlighted position.  The MSB is
+removed from the queue. This method takes no arguments.
 
 =cut
 
@@ -746,6 +747,15 @@ sub SUSPENDMSB {
 	unless $SIM;
 
     addmessage($status, "MSB for project $proj has been suspended at the current observation");
+
+    # Now need to cut the MSB without triggering accept/reject
+    my $msb = $entry->msb;
+    if (defined $msb) {
+      $msb->hasBeenObserved(0);
+    }
+
+    # and cut it
+    $QUEUE->contents->cutmsb( $QUEUE->contents->curindex );
 
   } else {
     addmessage($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
