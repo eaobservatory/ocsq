@@ -354,7 +354,7 @@ sub post_obs_tidy {
   # if the index has changed we are in trouble
   # so dont do any tidy. if lastindex is not defined that means
   # we have reloaded the queue and so should not do any tidy up
-  if ($self->qcontents->lastindex) {
+  if (defined $self->qcontents->lastindex) {
     $status = $self->qcontents->incindex;
     if (!$status) {
       # The associated parameters must be updated independently since
