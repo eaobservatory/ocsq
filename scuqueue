@@ -127,13 +127,13 @@ use Sdp;
 use Queue::SCUCD;
 
 # Declare global vars
-use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS /;
+use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS $TRANS_DIR/;
 
 # Define the number of entries stored in QUEUE and PASTE parameters
 use constant NENTRIES => 100;
 
 # Define size of string representation used in QUEUE/PASTE parameters
-use constant SZSTRING => 40;
+use constant SZSTRING => 80;
 
 # The task name
 use constant TASKNAME => 'SCUQUEUE';
@@ -148,6 +148,7 @@ use Getopt::Long;
 
 my $status = GetOptions("verbose" => \$VERBOSE,
 			"sim"     => \$SIM,
+			"transdir=s"=> \$TRANS_DIR, # override translator dir
 		       );
 
 
@@ -216,6 +217,12 @@ if ($SIM) {
   $QUEUE->backend->TASK('SCUCD@SCUVAX');
 }
 
+# override translator directory
+if ($TRANS_DIR) {
+  print "Overriding translation directory: $TRANS_DIR\n";
+  $Queue::Entry::SCUBAODF::TRANS_DIR = $TRANS_DIR;
+}
+
 # This is the callback when the queue finishes
 # all it needs to do is extract the MSBID and set the completion parameter
 sub qtidy {
@@ -239,8 +246,11 @@ sub qtidy {
   # so dd not change the parameter
   if ($msbid && $projectid) {
 
-    if ($projectid eq 'SCUBA' || $projectid eq 'JCMTCAL') {
+    if ($projectid eq 'SCUBA' || $projectid =~ /CAL/ ) {
       DRAMA::MsgOut($status, "Completed JCMT 'calibration' observations. No doneMSB");
+
+    } elsif ($projectid eq 'UNKNOWN') {
+      DRAMA::MsgOut($status, "Unable to determine project ID. No doneMSB");
 
     } else {
 
@@ -452,15 +462,21 @@ sub ADDFRONT {
 }
 
 sub STARTQ {
-  $QUEUE->startq;
-  DRAMA::MsgOut($_[0], "Queue is running");
+  unless ($QUEUE->backend->qrunning) {
+    $QUEUE->startq;
+    DRAMA::MsgOut($_[0], "Queue is running");
+  }
+  # still sync parameters even if we do not print the message
   update_status_param($_[0]);
   clear_failure_parameter($_[0]);
 }
 
 sub STOPQ {
-  $QUEUE->stopq;
-  DRAMA::MsgOut($_[0], "Queue is stopped");
+  if ($QUEUE->backend->qrunning) {
+    $QUEUE->stopq;
+    DRAMA::MsgOut($_[0], "Queue is stopped");
+  }
+  # still sync the parameter
   update_status_param($_[0]);
 }
 
@@ -997,8 +1013,9 @@ sub compare_sds_to_perl ($$$$) {
     for my $i (0..$#sds_contents) {
       # Need to retrieve the current value and trim
       # it if it is longer than the size of the SDS array
+      # Take null character into account
       my $current = $arr->[$i];
-      $current = substr($current,0,SZSTRING) if length($current) > SZSTRING;
+      $current = substr($current,0,SZSTRING-1) if length($current) >= SZSTRING;
 
       # Also need to trim trailing space
       $current =~ s/\s+$//;
