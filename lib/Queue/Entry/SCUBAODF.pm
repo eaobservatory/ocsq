@@ -184,6 +184,13 @@ sub prepare {
   # Makes sure the files are readable by the vax
   chmod 0666, $file;
 
+  # including things like WPLATE file
+  # and the related vax files
+  my %files = %{$odf->vaxfiles};
+  for my $key (keys %files) {
+    chmod 0666, $files{$key};
+  }
+
   # Store the filename in the be_object
   # SCUBA must get  a full path to the file using vax syntax
   $self->be_object($VAX_TRANS_DIR . basename($file));
