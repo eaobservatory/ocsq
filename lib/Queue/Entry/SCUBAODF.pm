@@ -36,8 +36,14 @@ use strict;
 use Carp;
 use SCUBA::ODFError qw/ :try /;
 use Queue::Backend::FailureReason;
+use File::Basename;
 
 use base qw/Queue::Entry/;
+
+# output directory for ODFs so that scuba can see them
+# These should be read from a config file
+our $TRANS_DIR = "/observe/ompodf";
+our $VAX_TRANS_DIR = "OBSERVE:[OMPODF]";
 
 =head1 METHODS
 
@@ -166,10 +172,14 @@ sub prepare {
 
   # Write the ODF
   # Should really specify the output directory here!
+  # to make sure it goes to tthe correct place
+  $odf->outputdir( $TRANS_DIR );
+  $odf->vax_outputdir( $VAX_TRANS_DIR );
   my $file = $odf->writeodf();
 
   # Store the filename in the be_object
-  $self->be_object($file);
+  # SCUBA can not handle a full path to the file
+  $self->be_object(basename($file));
 
   return;
 }
