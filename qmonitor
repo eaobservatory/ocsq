@@ -304,9 +304,9 @@ my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
 
 
 # print information to this text widget
-Dits::UfacePutMsgOut( sub { $MsgText->insert('end',"$_[0]\n");
-			    $MsgText->see('end');
-			  }, 
+Dits::UfacePutMsgOut( sub {
+			write_info_message( $MsgText, $_[0] );
+		      },
 		      new DRAMA::Status);
 
 
@@ -314,22 +314,13 @@ Dits::UfacePutMsgOut( sub { $MsgText->insert('end',"$_[0]\n");
 # Set up a monitor - assumes that the QUEUE is running already
 update_status 'Setting up monitor',95;
 
-my $NBS_CANCELLED = 0; # for nbs monitor
+# These variables record whether or not we have an active monitor
+# configured. 0 = we are running, 1 = it has been cancelled somehow
+my $NBS_CANCELLED = 1; # for nbs monitor
+my $QUEUE_CANCELLED = 1; # For queue monitor
 
-my $CANCELLED = 0;  # True if monitor is ended
-monitor($QNAME, "START", 
-	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
-	"MESSAGES","TIMEONQUEUE",
-	{ -monitorvar => \%MONITOR,
-	  -sendcur    => 1,
-	  -repmonloss => 1,
-	  -complete   => sub { $CANCELLED=1 },
-	  -info       => sub { print "INFO callback: $_[0]\n"},
-	  -cvtsub     => \&cvtsub,
-	  -error      => \&monerror,
-	});
-
-&init_nbs_monitors();
+# Kick them off
+&check_monitors($MW,30);
 
 # Destroy the progress bar
 destroy $TKSTATUS if Exists($TKSTATUS);
@@ -357,13 +348,14 @@ exit;
 sub shutdown {
 
   # Need to release the monitor (unless that has been done already)
-  if (exists $MONITOR{MONITOR_ID}) {
-    monitor($QNAME, "CANCEL", $MONITOR{MONITOR_ID})
-      unless $CANCELLED;
+  if (exists $MONITOR{MONITOR_ID} || exists $NBS_MONITOR{MONITOR_ID}) {
+
+    if (exists $MONITOR{MONITOR_ID} && ! $QUEUE_CANCELLED) {
+      monitor($QNAME, "CANCEL", $MONITOR{MONITOR_ID});
+    }
     if ($NBSTASK) {
-      if ($NBS_MONITOR{MONITOR_ID}) {
-	monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID})
-	  unless $NBS_CANCELLED;
+      if ($NBS_MONITOR{MONITOR_ID} && ! $NBS_CANCELLED) {
+	monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID});
       }
     }
     select undef,undef,undef,0.1; # Wait for any shutdown messages
@@ -479,13 +471,43 @@ sub cvtsub {
       $MW->after(1, sub { respond_to_qcomplete(\%tie)});
     }
   } elsif ($param eq 'MESSAGES') {
-    my @lines = @{$tie{MESSAGE}};
-    clean_array(\@lines);
-    $MsgText->insert('end',join("\n",@lines)."\n");
-    $MsgText->see('end');
+    write_info_message( $tie{MESSAGE} );
 
   }
   return $value;
+}
+
+# Write an array of lines into the "Info Messages" text box
+# write_info_message( $widget, @lines);
+# write_info_message( $widget, \@lines);
+
+sub write_info_message {
+  my $w = shift;
+  my @lines;
+  if (ref($_[0])) {
+    @lines = @{ $_[0] };
+  } else {
+    @lines = @_;
+  }
+  clean_array(\@lines);
+
+  # [CODE taken from the TIEHANDLE for Tk::Text - I wrote
+  # it anyway]
+  # Find out whether 'end' is displayed at the moment
+  # Retrieve the position of the bottom of the window as
+  # a fraction of the entire contents of the Text widget
+  my $yview = ($w->yview)[1];
+
+  # If $yview is 1.0 this means that 'end' is visible in the window
+  my $update = 0;
+  $update = 1 if $yview == 1.0;
+
+  # Insert the text
+  $w->insert('end',join("\n",@lines)."\n");
+
+  # Move to the end
+  # Make sure that we do not move to the end if we can not see the end
+  $w->see('end') if $update;
 }
 
 
@@ -636,7 +658,7 @@ sub update_index {
 sub monerror {
   # Flush status
   $_[2]->Flush;
-  $CANCELLED = 1;
+  $QUEUE_CANCELLED = 1;
 }
 
 sub nbs_monerror {
@@ -1042,48 +1064,8 @@ sub gui_extend {
 }
 
 
-# Setup monitors of SCUBA parametera
-sub init_nbs_monitors {
-  return unless $NBSTASK;
-  my $status = new DRAMA::Status;
-  my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT",
-		"INT_NUM" => "APB.SCUBA_INT_NUM"
-	       );
-
-  for my $par (keys %params) {
-    my $arg = Arg->Create;
-    $arg->PutString("SDP_PARAM",$par,$status);
-    $arg->PutString("NBS_PARAM",$params{$par},$status);
-    &DRAMA::obey($NBSTASK,"ADD",$arg,{-deletearg => 0});
-  }
-
-  # After a suitable amount of delay (10 seconds)
-  # start the monitors
-  $MW->after(10_000, sub { start_nbs_monitors(keys %params)});
-}
-
-#  my $arg2 = Arg->Create;
-#  $arg2->PutString("SDP_PARAM","SCUCD_STAT",$status);
-#  $arg2->PutString("NBS_PARAM","APB.SCUBA_SCUCD_STAT",$status);
-#  &DRAMA::obeyw(NBSTASK,"ADD",$arg2);
-#  sleep 1;
-
-sub start_nbs_monitors {
-  my @params = @_;
-  return unless $NBSTASK;
-
-  monitor($NBSTASK, "START", 
-	  @params,
-	{ -monitorvar => \%NBS_MONITOR,
-	  -sendcur    => 1,
-	  -repmonloss => 1,
-	  -complete   => sub { $NBS_CANCELLED=1 },
-	  -info       => sub { print "INFO callback: $_[0]\n"},
-	  -cvtsub     => \&nbs_cvtsub,
-	  -error      => \&nbs_monerror,
-	});
-
-}
+# This is the conversion routine for processing monitors
+# from the NBS system
 
 sub nbs_cvtsub {
   my ($param, $value) = @_;
@@ -1224,6 +1206,125 @@ sub play_sound {
   system("/usr/bin/esdplay",$file);
   return;
 }
+
+# These routines relate to the handling of DRAMA monitors
+
+# See if we have monitors setup, connecting if we do not
+# Given that it takes a finite time for the monitor to attach
+# and for the CANCELLED variable to be changed, we should ensure
+# that we do not check the monitors more often than necessary
+# If passed a Tk widget (MainWindow) this routine will automatically
+# reschedule itself
+
+#   check_monitors( $MW, $time);
+
+# The second argument specifies the rescheduling time in seconds.
+# defaulting to 60
+
+sub check_monitors {
+  my ($w, $time) = @_;
+
+  # The queue monitor
+  if ($QUEUE_CANCELLED) {
+    &init_queue_monitor;
+  }
+
+  # NBS
+  if ($NBS_CANCELLED) {
+    &init_nbs_monitors;
+  }
+
+  # reschedule if required
+  if ($w) {
+    $time = 60 unless (defined $time && $time > 0); # seconds
+
+    # convert to milliseconds
+    my $ms =  1000 * $time;
+
+    # Set up the after
+    $w->after( $ms, [\&check_monitors,$w, $time] );
+  }
+
+}
+
+# Set up a monitor connection to the queue
+
+sub init_queue_monitor {
+
+  $QUEUE_CANCELLED = 0;
+  write_info_message( $MsgText, "Configuring Queue monitor");
+
+  monitor($QNAME, "START", 
+	  "STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
+	  "MESSAGES","TIMEONQUEUE",
+	  { -monitorvar => \%MONITOR,
+	    -sendcur    => 1,
+	    -repmonloss => 1,
+	    -complete   => sub { write_info_message($MsgText,
+						    "Monitor complete\n");
+				 $QUEUE_CANCELLED=1 },
+	    -info       => sub { print "Monitor INFO callback: $_[0]\n"},
+	    -cvtsub     => \&cvtsub,
+	    -error      => \&monerror,
+	  });
+
+}
+
+# Set up a monitor to the NBS system
+# Setup monitors of SCUBA parametera
+sub init_nbs_monitors {
+  $NBS_CANCELLED = 0;
+  return unless $NBSTASK;
+  my $status = new DRAMA::Status;
+  my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT",
+		"INT_NUM" => "APB.SCUBA_INT_NUM"
+	       );
+
+  for my $par (keys %params) {
+    my $arg = Arg->Create;
+    $arg->PutString("SDP_PARAM",$par,$status);
+    $arg->PutString("NBS_PARAM",$params{$par},$status);
+    &DRAMA::obey($NBSTASK,"ADD",$arg,{-deletearg => 0});
+  }
+
+  # After a suitable amount of delay (10 seconds)
+  # start the monitors
+  $MW->after(10_000, sub { start_nbs_monitors(keys %params)});
+}
+
+#  my $arg2 = Arg->Create;
+#  $arg2->PutString("SDP_PARAM","SCUCD_STAT",$status);
+#  $arg2->PutString("NBS_PARAM","APB.SCUBA_SCUCD_STAT",$status);
+#  &DRAMA::obeyw(NBSTASK,"ADD",$arg2);
+#  sleep 1;
+
+sub start_nbs_monitors {
+  my @params = @_;
+  return unless $NBSTASK;
+
+  write_info_message( $MsgText, "Configuring NBS monitor");
+  monitor($NBSTASK, "START", 
+	  @params,
+	{ -monitorvar => \%NBS_MONITOR,
+	  -sendcur    => 1,
+	  -repmonloss => 1,
+	  -complete   => sub { write_info_message($MsgText,
+						  "NBS Monitor complete\n");
+			       $NBS_CANCELLED=1 },
+	  -info       => sub { print "NBS Monitor INFO callback: $_[0]\n"},
+	  -cvtsub     => \&nbs_cvtsub,
+	  -error      => \&nbs_monerror,
+	});
+
+}
+
+
+=head1 NOTES
+
+Your OMP user ID will be requested on startup. This is in order
+to allow you to specify a reason for accepting or rejecting the
+MSB (if the need for a comment arises). If the user ID is not
+supplied then no reason will be accepted.
 
 =head1 SEE ALSO
 
