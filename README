@@ -1,8 +1,60 @@
 OMP/OCS QUEUE
 =============
 
-This is the observing queue (equivalent to some of the functionality
-of the UKIRT sequencer) for the new JCMT Observatory Control System in
-the era of the Observation Management Project and ACSIS.
+This is the UKIRT and JCMT observing queue for the new OMP/OCS system.
+The following systems are included:
 
+  ocsqueue
+
+    This is the queue itself. It is currently a DRAMA task (technically
+    Jit). 
+
+  ocsqmon
+
+    A small wrapper around the OCSQMonitor Tk widget. Provides a user
+    interface to the queue.
+
+  jac_inst
+
+    This is a DRAMA task that emulates the "OBSERVE" interface of the
+    actual JAC instrument task.
+
+Running up the UKIRT queue
+--------------------------
+
+To run up the UKIRT queue:
+
+  % ocsqueue -tel ukirt
+
+With the -sim option, MSBs will not be accepted and the queue will
+send entries to the JAC_INST_TEST drama task (started by running up
+the jac_inst dummy task found in this directory).
+
+To run up the queue monitor GUI:
+
+  % ocsqmon -tel ukirt
+
+This can be run on any machine. It will look for the queue on 
+kiki. [need to fix]
+
+Author
+------
+
+Tim Jenness (t.jenness@jach.hawaii.edu)
+
+Copyright (C) 2001-2004 Particle Physics and Astronomy Research Council.
+All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
 
