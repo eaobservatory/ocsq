@@ -498,26 +498,32 @@ sub update_index {
 
   # First need to configure all the existing tags so that they
   # are not highlighted
+  my %tags;
   foreach my $tag ($ContentsBox->tag('names')) {
     if ($tag =~ /^d\d/) {
       $ContentsBox->tagLower($tag);
     } elsif ($tag =~ /^c\d/) {
       $ContentsBox->tagRaise($tag);
     }
+    # build up a hash of tag names so that we can guarantee
+    # that the tag we use later actually exists
+    $tags{$tag} = undef;
   }
 
   # only do something if we have a value
   if (defined $index) {
     my $dtag = "d" . $index;
 
-    # Now set the highlight
-    $ContentsBox->tagRaise($dtag);
+    if (exists $tags{$dtag}) {
+      # Now set the highlight
+      $ContentsBox->tagRaise($dtag);
 
-    # and make it visible (index needs to be incremented by 1
-    # here to make sure the line is visible rather than just its
-    # top
-    $index++;
-    $ContentsBox->see("$index.0");
+      # and make it visible (index needs to be incremented by 1
+      # here to make sure the line is visible rather than just its
+      # top
+      $index++;
+      $ContentsBox->see("$index.0");
+    }
   }
 }
 
