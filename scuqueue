@@ -125,7 +125,7 @@ use lib "$FindBin::RealBin/lib";
 use lib "/jac_sw/omp/msbserver";
 use OMP::MSBServer;
 use OMP::Info::Comment;
-use OMP::Constants qw/ :done /;
+use OMP::Error qw/ :try /;
 
 # Load the DRAMA system
 use DRAMA;
@@ -808,10 +808,20 @@ sub DONEMSB {
       addmessage($status, "Can not mark a standard calibration as complete");
     } else {
       # Only mark as done if we are in live mode
-      OMP::MSBServer->doneMSB($proj, $msbid)
-	  unless $SIM;
+      try {
+	OMP::MSBServer->doneMSB($proj, $msbid)
+	    unless $SIM;
 
-      addmessage($status, "MSB for project $proj has been marked as completed");
+	addmessage($status, "MSB for project $proj has been marked as completed");
+      } otherwise {
+	# Big problem with OMP system
+	my $E = shift;
+	$status->SetStatus( Dits::APP_ERROR );
+	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
+	addmessage($status, "Error marking msb $msbid as done: $E");
+	return $status;
+      };
+
     }
 
   } else {
@@ -1062,21 +1072,40 @@ sub MSBCOMPLETE {
 
     if ($mark) {
 
-      # Need to mark it as done [unless we are in simulate mode]
-      OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
+      try {
+	# Need to mark it as done [unless we are in simulate mode]
+	OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
 			      $donemsb->{reason})
-	  unless $SIM;
+	    unless $SIM;
 
-      addmessage($status,"MSB marked as done for project $projectid");
+	addmessage($status,"MSB marked as done for project $projectid");
+      } otherwise {
+	# Big problem with OMP system
+	my $E = shift;
+	$status->SetStatus( Dits::APP_ERROR );
+	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
+	addmessage($status, "Error marking msb $msbid as done: $E");
+	return $status;
+      };
 
     } else {
-      # file a comment to indicate that the MSB was rejected
-      # unless we are in simulation mode
-      OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
-				 $donemsb->{reason})
-	  unless $SIM;
 
-      addmessage($status,"MSB rejected for project $projectid");
+      try {
+	# file a comment to indicate that the MSB was rejected
+	# unless we are in simulation mode
+	OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
+				   $donemsb->{reason})
+	    unless $SIM;
+
+	addmessage($status,"MSB rejected for project $projectid");
+      } otherwise {
+	# Big problem with OMP system
+	my $E = shift;
+	$status->SetStatus( Dits::APP_ERROR );
+	$status->ErsRep(0,"Error marking msb $msbid as rejected: $E");
+	addmessage($status, "Error marking msb $msbid as rejected: $E");
+	return $status;
+      };
 
     }
 
