@@ -1069,6 +1069,13 @@ sub ContentsMenu {
 
   my $menu = $MW->Menu(-tearoff => 0,
 		       -menuitems => [
+				      [
+				       "command" => "Modify observation $index",
+				       -command => sub {# do nothing 
+				       },
+				       -state => 'disabled',
+				      ],
+				      "separator",
 				      ["command" => "Clear target index $index",
 				       -command => sub {
 					 my $arg = Arg->Create;
