@@ -79,6 +79,10 @@ parameter containing a single array labelled "Contents".
 
 Whether the queue is running or not. (value is RUNNING or STOPPED).
 
+=item INDEX
+
+Current position in the queue.
+
 =back
 
 =head1 SEE ALSO
@@ -150,12 +154,12 @@ Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED_TIME = 2;
-my $RESCHED = Dits::DeltaTime($RESCHED_TIME,0);
+my $RESCHED = Dits::DeltaTime(0,250);
 
 # Create parameters
 my $sdp = new Sdp;
 $sdp->Create("STATUS","STRING",'Stopped');
+$sdp->Create("INDEX","INT",0);
 $sdp->Create("CURRENT","STRING",'None');
 
 my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$STATUS);
@@ -194,7 +198,7 @@ exit;
 
 # EXIT action
 sub EXIT {
-  my $status = shift;  
+  my $status = shift;
   Dits::PutRequest(Dits::REQ_EXIT,$status);
   return $status;
 }
@@ -331,32 +335,38 @@ sub POLL {
   DRAMA::MsgOut($status,"Polling backend")
     if $VERBOSE;
 
+  # First make sure that the index parameter has not been changed
+  # from under us. If it has we need to synch up and possibly
+  # stop the queue.
+  check_index_param_sync( $status );
+
   # Poll the queue
-  my ($pstat, $todd_status, $message) = $QUEUE->backend->poll;
+  my ($pstat, $scuba_status, $message) = $QUEUE->backend->poll;
 
   # If pstat is false, set status to bad
-  # If todd status is bad also set status to bad.
+  # If scuba status is bad also set status to bad.
   # Stop the queue in both cases, report the errors but then
   # carry on using good status
   if (!$pstat) {
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);
-    $lstat->ErsRep(0,"Error polling the backend - Queue stopped");
+    $lstat->ErsRep(0,"Error polling the backend [$pstat] - Queue stopped");
     $lstat->Flush;
     &STOPQ($lstat);
-  } elsif (defined $todd_status && $todd_status != 0) {
+  } elsif (defined $scuba_status && $scuba_status != 0) {
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);
-    $lstat->ErsRep(0,"Error from TODD: $message");
-    $lstat->ErsRep(0,"Error from TODD: Stopping the queue");
+    $lstat->ErsRep(0,"Error from SCUBA: $message");
+    $lstat->ErsRep(0,"Error from SCUBA: Stopping the queue");
     $lstat->Flush;
     &STOPQ($lstat);
   } elsif (defined $message) {
-    DRAMA::MsgOut($status,"From TODD: $message");
+    DRAMA::MsgOut($status,"From SCUBA: $message");
   }
 
   # Update the DRAMA parameters
   update_contents_param($status);
+  update_index_param($status);
 
   # Need to reschedule $RESCHED seconds
   Dits::PutDelay($RESCHED, $status);
@@ -480,6 +490,48 @@ sub update_status_param {
     $sdp->PutString('STATUS','Stopped',$status);
   } elsif ($state eq 'Stopped' && $running) {
     $sdp->PutString('STATUS','Running',$status);
+  }
+
+}
+
+# Sync the index parameter with the queue
+# Argument: inherited status
+
+sub update_index_param {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the status parameter
+  my $index = $sdp->Geti('INDEX',$status);
+
+  # Get the queue value
+  my $curindex = $QUEUE->contents->curindex;
+
+  # Only change the parameter if needed
+  if ($index != $curindex) {
+    $sdp->Puti('INDEX', $curindex, $status);
+  }
+
+}
+
+
+# See if the queue index and parameter have changed independently
+# Argument: inherited status
+
+sub check_index_param_sync {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the status parameter
+  my $index = $sdp->Geti('INDEX',$status);
+
+  # Get the queue value
+  my $curindex = $QUEUE->contents->curindex;
+
+  # This means we should change the queue value if they are different
+  if ($index != $curindex) {
+    $QUEUE->contents->curindex( $index );
+    &STOPQ($status);
   }
 
 }
