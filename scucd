@@ -45,6 +45,7 @@ use warnings;
 use DRAMA;
 use constant DTASK => 'SCUCD_PERL';
 use SCUBA::ODF;
+use File::Basename;
 
 # Init drama
 DPerlInit(DTASK);
@@ -85,6 +86,12 @@ sub observe {
 
     my $odfname = $argID->GetString( 'Argument1', $status);
     DRAMA::MsgOut($status, "Reading ODF $odfname");
+
+    # The odf name must be converted from VAX format
+    fileparse_set_fstype("VMS");
+    $odfname = basename($odfname);
+    fileparse_set_fstype('');
+
     #print "None drama: Reading ODF $odfname\n";
     my $odf = new SCUBA::ODF( File => $odfname);
 
