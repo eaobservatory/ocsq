@@ -1469,7 +1469,9 @@ sub SUSPENDMSB {
   # first get the current entry
   my $entry = $Q->queue->contents->curentry;
   unless ($entry) {
-    $Q->addmessage($status, "Suspend MSB attempted but no entries in queue");
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep(0, "Suspend MSB attempted but no entry available");
+    Jit::ActionExit( $status );
     return $status;
   }
 
@@ -1481,11 +1483,31 @@ sub SUSPENDMSB {
   my $label = $entry->entity->getObsLabel;
 
   if ($proj && $msbid && $label) {
-    # Suspend the MSB unless we are in simulate mode
-    OMP::MSBServer->suspendMSB($proj, $msbid, $label)
-	unless $Q->simdb;
+    try {
+      # Suspend the MSB unless we are in simulate mode
+      my $msg;
+      if ($Q->simdb) {
+	$msg = "[in simulation without modifying the DB]";
+      } else {
+	OMP::MSBServer->suspendMSB($proj, $msbid, $label);
+	$msg = '';
+      }
 
-    $Q->addmessage($status, "MSB for project $proj has been suspended at the current observation");
+      $Q->addmessage($status, "MSB for project $proj has been suspended at the current observation $msg");
+
+    } otherwise {
+      # Error in suspend
+      # Big problem with OMP system
+      my $E = shift;
+      $status->SetStatus( Dits::APP_ERROR );
+      $status->ErsRep(0,"Error marking msb $msbid as done: $E");
+    };
+
+    # Return if we have bad status
+    if (!$status->Ok) {
+      Jit::ActionExit( $status );
+      return $status;
+    }
 
     # Now need to cut the MSB without triggering accept/reject
     my $msb = $entry->msb;
@@ -1500,7 +1522,8 @@ sub SUSPENDMSB {
     update_contents_param($status);
     update_index_param($status);
   } else {
-    $Q->addmessage($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep(0, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
   }
   Jit::ActionExit( $status );
   return $status;
