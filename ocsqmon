@@ -38,20 +38,23 @@ use warnings;
 
 use vars qw/$VERSION/;
 
+# Load local software
+use FindBin;
+use File::Spec;
+use lib "$FindBin::RealBin/lib";
+
+
 use Jit;
 use Tk;
 use Tk::OCSQMonitor;
-
-use File::Spec;
-use FindBin;
 
 # Need an OMP class for user handling
 use lib qw| /jac_sw/omp/msbserver |;
 use OMP::General;
 
-# Work out where local software is
-use lib "$FindBin::RealBin/lib";
+# Work out where the audio files are located
 our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
+
 
 # Start up DRAMA
 my $TASK_ROOT = "OCSQMON";
