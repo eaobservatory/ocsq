@@ -2,7 +2,7 @@
 
 # Test Queue::Contents
 
-use Test::More tests => 105;
+use Test::More tests => 108;
 
 require_ok( 'Queue::Contents::Indexed' );
 require_ok( 'Queue::Contents::PasteBuff' );
@@ -159,6 +159,11 @@ $q->insertq(-22,new Queue::Entry("entry12"),
 	    new Queue::Entry("entry13"));
 is($q->curindex(),5,"check index");
 is($q->countq, 13,"check count");
+
+# REPLACEQ
+ok($q->replaceq(2, new Queue::Entry("entry14"),"replace entry"));
+is($q->curindex(),5,"check index");
+ok(! $q->replaceq(4,undef,"fail replace"));
 
 # CLEARQ
 print "# CLEARQ\n";
