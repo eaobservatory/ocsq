@@ -216,7 +216,7 @@ sub _send {
 
   my $info = sub {
     my $msg = shift;
-    print "REMOTE MESSAGE: $msg\n";
+    print "REMOTE INFO MESSAGE: $msg\n";
     $self->_pushmessage( $self->_good, "TASK: $msg");
   };
 
