@@ -242,7 +242,7 @@ $Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
 $Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
 $Fr3->Button( -text => 'DISPOSE MSB',  -command => \&disposemsb)->pack(-side => 'left');
 $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
-$Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
+#$Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
 $Fr3->Button( -text => 'TERMINATE',-command =>\&gui_term)->pack(-side => 'left');
 $Fr3->Button( -text => 'EXTEND',-command =>\&gui_extend)->pack(-side => 'left');
 #$Fr3->Button( -text => 'REFUSE',-command =>\&gui_refuse)->pack(-side => 'left');
