@@ -85,6 +85,7 @@ sub observe {
 
     my $odfname = $argID->GetString( 'Argument1', $status);
     DRAMA::MsgOut($status, "Reading ODF $odfname");
+    #print "None drama: Reading ODF $odfname\n";
     my $odf = new SCUBA::ODF( File => $odfname);
 
     if (!$odf) {
@@ -103,7 +104,7 @@ sub observe {
   } else {
     # This is a reschedule - just finish with a message
     # good or bad
-    if (rand(10) > 4) {
+    if (rand(10) > 1) {
       DRAMA::MsgOut($status, "Observation complete");
     } else {
       seterr( $status, "Observation aborted due to error");
