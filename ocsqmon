@@ -1,0 +1,136 @@
+#!/usr/local/bin/perl
+
+=head1 NAME
+
+ocsqmon - GUI to monitor the status of the JAC OCS queue
+
+=head1 SYNOPSIS
+
+  ocsqmon
+
+=head1 DESCRIPTION
+
+This is the monitor GUI that complements the OCS queue (see
+L<ocsqueue>).
+
+=head1 OPTIONS
+
+The following command-line options are supported:
+
+=over 4
+
+=item B<-help>
+
+Print a small help message.
+
+=item B<-man>
+
+Print the full manual page.
+
+=back
+
+=cut
+
+# Simple GUI to display queue status
+use 5.006;
+use strict;
+use warnings;
+
+use vars qw/$VERSION/;
+
+use Jit;
+use Tk;
+use Tk::OCSQMonitor;
+
+use File::Spec;
+use FindBin;
+
+# Need an OMP class for user handling
+use lib qw| /jac_sw/omp/msbserver |;
+use OMP::General;
+
+# Work out where local software is
+use lib "$FindBin::RealBin/lib";
+our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
+
+# Start up DRAMA
+my $TASK_ROOT = "OCSQMON";
+Jit::TkInit( $TASK_ROOT."_$$" );
+
+# Start up Tk early and put up a status bar
+# Create a new main window
+my $MW = MainWindow->new;
+$MW->title('JAC OCS Queue monitor');
+$MW->iconname($TASK_ROOT);
+
+# Read options early so that we can choose targets
+# Really Need to be able to preempt the GUI building if we choose -h and -sim
+# Get the options
+use Getopt::Long;
+use Pod::Usage;
+my ($man,$help);
+my $status = GetOptions(
+			"help"    => \$help,
+			"man"     => \$man,
+		       );
+
+if ($help || $man) {
+  $MW->withdraw;
+  pod2usage(1)  if ($help);
+  pod2usage(-verbose => 2)  if ($man);
+}
+
+# Ask for the OMP user ID [but do not put up a popup]
+my $OMP_User_Obj = OMP::General->determine_user();
+my $OMP_User;
+$OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+
+
+# Create simple GUI with exit button and the ocsq monitor itself
+$MW->Button( -text => 'EXIT', -command => sub { $MW->destroy;
+                                                print "goodbye\n"; }
+           )->pack(-side => 'top');
+
+my $QM = $MW->OCSQMonitor(
+                          qtask => 'OCSQUEUE',
+			  -user => $OMP_User,
+                         )->pack;
+
+MainLoop;
+$QM = undef;
+
+
+
+=head1 NOTES
+
+Your OMP user ID will be requested on startup. This is in order
+to allow you to specify a reason for accepting or rejecting the
+MSB (if the need for a comment arises). If the user ID is not
+supplied then no reason will be accepted.
+
+=head1 SEE ALSO
+
+L<Queue::Contents>, L<scuqueue>
+
+=head1 AUTHOR
+
+Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) Particle Physics and Astronomy Research Council
+1999-2004. All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
+
+=cut
+
