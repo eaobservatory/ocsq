@@ -63,6 +63,7 @@ sub new {
 		   MSBID => undef,
 		   Entries => [],
 		   HasBeenObserved => 0,
+		   HasBeenCompleted => 0,
 		   MSBComplete => undef,
 		   RefEntry => undef,
 		   QID => undef,
@@ -252,6 +253,23 @@ sub hasBeenObserved {
   return $self->{HasBeenObserved};
 }
 
+=item B<hasBeenCompleted>
+
+Indicates that the MSB has been completed (in the sense that the 
+C<msbcomplete> callback has been invoked).
+
+  $cmpl = $msb->hasBeenCompleted();
+
+=cut
+
+sub hasBeenCompleted {
+  my $self = shift;
+  if (@_) {
+    $self->{HasBeenCompleted} = shift;
+  }
+  return $self->{HasBeenCompleted};
+}
+
 =item msbcomplete
 
 This is a callback invoked when the
@@ -324,15 +342,19 @@ is passed in the MSB object.
 This method will run the callback I<even if the MSB has not been
 observed>.
 
+Sets C<hasBeenCompleted> to true. It will not be run if the callback
+has already been invoked (i.e. if C<hasBeenCompleted> is true).
+
 =cut
 
 sub completed {
   my $self = shift;
   my $cb = $self->msbcomplete;
 
-  if ($cb) {
+  if ($cb && !$self->hasBeenCompleted) {
     # Need projectid and MSBId
     $cb->( $self );
+    $self->hasBeenCompleted(1);
   }
 
   return;
@@ -479,8 +501,11 @@ sub cut {
   for (reverse @indices) {
     my $entry = splice(@$all, $_, 1);
 
-    # break the circular reference
-    $entry->msb( undef );
+    # break the circular reference UNLESS the entry has a status
+    # of SENT (in which case we will need to keep track of this
+    # association when it has returned). This might cause a memory
+    # leak.
+    $entry->msb( undef ) unless $entry->status eq 'SENT';
 
     $removed[$_] = $entry;
 
