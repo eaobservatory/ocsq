@@ -692,41 +692,32 @@ sub respond_to_failure {
     if ($details->{CAL}) {
       # We want calibrators only
       $cat = new SrcCatalog::JCMT;
-      $cat->addSources( &scuba_2cals() );
+
+      # need to add the planets to this list
+      my $tel = new Astro::Telescope( 'JCMT' );
+      my @planets = map { new Astro::Coords(planet => $_) }
+	qw/ mars uranus saturn jupiter venus /;
+      for (@planets) {
+	$_->telescope($tel);
+      }
+
+      $cat->addSources( @planets, &scuba_2cals() );
+
     } else {
       # pointing catalog if not a Calibrator
+      # This will add the planets automatically
       $cat = new SrcCatalog::JCMT( 'default' );
     }
 
     # Make sure we only generate observable sources
     $cat->canObserve( 1 );
-
-
-    # in both cases we want to add the planets
-    # for now just use pointing catalog
-    my $tel = new Astro::Telescope( 'JCMT' );
-    my @planets = map { new Astro::Coords(planet => $_) }
-      qw/ mars uranus saturn jupiter venus /;
-    for (@planets) {
-      $_->telescope($tel);
-    }
-
-    $cat->addSources( @planets );
-
-    # Now reduce list to those that are within 20 degrees of the
-    # reference position (if we have a position)
-
-    # really want to sort by increasing distance from reference
-    # and include the distance (in degrees) from the target.
-
-    # there may be times (at the end of an MSB) when the previous
-    # position should be included. That would require a change
-    # to Queue::Backend::SCUCD
+    $cat->reset;
 
     # Create object based on AZEL
     # can only do distance if we know where we are now. May require
     # access to the TCS. If we do not have AZ just give everything
     if (exists $details->{AZ}) {
+      # Add a reference position if we have one
       my $refcoord = new Astro::Coords(az=> $details->{AZ},
 				       el=> $details->{EL},
 				       units=>'rad');
@@ -736,9 +727,15 @@ sub respond_to_failure {
       # convert ISO date to Time::Piece object
       $refcoord->datetime( &parse_date( $details->{TIME} ));
 
-      # first 10 degrees
-      my @results = $cat->findByArea( $refcoord,(10*60*60*Astro::SLA::DAS2R));
+      # register the reference position
+      $cat->reference( $refcoord );
 
+      # sort by distance
+      $cat->sortList('distance');
+
+    } else {
+      # simply sort by azimuth
+      $cat->sortList('az');
     }
 
     $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub { $FAIL_GUI = undef;},
@@ -840,6 +837,7 @@ sub parse_date {
 # about scuba calibration since many systems would like to know
 # this information
 # Returns Astro::Coords objects as a list:
+# Should probably include the planets here!
 #    @calcoords = scuba_cals();
 sub scuba_2cals {
   my @coords = (
