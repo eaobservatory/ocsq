@@ -901,7 +901,7 @@ sub respond_to_qcomplete {
 
   # Since we can have multiple MSB triggers at once we need
   # to create our onw top level rather than a dialog box
-  my $gui = $MW->Toplevel();
+  my $gui = $MW->Toplevel(-title => "MSB Accept/Reject");
 
   my $entry = $gui->LabEntry( -label => "OMP User ID:",
 			      -width => 10,
@@ -926,9 +926,6 @@ sub respond_to_qcomplete {
   # Now that we have made the popups we can display them
   # Note that this blocks.
   play_sound('chime.wav');
-
-  # Grab focus
-  $gui->grab;
 
   # Store the gui reference
   $QCOMP_GUI = $gui;
@@ -984,13 +981,15 @@ sub msbcompletion {
     if $OMP_User;
 
   my $reason = $rw->get( '0.0','end');
-  if (length($reason) > 0) {
+  # Make sure we have content
+  if (length($reason) > 0 && $reason =~ /\w/) {
     $arg->PutString("Argument4", $reason, $status);
   }
 
   obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0});
 
   # need to undefine the gui variable
+  # Note that this is strange when we have multiple MSBs
   destroy $QCOMP_GUI;
   undef $QCOMP_GUI;
 
