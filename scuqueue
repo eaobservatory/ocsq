@@ -106,6 +106,10 @@ use warnings;
 use Data::Dumper;
 use SCUBA::ODFGroup;
 
+# Work out where local software is
+use FindBin;
+use lib "$FindBin::RealBin/lib";
+
 # Load the DRAMA system
 use DRAMA;
 
@@ -159,7 +163,7 @@ Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED = Dits::DeltaTime(1,250);
+my $RESCHED = Dits::DeltaTime(0,250);
 
 # Create parameters
 my $sdp = new Sdp;
