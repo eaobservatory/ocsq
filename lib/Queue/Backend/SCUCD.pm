@@ -233,6 +233,7 @@ sub _send {
   my $success = sub { 
     print "SUCCESS\n";
     $self->_pushmessage( 0, "CLIENT: Observation completed successfully");
+    $self->accepting(1);
     $arg; # keep alive
   };
 
@@ -244,9 +245,8 @@ sub _send {
 
   my $complete = sub {
     print "COMPLETE\n";
-    $self->accepting(1);
 #    Dits::PutRequest(Dits::REQ_EXIT,$status);
-#    $self->contents->post_obs_tidy;
+    $self->post_obs_tidy;
   };
 
   my $info = sub {
@@ -291,6 +291,28 @@ sub _send {
   # connection is not made
   return $retstatus;
 
+}
+
+=item B<post_obs_tidy>
+
+Runs code that should occur after the observation has been completed
+but before the next observation is requested.
+
+Increments the current index position by one to indicate that the next
+observation should be selected. If the index is not incremented (no
+more observations remanining) the queue is stopped and the index is
+reset to the start.
+
+=cut
+
+sub post_obs_tidy {
+  my $self = shift;
+  my $status = $self->contents->incindex;
+  if (!$status) {
+    $self->qrunning(0);
+    $self->contents->curindex(0);
+  }
+  return;
 }
 
 =item B<messages>
@@ -368,7 +390,7 @@ sub _pushmessage {
 
 =item B<_shiftmessage>
 
-Shift oldest message of the pending stack.
+Shift oldest message off the pending stack.
 
   ($status, $message) = $self->_shiftmessage;
 

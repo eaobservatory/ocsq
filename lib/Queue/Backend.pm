@@ -387,6 +387,22 @@ sub poll {
 }
 
 
+=item B<post_obs_tidy>
+
+Runs code that should occur after the observation has been completed
+but before the next observation is requested.
+
+In the base class this does nothing. For SCUCD this will cause the
+index to be incremented.
+
+=cut
+
+sub post_obs_tidy {
+  my $self = shift;
+  return;
+}
+
+
 =item messages
 
 Retrieves pending messages from the backend.
