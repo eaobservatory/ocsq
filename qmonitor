@@ -26,6 +26,7 @@ BEGIN {
   $VERSION = '0.11';
   use Tk;
   use Tk::ProgressBar;
+  use Tk::TextANSIColor;
 
   # Create a new main window
   $MW = MainWindow->new;
@@ -108,8 +109,14 @@ if ($@) {
 # Define the number of entries stored in QUEUE and PASTE parameters
 
 # DEfine some constants - these are the same as used in the DQueue itseld
+# KLUGE - should do this properly
+# This should really match the queue
+use constant SZSTRING => 80; # Size of strings in Queue parameters
+
+# This one actually governs the size of the Text widget
 use constant NENTRIES => 10; # Number of entries in Queue parameters
-use constant SZSTRING => 40; # Size of strings in Queue parameters
+
+
 use constant TASKNAME => "QTK_$$"; # Name of this task
 
 # Monitor variable
@@ -194,7 +201,7 @@ $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
 #			     -selectmode => 'single',
 #			       )->grid(-row=>1,-col=>1);
 
-my $ContentsBox = $Fr2->Scrolled('Text',
+my $ContentsBox = $Fr2->Scrolled('TextANSIColor',
 				 -scrollbars => 'e',
 				 -wrap => 'none',
 				 -height => NENTRIES, 
@@ -204,28 +211,13 @@ my $ContentsBox = $Fr2->Scrolled('Text',
 
 $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
 
-# A numbered listbox
-my $countBox = $Fr2->Listbox(-height => NENTRIES,
-			     -width  => length(NENTRIES),
-			     -relief => 'flat',
-			    )->grid(-row=>1,-col=>0);
-
-# Insert the numbers, padding with zeroes to right justify
-$countBox->insert('end', 
-		  map { ' 'x(length(NENTRIES)-length($_)).$_ } 1..NENTRIES);
-
-# Make it look like we cant select anything
-$countBox->configure(-selectbackground => $countBox->cget('-background'),
-		     -selectforeground => $countBox->cget('-foreground'),
-		    );
-
 # Setup a Text widget that will take all the output sent to MsgOut
 
 $MORE_INFO = 0;
 
 my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
 			     -height=>8,
-			     -width=>(2*SZSTRING)+2,
+			     -width=>132,
 			    );
 
 my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
@@ -437,7 +429,7 @@ sub update_listboxes {
     my $start = $ContentsBox->index('insert');
 
     # insert the line
-    $ContentsBox->insert('end', $line . "\n");
+    $ContentsBox->insert('end', sprintf("%-3d %s",$counter,$line) . "\n");
 
     # Remove all the tags at this position
     foreach my $tag ($ContentsBox->tag('names', $start)) {
@@ -461,6 +453,7 @@ sub update_listboxes {
 # If no argument is supplied the value is obtained from the drama task
 # via a pget
 #   update_index( $index );
+# Makes sure that the index is visible
 
 sub update_index {
   my $index = shift;
@@ -468,7 +461,7 @@ sub update_index {
   my $tag = "d" . $index;
 
   # First need to configure all the existing tags so that they
-  # are not
+  # are not highlighted
   foreach my $tag ($ContentsBox->tag('names')) {
     next unless $tag =~ /^d\d/;
     $ContentsBox->tag('configure', $tag, 
@@ -477,10 +470,17 @@ sub update_index {
 		     );
   }
 
-    $ContentsBox->tag('configure', $tag, 
-		      -foreground => 'white',
-		      -background => 'black',
-		     );
+  # Now set the highlight
+  $ContentsBox->tag('configure', $tag, 
+		    -foreground => 'white',
+		    -background => 'black',
+		   );
+
+  # and make it visible (index needs to be incremented by 1
+  # here to make sure the line is visible rather than just its
+  # top
+  $index++;
+  $ContentsBox->see("$index.0");
 
 }
 
