@@ -288,7 +288,7 @@ sub send_entry {
 
   # Read the queue contents
   my $q = $self->qcontents;
-  
+
   # check that the queue is running (otherwise we cant send)
   return 1 unless $self->qrunning;
 
@@ -366,11 +366,21 @@ with the requested backend.
 sub poll {
   my $self = shift;
 
-  my ($status, $bestatus, $msg);
+  # Assume everything okay to start with
+  my $status = 1;
+
+  # Check for messages (if we are connected) before and after
+  # sending entries. Need to do this because weith asyncronous
+  # callbacks it is possible that an error has occurred between
+  # polls.
+  my ($bestatus, $msg) = $self->messages if $self->isconnected;
+
+  # Return if we are already in trouble
+  return ($status, $bestatus, $msg)
+    if $bestatus;
 
   # Try to send an entry if the queue is running.
   # this will do nothing if the queue is not accepting
-  $status = 1;
   if ($self->qrunning) {
     $status = $self->send_entry();
   } else {
@@ -382,6 +392,11 @@ sub poll {
 
   # Check for messages (if we are connected)
   ($bestatus, $msg) = $self->messages if $self->isconnected;
+
+  #print "QStatus: $status, SCUCD status: $bestatus ";
+  #print "QRunning: ". $self->qrunning . " Accepting: ". $self->accepting;
+  #print " Index: " . $self->qcontents->curindex;
+  #print   "\n";
 
   return ($status, $bestatus, $msg);
 }
