@@ -342,22 +342,6 @@ sub preventry {
   return ($index ? $self->contents->[$index] : undef);
 }
 
-=item B<getentry>
-
-Retrieve the entry with the specified index.
-
-  $entry = $q->getentry( $index );
-
-Returns C<undef> if the index is out of range.
-
-=cut
-
-sub getentry {
-  my $self = shift;
-  my $index = shift;
-  return undef unless $self->indexwithin($index);
-  return $self->contents->[$index];
-}
 
 =item B<loadq>
 

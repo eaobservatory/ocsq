@@ -197,6 +197,24 @@ sub maxindex {
   return $maxindex;
 }
 
+=item B<getentry>
+
+Retrieve the entry with the specified index.
+
+  $entry = $q->getentry( $index );
+
+Returns C<undef> if the index is out of range.
+
+=cut
+
+sub getentry {
+  my $self = shift;
+  my $index = shift;
+  return undef unless $self->indexwithin($index);
+  return $self->contents->[$index];
+}
+
+
 =item B<loadq>
 
 Load an array of entry objects on to the queue. Effectively the same
@@ -418,6 +436,67 @@ sub replaceq {
   return 1;
 }
 
+=item B<propsrc>
+
+Propogate source information from the specified index to subsequent
+entries that are missing target information.
+
+  $c->propsrc( $index );
+
+The propagation stops for the following two conditions:
+
+ 1. We hit an entry that has a valid target
+ 2. Once we hit a calibration observation
+
+This should probably be in the indexed subclass and should not need
+to know about the iscal method in "entity".
+
+=cut
+
+# KLUGE
+
+sub propsrc {
+  my $self = shift;
+  my $index = shift;
+  my $entry = $self->getentry($index);
+  return unless $entry;
+
+  my $c = $entry->getTarget;
+
+  $index++; # do not check current
+  while (defined( my $entry = $self->getentry($index) ) ) {
+
+    # if we have a target abort from search
+    last if $entry->getTarget;
+
+    # if we have a calibrator also abort after setting it
+    if ($entry->entity->iscal) {
+      $entry->setTarget( $c );
+      last;
+    }
+    # set the target
+    $entry->setTarget( $c );
+
+    $index++;
+  }
+
+}
+
+=item B<clear_target>
+
+Remove the target information from the specified entry.
+
+  $c->clear_target( $index )
+
+=cut
+
+sub clear_target {
+  my $self = shift;
+  my $index = shift;
+  my $entry = $self->getentry($index);
+  return unless $entry;
+  $entry->clearTarget;
+}
 
 =item B<get_for_observation>
 

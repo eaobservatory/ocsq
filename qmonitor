@@ -18,7 +18,6 @@ use Time::Piece qw/ :override /;
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 
-
 # Start up Tk early and put up a status bar
 
 my ($MW, $TKSTATUS, $BAR);
@@ -61,6 +60,25 @@ require Tk::FileSelect;
 require Tk::DialogBox;
 require Tk::LabEntry;
 
+# Get the options
+use Getopt::Long;
+my $SIM;
+my $status = GetOptions(
+			"sim"     => \$SIM,
+		       );
+
+our ($SCUCD,$NBSTASK,$QNAME);
+if ($SIM) {
+  $QNAME = "SCUQUEUE";
+  $SCUCD = "SCUCD_PERL";
+  $NBSTASK = "";
+} else {
+  $QNAME = 'SCUQUEUE@palila'; # Name of Queue task
+  $SCUCD = 'SCUCD@SCUVAX';
+  $NBSTASK = 'NBS2DRAMA@MWTTEL';
+}
+
+
 update_status 'Loading DRAMA...',5;
 eval "use DRAMA::Tk; use DRAMA";
 if ($@) {
@@ -92,10 +110,7 @@ if ($@) {
 # DEfine some constants - these are the same as used in the DQueue itseld
 use constant NENTRIES => 10; # Number of entries in Queue parameters
 use constant SZSTRING => 40; # Size of strings in Queue parameters
-use constant QNAME    => 'SCUQUEUE@palila'; # Name of Queue task
 use constant TASKNAME => "QTK_$$"; # Name of this task
-use constant NBSTASK  => 'NBS2DRAMA@MWTTEL';
-use constant SCUCD    => 'SCUCD@SCUVAX';
 
 # Monitor variable
 # %MONITOR contains the monitored variables
@@ -131,7 +146,8 @@ DPerlTkInit(TASKNAME);
 #                 CATALOG => undef,
 #                };
 
-$Queue::Control::DRAMA::QUEUE = QNAME;
+$Queue::Control::DRAMA::QUEUE = $QNAME;
+$Queue::Control::DRAMA::QUEUE = $QNAME;
 
 
 ############# G U I   C R E A T I O N ###############################
@@ -229,8 +245,10 @@ Dits::UfacePutMsgOut( sub { $MsgText->insert('end',"$_[0]\n");
 # Set up a monitor - assumes that the QUEUE is running already
 update_status 'Setting up monitor',95;
 
+my $NBS_CANCELLED = 0; # for nbs monitor
+
 my $CANCELLED = 0;  # True if monitor is ended
-monitor(QNAME, "START", 
+monitor($QNAME, "START", 
 	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","QCOMPLETED",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
@@ -270,8 +288,12 @@ sub shutdown {
 
   # Need to release the monitor (unless that has been done already)
   if (exists $MONITOR{MONITOR_ID}) {
-    monitor(QNAME, "CANCEL", $MONITOR{MONITOR_ID})
+    monitor($QNAME, "CANCEL", $MONITOR{MONITOR_ID})
       unless $CANCELLED;
+    if ($NBSTASK) {
+      monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID})
+	unless $NBS_CANCELLED;
+    }
     select undef,undef,undef,0.1; # Wait for any shutdown messages
     DoDramaEvents;
   }
@@ -422,7 +444,7 @@ sub update_listboxes {
 
     # bind the tag to button click
     $ContentsBox->tag('bind', $dtag, '<ButtonRelease-1>' =>
-		      sub {pset(QNAME,"INDEX", $index)});
+		      sub {pset($QNAME,"INDEX", $index)});
 
     $counter++;
   }
@@ -464,6 +486,12 @@ sub monerror {
   # Flush status
   $_[2]->Flush;
   $CANCELLED = 1;
+}
+
+sub nbs_monerror {
+  # Flush status
+  $_[2]->Flush;
+  $NBS_CANCELLED = 1;
 }
 
 
@@ -650,13 +678,16 @@ sub respond_to_failure {
 				      # Add INDEX field
 				      $hash{INDEX} = $details->{INDEX};
 
+				      # add PROPSRC flag
+				      $hash{PROPSRC} = "1";
+
 				      my $status = new DRAMA::Status;
 				      my $sds = Sds->PutHash( \%hash, "ODF", $status);
 
 				      # and load the ODF back in
-				      &DRAMA::obey(QNAME, "REPLACEQ", $sds, { -deletearg => 0,
+				      &DRAMA::obey($QNAME, "REPLACEQ", $sds, { -deletearg => 0,
 									      -success => sub {
-										&DRAMA::obey(QNAME,"STARTQ");
+										&DRAMA::obey($QNAME,"STARTQ");
 									      },
 									    } );
 
@@ -692,7 +723,7 @@ sub respond_to_qcomplete {
     my $status = new DRAMA::Status;
     $arg->PutString("Argument1",$val, $status);
 
-    obey(QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
+    obey($QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
   }
 
   # need to undefine the gui variable
@@ -778,18 +809,18 @@ sub scuba_2cals {
 # Send messages to SCUCD - these messages should be in  a class
 
 sub gui_abort {
-  &DRAMA::obey(SCUCD,"ABORT");
+  &DRAMA::obey($SCUCD,"ABORT");
 }
 
 sub gui_term {
-  &DRAMA::obey(SCUCD,"TERMINATE");
+  &DRAMA::obey($SCUCD,"TERMINATE");
 }
 
 sub gui_accept {
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1","CHOICE=YES",$status);
-  &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0});
 }
 
 # Also stops the q
@@ -797,7 +828,7 @@ sub gui_refuse {
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1","CHOICE=NO",$status);
-  &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0});
   stopq;
 }
 
@@ -824,16 +855,15 @@ sub gui_extend {
     my $arg = Arg->Create;
     my $status = new DRAMA::Status;
     $arg->PutString("Argument1","$n_extend",$status);
-    &DRAMA::obey(SCUCD,"EXTEND",$arg,{-deletearg=>0});
+    &DRAMA::obey($SCUCD,"EXTEND",$arg,{-deletearg=>0});
   }
 
 }
 
 
 # Setup monitors of SCUBA parametera
-my $NBS_CANCELLED = 0;
 sub init_nbs_monitors {
-
+  return unless $NBSTASK;
   my $status = new DRAMA::Status;
   my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT");
 
@@ -841,7 +871,7 @@ sub init_nbs_monitors {
     my $arg = Arg->Create;
     $arg->PutString("SDP_PARAM",$par,$status);
     $arg->PutString("NBS_PARAM",$params{$par},$status);
-    &DRAMA::obey(NBSTASK,"ADD",$arg,{-deletearg => 0});
+    &DRAMA::obey($NBSTASK,"ADD",$arg,{-deletearg => 0});
   }
 
   # After a suitable amount of delay (10 seconds)
@@ -857,8 +887,9 @@ sub init_nbs_monitors {
 
 sub start_nbs_monitors {
   my @params = @_;
+  return unless $NBSTASK;
 
-  monitor(NBSTASK, "START", 
+  monitor($NBSTASK, "START", 
 	  @params,
 	{ -monitorvar => \%NBS_MONITOR,
 	  -sendcur    => 1,
@@ -866,7 +897,7 @@ sub start_nbs_monitors {
 	  -complete   => sub { $NBS_CANCELLED=1 },
 	  -info       => sub { print "INFO callback\n"},
 	  -cvtsub     => \&nbs_cvtsub,
-	  -error      => \&monerror,
+	  -error      => \&nbs_monerror,
 	});
 
 }

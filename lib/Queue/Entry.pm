@@ -199,6 +199,33 @@ sub getTarget {
   return undef;
 }
 
+=item B<setTarget>
+
+Set target information associated with the entry. Requires an C<Astro::Coords>
+object.
+
+  $e->setTarget( $coords );
+
+=cut
+
+sub setTarget {
+  my $self = shift;
+  return undef;
+}
+
+=item B<clearTarget>
+
+Clear target information associated with the entry.
+
+  $e->clearTarget();
+
+=cut
+
+sub clearTarget {
+  my $self = shift;
+  return undef;
+}
+
 =back
 
 =head2 Display methods

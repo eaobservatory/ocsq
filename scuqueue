@@ -167,6 +167,7 @@ Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("QCOMPLETE",    \&QCOMPLETE,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
@@ -342,6 +343,10 @@ sub LOADQ {
 # Argument is either SDS structure called ODF with a key INDEX
 # or Argument1 == INDEX and Argument2 == ODF filename
 # (latter can be used for ditscmd)
+# Third argument controls whether the source parameters in this
+# ODF are propogated to later ODFs that are missing targets.
+# default is false. Parameter name is either Argument3 or 
+# PROPSRC in the ODF SDS structure
 
 sub REPLACEQ {
   my $status = shift;
@@ -354,18 +359,19 @@ sub REPLACEQ {
   return unless defined $argId;
 
   # tie the argId to a perl Hash
-  print "Listing......\n";
   $argId->List($status);
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
 
   print Dumper(\%sds);
 
-  my ($index, $odf);
+  my ($index, $odf, $propsrc);
   if (exists $sds{INDEX}) {
     $index = $sds{INDEX};
+    $propsrc = $sds{PROPSRC};
     my %copy = %sds;
     delete $copy{INDEX};
+    delete $copy{PROPSRC};
     $odf = new SCUBA::ODF(Hash => \%copy );
     print "Reading via ODF hash\n";
 
@@ -373,17 +379,52 @@ sub REPLACEQ {
     $index = $sds{Argument1};
     my $odffile = $sds{Argument2};
     $odf = new SCUBA::ODF( File => $odffile );
+    $propsrc = $sds{Argument3};
   }
 
   # should set bad status on error
   my $entry = new Queue::Entry::SCUBAODF("X", $odf);
   $QUEUE->contents->replaceq( $index, $entry );
 
+  # if we are propogating source information we need to do it now
+  $QUEUE->contents->propsrc($index, $odf->getTarget)
+    if $propsrc;
+
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
 
   return $status;
 }
+
+# Clear the target information associated with the specified
+# index.
+# Argument1 contains the index entry.
+
+sub CLEARTARG {
+  my $status = shift;
+
+  DRAMA::MsgOut( $status, "Clearing target information" ) if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # tie the argId to a perl Hash
+  $argId->List($status);
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  my $index = $sds{Argument1};
+
+  $QUEUE->contents->clear_target( $index );
+
+  # update contents string
+  update_contents_param($status);
+
+  return $status;
+}
+
 
 sub ADDFRONT {
   my $status = shift;

@@ -202,6 +202,35 @@ sub getTarget {
   return $self->entity->getTarget;
 }
 
+=item B<getTarget>
+
+Set target information associated with the entry. Requires an C<Astro::Coords>
+object.
+
+  $e->setTarget( $coords );
+
+=cut
+
+sub setTarget {
+  my $self = shift;
+  my $coords = shift;
+  $self->entity->setTarget($coords);
+}
+
+=item B<clearTarget>
+
+Clear target information associated with the entry.
+
+  $e->clearTarget();
+
+=cut
+
+sub clearTarget {
+  my $self = shift;
+  $self->entity->clearTarget;
+}
+
+
 =back
 
 =head2 Display methods
