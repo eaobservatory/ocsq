@@ -94,6 +94,7 @@ sub observe {
 
     #print "None drama: Reading ODF $odfname\n";
     my $odf = new SCUBA::ODF( File => $odfname);
+    DRAMA::MsgOut($status, "ODF has been opened");
 
     if (!$odf) {
       # Failed to read the ODF
@@ -107,16 +108,17 @@ sub observe {
     my $delay = Dits::DeltaTime(int(rand(5)+1), 0);
     Dits::PutDelay($delay, $status);
     Dits::PutRequest(Dits::REQ_WAIT, $status);
+    DRAMA::MsgOut($status, "Delaying");
 
   } else {
     # This is a reschedule - just finish with a message
     # good or bad
-    if (rand(10) > 1) {
+#    if (rand(10) > 1) {
       DRAMA::MsgOut($status, "Observation complete");
-    } else {
-      seterr( $status, "Observation aborted due to error");
-      return;
-    }
+#    } else {
+#      seterr( $status, "Observation aborted due to error");
+#      return;
+#    }
 
 
   }
