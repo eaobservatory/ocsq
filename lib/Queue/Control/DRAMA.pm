@@ -215,6 +215,7 @@ sub cutmsb {
   my %args;
 
   my $arg = Arg->Create;
+  DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
   if (defined $arg) {
@@ -224,7 +225,13 @@ sub cutmsb {
 
   $args{-error} = $self->error if defined $self->error;
   $args{-deletearg} = 0;
-  obeyw $self->qtask, 'CUTMSB', $arg, \%args;
+  if ($status->Ok) {
+    obeyw $self->qtask, 'CUTMSB', $arg, \%args;
+  } else {
+    $status->Flush();
+    DRAMA::ErsPop;
+    croak "Error in cutmsb";
+  }
 }
 
 
@@ -254,6 +261,7 @@ sub cutq {
   croak "Supplied cut is not an integer: $ncut"
     unless $ncut =~ /^\d+$/;
 
+  DRAMA::ErsPush();
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->Puti('INDEX',$posn,$status);
@@ -265,7 +273,13 @@ sub cutq {
   $args{-deletearg} = 0;
 
   # Send the obey
-  obeyw($self->qtask,"CUTQ",$arg,\%args);
+  if ($status->Ok) {
+    obeyw($self->qtask,"CUTQ",$arg,\%args);
+  } else {
+    $status->Flush();
+    DRAMA::ErsPop();
+    croak "Error in cutq";
+  }
 }
 
 =item B<msbcomplete>
