@@ -426,7 +426,8 @@ sub string {
   my $posn = $self->msb_status;
   my $project = $self->projectid;
   $project = "NONE" unless defined $project;
-  $project = substr($project, 0, 10);
+  my $projlen = 12;
+  $project = substr($project, 0, $projlen);
 
   # Duration
   my $duration = $self->duration;
@@ -438,7 +439,7 @@ sub string {
   }
 
 
-  return sprintf("%-10s%-10s%-14s%s %4.1f min",$self->status,
+  return sprintf("%-10s%-".$projlen."s %-14s%s %4.1f min",$self->status,
 		 $project,$posn,$seq->summary, $minutes);
 }
 
