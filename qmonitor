@@ -421,7 +421,7 @@ sub drama_error {
   play_sound('alert.wav');
 
   # And put up a dialog
-  $dialog->Show;
+  # $dialog->Show;
 }
 
 
