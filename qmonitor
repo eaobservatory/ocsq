@@ -1073,10 +1073,18 @@ sub ContentsMenu {
 				       -command => sub {
 					 my $arg = Arg->Create;
 					 my $status = new DRAMA::Status;
-					 $arg->PutString("Argument1",$index,$status);
-					 DRAMA::obey($SCUCD,"CLEARTARG",
+					 $arg->Puti("Argument1",$index,$status);
+					 DRAMA::obey($QNAME,"CLEARTARG",
 						     $arg,{-deletearg=>0});}
 				      ],
+				      ["command" => "Cut observation at index $index",
+				      -command => sub {
+					my $arg = Arg->Create;
+					my $status = new DRAMA::Status;
+					$arg->Puti("Argument1",$index,$status);
+					DRAMA::obey($QNAME,"CUTQ",
+						    $arg,{-deletearg=>0});
+				      }],
 				     ],
 		      );
   $menu->Popup(-popover => "cursor");
