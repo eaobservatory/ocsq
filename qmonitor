@@ -186,6 +186,7 @@ $Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
 		      )->pack(-side => 'left');
 #$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
 $Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
+$Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 $Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
 $Fr3->Button( -text => 'TERMINATE',-command =>\&gui_term)->pack(-side => 'left');
 $Fr3->Button( -text => 'EXTEND',-command =>\&gui_extend)->pack(-side => 'left');
@@ -909,6 +910,13 @@ sub scuba_2cals {
   my @c = map { new Astro::Coords( %$_ ) } @coords;
   foreach (@c) { $_->telescope($tel); }
   return @c;
+}
+
+# suspend an MSB [should be in Queue::Control::DRAMA]
+# at the currently highlighted position
+
+sub suspendmsb {
+  &DRAMA::obey($QNAME, "SUSPENDMSB");
 }
 
 # Send messages to SCUCD - these messages should be in  a class

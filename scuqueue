@@ -56,6 +56,10 @@ This action continually checks the backend to see whether new
 entries can be sent. This action reschedules itselfs on a regular 
 basis and does not need to be started by an external obey.
 
+=item SUSPENDMSB
+
+Suspend the MSB at the current entry.
+
 =item EXIT
 
 Closedown the Queue.
@@ -115,6 +119,8 @@ use lib "$FindBin::RealBin/lib";
 # Need OMP class for done msb
 use lib "/jac_sw/omp/msbserver";
 use OMP::MSBServer;
+use OMP::Info::Comment;
+use OMP::Constants qw/ :done /;
 
 # Load the DRAMA system
 use DRAMA;
@@ -173,6 +179,7 @@ Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("MSBCOMPLETE",  \&MSBCOMPLETE,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("CUTQ",  \&CUTQ,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("SUSPENDMSB",\&SUSPENDMSB, undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(1,0);
@@ -244,9 +251,9 @@ sub msbtidy {
 
   # Get the MSBID
   my $odf = $entry->entity->odf;
-  my $msbid = $odf->{MSBID};
+  my $msbid = $odf->getMSBID;
 
-  my $projectid = $odf->{PROJECT_ID};
+  my $projectid = $odf->getProjectid;
 
   addmessage($status, "Queue contents fully observed");
 
@@ -616,8 +623,39 @@ sub CUTQ {
   return $status;
 }
 
+# SUSPENDMSB
+# Suspend the MSB at the currently highlighted position
+sub SUSPENDMSB {
+  my $status = shift;
+
+  # first get the current entry
+  my $entry = $QUEUE->contents->curentry;
+  unless ($entry) {
+    DRAMA::MsgOut($status, "Suspend MSB attempted but no entries in queue");
+    return $status;
+  }
+
+  # then ask the entry for the MSBID, ProjectID and ObsLabel
+  # these should be methods of the entry but for now
+  # we assume the "entity" has them
+  my $proj = $entry->entity->getProjectid;
+  my $msbid = $entry->entity->getMSBID;
+  my $label = $entry->entity->getObsLabel;
+
+  if ($proj && $msbid && $label) {
+    OMP::MSBServer->suspendMSB($proj, $msbid, $label);
+
+    DRAMA::MsgOut($status, "MSB for project $proj has been suspended at the current observation");
+
+  } else {
+    DRAMA::MsgOut($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
+  }
+
+  return $status;
+}
 
 
+# continuously rescheduling action
 sub POLL {
   my $status = shift;
 
@@ -737,9 +775,10 @@ sub MSBCOMPLETE {
   my $arg = Dits::GetArgument( $status );
   my $mark = $arg->Geti( "Argument1", $status );
 
-  if ($mark) {
-    # Get the project details
-    if (exists $COMPLETE_DETAILS{MSBID} && exists $COMPLETE_DETAILS{PROJECTID}) {
+  # can do nothing if we do not have an MSBID or PROJECTID
+  # Get the project details
+  if (exists $COMPLETE_DETAILS{MSBID} && exists $COMPLETE_DETAILS{PROJECTID}) {
+    if ($mark) {
 
       # Need to mark it as done
       OMP::MSBServer->doneMSB($COMPLETE_DETAILS{PROJECTID},
@@ -747,6 +786,16 @@ sub MSBCOMPLETE {
 
       # and clear the hash
       %COMPLETE_DETAILS = ();
+
+    } else {
+      # file a comment to indicate that the MSB was rejected
+      my $comment = new OMP::Info::Comment(status => OMP__DONE_REJECTED,
+					   text => "This MSB was observed but was not accepted by the observer/TSS",
+					  );
+
+      OMP::MSBServer->addMSBcomment($COMPLETE_DETAILS{PROJECTID},
+				    $COMPLETE_DETAILS{MSBID},
+				    $comment);
 
     }
 
