@@ -479,8 +479,8 @@ sub update_listboxes {
 
     # and configure it 
     $ContentsBox->tag('configure', $dtag, 
-		      -foreground => 'white',
-		      -background => 'black',);
+#		      -foreground => 'white',
+		      -background => 'green',);
 
     # Now create a new base color tag at higher priority
     # to control the general color. When a highlighter is added the
@@ -497,10 +497,11 @@ sub update_listboxes {
       $fgcol = 'red';
     }
 
-    # and configure it 
+    # and configure it
+    my $bgcol = "white";
     $ContentsBox->tag('configure', $ctag, 
 		      -foreground => $fgcol,
-		      -background => 'white',);
+		      -background => $bgcol,);
 
     # raise it
     $ContentsBox->tagRaise($ctag);
@@ -511,8 +512,21 @@ sub update_listboxes {
 
     # and to the right mouse button
     $ContentsBox->tag('bind', $dtag, '<Button-2>' =>
-		      [ \&ContentsMenu, $index] ,
+		      [ \&ContentsMenu, $index, Ev('X'), Ev('Y')] ,
 		     );
+
+    # show the user where there mouse is
+    $ContentsBox->tag('bind', $ctag, '<Any-Enter>' =>
+                      sub { shift->tag('configure', $ctag,
+				       -background => 'yellow',
+                                       qw/ -relief raised
+                                           -borderwidth 3 /); } );
+
+    $ContentsBox->tag('bind', $ctag, '<Any-Leave>' =>
+                      sub { shift->tag('configure', $ctag,
+				       -background => $bgcol,
+                                       qw/ -relief flat /); } );
+
 
     $counter++;
   }
@@ -1062,10 +1076,14 @@ sub handle_accept {
 
 # This handles the right mouse button click on the
 # contents window
+# Takes arguments of: widget, index number, Xpos, Ypos
+# X and Y are usually calculated with 
 
 sub ContentsMenu {
   my $w = shift;
   my $index = shift;
+  my $X = shift;
+  my $Y = shift;
 
   my $menu = $MW->Menu(-tearoff => 0,
 		       -menuitems => [
@@ -1094,7 +1112,8 @@ sub ContentsMenu {
 				      }],
 				     ],
 		      );
-  $menu->Popup(-popover => "cursor");
+#  $menu->Popup(-popover => "cursor");
+  $menu->Post($X,$Y);
 }
 
 # This method "cleans" an array so that empty lines are removed
