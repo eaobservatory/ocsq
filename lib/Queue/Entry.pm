@@ -52,6 +52,7 @@ sub new {
   $frame->{Label}  = undef;
   $frame->{BE}     = undef;
   $frame->{Status} = "QUEUED";
+  $frame->{MSB}    = undef;
 
   bless($frame, $class);
 
@@ -132,6 +133,23 @@ sub status {
   return $self->{Status};
 }
 
+=item B<msb>
+
+C<Queue::MSB> object associated with this entry. If this is undefined,
+indicates that the entry is not associated with an MSB.
+
+  $msb = $e->msb;
+
+=cut
+
+sub msb {
+  my $self = shift;
+  if (@_) {
+    $self->{MSB} = shift;
+  }
+  return $self->{MSB};
+}
+
 =item B<lastObs>
 
 This entry is associated with the last observation in an MSB.
@@ -169,26 +187,6 @@ sub firstObs {
   }
   return $self->{firstObs};
 }
-
-=item B<isMSB>
-
-This entry is associated with an MSB rather than with an inserted
-calibration.
-
-  $e->isMSB(1);
-  $ismsb = $e->isMSB;
-
-=cut
-
-sub isMSB {
-  my $self = shift;
-  if (@_) {
-    $self->{isMSB} = shift;
-  }
-  return $self->{isMSB};
-}
-
-
 
 =item be_object
 
@@ -313,6 +311,36 @@ sub clearTarget {
   return undef;
 }
 
+=item projectid
+
+Returns the project ID associated with this entry.
+
+  $proj = $entry->projectid;
+
+The base class always returns undef.
+
+=cut
+
+sub projectid {
+  my $self = shift;
+  return ();
+}
+
+=item msbid
+
+Returns the MSB ID associated with this entry.
+
+  $msbid = $entry->msbid;
+
+The base class always returns undef.
+
+=cut
+
+sub msbid {
+  my $self = shift;
+  return ();
+}
+
 =back
 
 =head2 Display methods
@@ -340,7 +368,8 @@ sub string {
 
 =item B<msb_status>
 
-Return a string summary of the lastObs, firstObs and isMSB flags.
+Return a string summary of the lastObs, firstObs and 
+whether we are part of an MSB.
 
   $stat = $e->msb_status;
 
@@ -349,7 +378,7 @@ Return a string summary of the lastObs, firstObs and isMSB flags.
 sub msb_status {
   my $self = shift;
   my $string;
-  if ($self->isMSB) {
+  if ($self->msb) {
     $string = "MSB";
     if ($self->firstObs && $self->lastObs) {
       $string = "MSB Start&End";

@@ -403,6 +403,10 @@ is cut from the queue. If the second argument is less than
 one nothing happens. If the start index is out of range
 then nothing happens.
 
+If the current index corresponds to one of the entries that was cut
+I<and> this entry was removed from the end of the queue, then the
+current index will be set to a value outside of the queue.
+
 =cut
 
 sub cutq {
@@ -413,6 +417,30 @@ sub cutq {
   # Get the current index value
   # before the cur
   my $cur = $self->curindex;
+
+  # We need to go through each MSB that will be affected 
+  # and register the current entry with it. This requires that
+  # we duplicate the code for defaulting $num...
+  # Problem is that the base class does the actual MSB cut
+  $num = 1 unless defined $num;
+  if ($num > 0) {
+    my $max = $self->maxindex;
+    my $end = $startindex + $num - 1;
+    $end = ( $end > $max ? $max : $end  );
+    my %msbs;
+    for my $i ($startindex .. $end) {
+      my $entry = $self->getentry( $i );
+      # For efficiency just find each MSB object
+      my $msb = $entry->msb;
+      next unless defined $msb;
+      $msbs{ $msb } = $msb unless exists $msbs{$msb};
+    }
+    # Now register the current entry
+    my $cur = $self->curentry;
+    for my $msb (values %msbs) {
+      $msb->refentry( $cur );
+    }
+  }
 
   # Do the cut
   my @cut = $self->SUPER::cutq($startindex, $num);
@@ -433,7 +461,9 @@ sub cutq {
       # Curindex must be set to the startindex
       $newcur = $startindex;
     } else {
-      # Curindex must be decremented by $num
+      # Curindex must be decremented by the number of entries
+      # removed [not necessarily the same as $num if we removed
+      # from the end of the queue]
       $newcur = $cur - scalar(@cut);
     }
 
@@ -442,6 +472,23 @@ sub cutq {
   }
 
   return @cut;
+}
+
+=item B<cutmsb>
+
+Remove all entries associated with the MSB in which the specified
+entry is a member. If no index is specified, assumes the current index.
+
+  @removed = $q->cutmsb();
+  @removed = $q->cutmsb( $index );
+
+=cut
+
+sub cutmsb {
+  my $self = shift;
+  my $refindex = shift;
+  $refindex = $self->curindex unless defined $refindex;
+  return $self->SUPER::cutmsb( $refindex );
 }
 
 =item B<addback>

@@ -360,6 +360,12 @@ sub post_obs_tidy {
   my $self = shift;
   my $entry = shift;
   my $status;
+
+  # Indicate that an entry in the MSB has been observed
+  if ($entry->msb) {
+    $entry->msb->hasBeenObserved( 1 );
+  }
+
   # if the index has changed we are in trouble
   # so dont do any tidy. if lastindex is not defined that means
   # we have reloaded the queue and so should not do any tidy up

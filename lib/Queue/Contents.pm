@@ -221,6 +221,36 @@ sub getentry {
   return $self->contents->[$index];
 }
 
+=item B<getindex>
+
+Retrieve the index associated with the specified entry
+(assuming each entry on the queue is a unique object).
+
+  $index = $q->getindex( $entry );
+
+Returns C<undef> if the entry is not in the queue.
+
+=cut
+
+sub getindex {
+  my $self = shift;
+  my $entry = shift;
+
+  # Get all the contents
+  my @c = $self->contents;
+
+  # loop over the queue
+  my $index;
+  for my $i (0..$#c) {
+    if ($c[$i] == $entry) {
+      $index = $i;
+      last;
+    }
+  }
+
+  return $index;
+}
+
 
 =item B<loadq>
 
@@ -298,9 +328,89 @@ sub cutq {
   }
 
   # Cut the entries from the queue
-  return splice(@{$self->contents}, $startindex, $num);
+  my @removed =  splice(@{$self->contents}, $startindex, $num);
+
+  # We now have to remove these entries from the associated MSB object
+  # so that we can correctly track changes to the start and end
+  # of an MSB and whether we should be requesting that an MSB be
+  # marked as completed [if a whole MSB were to be removed]
+  # Rather than call the MSB method for each entry we group them
+  # by MSB object
+  my %msbs;
+  for (@removed) {
+    my $msb = $_->msb;
+    next unless defined $msb; # this is not part of an MSB
+    if (!exists $msbs{$msb}) {
+      $msbs{$msb} = [];
+    }
+    push(@{$msbs{$msb}}, $_);
+  }
+
+  # Now loop over all the MSB objects
+  for (keys %msbs) {
+    my $msb = $msbs{$_}->[0]->msb;
+    $msb->cut( @{ $msbs{$_} });
+  }
+
+  # return the entries
+  return @removed;
 }
 
+=item B<cutmsb>
+
+Remove all entries associated with the MSB pointed to by the
+entry at the specified index position.
+
+  @removed = $q->cutmsb( $index );
+
+Calibrations that have been inserted into the MSB are also removed.
+If the specified index position does not correspond to an MSB ODF
+then only that entry is removed.
+
+Returns all the entries that were removed.
+
+Does nothing if an index has not been specified or is out of range.
+
+=cut
+
+sub cutmsb {
+  my $self = shift;
+  my $refindex = shift;
+  return unless defined $refindex;
+
+  # Get the entry at this position.
+  my $entry = $self->getentry( $refindex );
+  return unless defined $entry;
+
+  # See if we are associated with an MSB
+  my $msb = $entry->msb;
+
+  # variables to store the start index for the real cut
+  my ($startindex, $num);
+
+  # if we do not have an MSB then we just cut this entry
+  if (!$msb) {
+    $startindex = $refindex;
+    $num = 1;
+
+  } else {
+    # Have to get the first and last entry from the MSB and
+    # translate that to an index
+    my $first = $msb->entries->[0];
+    my $last  = $msb->entries->[-1];
+
+    # Translate to an index
+    $startindex = $self->getindex( $first );
+    my $lastindex = $self->getindex( $last );
+
+    # calculate how many to cut
+    $num = $lastindex - $startindex + 1;
+
+  }
+
+  # Now run the cut method
+  return $self->cutq( $startindex, $num );
+}
 
 =item B<addback>
 
@@ -481,6 +591,13 @@ sub replaceq {
   if ($self->indexwithin($pos)) {
     return 0 unless $self->_test_type($entry);
 
+    # Change the MSB membership
+    my $oldentry = $self->getentry($pos);
+    if ($oldentry->msb) {
+      $oldentry->msb->replace( $oldentry, $entry);
+    }
+
+    # Replace the entry
     $self->contents->[$pos] = $entry;
 
     # reset lastindex if need be

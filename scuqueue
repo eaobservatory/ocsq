@@ -131,6 +131,8 @@ use Sdp;
 
 # Load the Queue system
 use Queue::SCUCD;
+use Queue::MSB;
+use Queue::Entry::SCUBAODF;
 
 # Declare global vars
 use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS $TRANS_DIR/;
@@ -167,20 +169,23 @@ DPerlInit(TASKNAME);
 # Set up the actions
 my $flag = 0;  # Not spawnable
 
-Dits::DperlPutActions("STARTQ",  \&STARTQ,  undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("STOPQ",   \&STOPQ,   undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("INSERTQ",  \&INSERTQ,  undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("CLEARQ", \&CLEARQ,    undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
-Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
-Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("MSBCOMPLETE",  \&MSBCOMPLETE,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("CUTQ",  \&CUTQ,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("SUSPENDMSB",\&SUSPENDMSB, undef,0,undef,$STATUS);
-Dits::DperlPutActions("DONEMSB",\&DONEMSB, undef,0,undef,$STATUS);
+Dits::DperlPutActions("STARTQ",     \&STARTQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("STOPQ",      \&STOPQ,   undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("LOADQ",      \&LOADQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("ADDBACK",    \&ADDBACK,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("ADDFRONT",   \&ADDFRONT,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("INSERTQ",    \&INSERTQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("CLEARQ",     \&CLEARQ,    undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("POLL",       \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
+Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("GETODF",     \&GETODF,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("MSBCOMPLETE",\&MSBCOMPLETE,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("CUTQ",       \&CUTQ,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("CUTMSB",     \&CUTMSB,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("SUSPENDMSB", \&SUSPENDMSB, undef,0,undef,$STATUS);
+Dits::DperlPutActions("DONEMSB",    \&DONEMSB, undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(1,0);
@@ -241,29 +246,54 @@ if ($TRANS_DIR) {
 }
 
 # This is the callback when the MSB queue finishes
+# or if an MSB has been cut whilst some of it has been observed.
 # all it needs to do is extract the MSBID and set the completion parameter
+# Passed either an entry object or a Queue::MSB object
 sub msbtidy {
-  # KLUGE - assumes  SCUBAODF
-  # would normally use a scuba sub class
-  my $entry = shift;
+  my $object = shift;
+
+  # Return immediately if we have no object
+  return unless defined $object;
+
+  # Now get the projectid and msbid
+  my $projectid = $object->projectid;
+  my $msbid = $object->msbid;
+
+  # create a new drama status
   my $status = new DRAMA::Status;
 
+  # What we really need is the Queue::MSB object so that we can
+  # remove the MSB entries from the queue when it has been marked
+  # as complete
+  my $msb;
+  if (UNIVERSAL::isa($object, "Queue::MSB")) {
+    $msb = $object;
+  } elsif (UNIVERSAL::isa($object,"Queue::Entry")) {
+    $msb = $object->msb;
+  }
+
+  addmessage($status, "MSB contents fully observed");
+
+  # If the MSB has not been observed at all then we do not
+  # need to trigger anything here
+  if ($msb && ! $msb->hasBeenObserved) {
+    return;
+  }
+
+  # Since we are already processing an MSBCOMPLETE
+  # we do not want to trigger another one
+  # so disable the completion
+  $msb->hasBeenObserved( 0 ) if $msb;
+
+  # Collect the information we need to send the qmonitor
+  # The REQUEST key is not really required since we never
+  # set REQUEST to 0
   my %data;
   $data{REQUEST} = 1;
-
-  addmessage($status, "Queue contents fully observed");
-
-  use Data::Dumper;
-  print "Completed Entry: ",Dumper($entry);
-
-  # Get the MSBID
-  my $odf = $entry->entity;
-  my $msbid = $odf->getMSBID;
-
-  my $projectid = $odf->getProjectid;
+  $data{MSB}     = $msb;
 
   # if we do not have an MSBID and project then we cant do anything else
-  # so dd not change the parameter
+  # so do not change the parameter
   if ($msbid && $projectid) {
 
     if ($projectid eq 'SCUBA' || $projectid =~ /JCMTCAL/ ) {
@@ -281,7 +311,7 @@ sub msbtidy {
       $data{MSBID} = $msbid;
       $data{PROJECTID} = $projectid;
 
-      %COMPLETE_DETAILS = %data;
+      # And now store it in the parameter
       set_msbcomplete_parameter($status, %data);
 
     }
@@ -292,6 +322,8 @@ sub msbtidy {
   }
 }
 
+
+# Register this routine with the backend class
 $QUEUE->backend->msbcomplete( \&msbtidy );
 
 
@@ -323,8 +355,6 @@ sub ADDBACK {
 
   DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
 
-  DRAMA::MsgOut($status, "ADDBACK NOT SUPPORTED");
-  return;
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
@@ -339,7 +369,7 @@ sub ADDBACK {
 
     # Update the DRAMA parameters
     update_contents_param($status);
-    set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+
   }
   return $status;
 }
@@ -354,25 +384,14 @@ sub LOADQ {
   # If no argument simply return
   return unless defined $argId;
 
-  # tie the argId to a perl Hash
-  my %sds;
-  tie %sds, 'Sds::Tie', $argId;
-
-  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
-  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
-
-  # configure the entries
-  $entries[0]->firstObs(1);
-  $entries[-1]->lastObs(1);
-  for (@entries) {
-    $_->isMSB(1);
-  }
+  # Extract the ODF entries from the argument
+  my @entries = &Sds_to_Entry( $argId );
 
   $QUEUE->contents->loadq( @entries );
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
-  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -383,7 +402,7 @@ sub LOADQ {
 }
 
 
-# Insert ODFs at the current (or specified) index
+# Insert calibration ODFs at the current (or specified) index
 # Argument1: ODF file name
 # Argument2 [optional] Index
 
@@ -397,15 +416,12 @@ sub INSERTQ {
   # If no argument simply return
   return unless defined $argId;
 
-  # tie the argId to a perl Hash
+  # Get the entries [mark them as calibrations]
+  my @entries = &Sds_to_Entry( $argId, 1);
+
+  # Tie the Sds to a hash to get at the second argument
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
-
-  # Needs to be a separate function
-  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
-  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
-
-  # these entries are assumed to be calibrations
 
   # Get the index. Can come from the SDS
   my $newindex;
@@ -425,7 +441,7 @@ sub INSERTQ {
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
-  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -485,13 +501,11 @@ sub REPLACEQ {
   my $old = $QUEUE->contents->getentry($index);
 
   # should set bad status on error
+  # Create a new entry
   my $entry = new Queue::Entry::SCUBAODF("X", $odf);
-  $QUEUE->contents->replaceq( $index, $entry );
 
-  # configure it
-  $entry->isMSB( $old->isMSB );
-  $entry->lastObs( $old->lastObs );
-  $entry->firstObs( $old->firstObs );
+  # Replace the old entry
+  $QUEUE->contents->replaceq( $index, $entry );
 
   # if we are propogating source information we need to do it now
   $QUEUE->contents->propsrc($index, $odf->getTarget)
@@ -552,7 +566,7 @@ sub ADDFRONT {
 
     # Update the DRAMA parameters
     update_contents_param($status);
-    set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+
   }
   return $status;
 }
@@ -581,7 +595,6 @@ sub CLEARQ {
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
   update_index_param($_[0]);
-  set_msbcomplete_parameter( $_[0], REQUEST => 0, MSBID => '',PROJECTID=>'' );
 }
 
 # Remove the entry at INDEX 
@@ -612,18 +625,57 @@ sub CUTQ {
     $index = $sds{Argument1};
     $ncut = $sds{Argument2};
   } else {
-    DRAMA::MsgOut($status,"Unable to determine cut position");
+    addmessage($status,"Unable to determine cut position");
     return;
   }
   $ncut = 1 unless defined $ncut;
 
-  DRAMA::MsgOut($status,"Removing observation from index $index");
+  addmessage($status,"Removing $ncut observation[s] starting from index $index");
 
   # CUT
   $QUEUE->contents->cutq($index, $ncut);
 
   # Update the DRAMA parameters
   update_contents_param($status);
+
+  return $status;
+}
+
+# CUT MSB
+# Remove the MSB associated with the currently highlighted observation
+# or the supplied index
+sub CUTMSB {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running CUTMSB") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the INDEX integer from the Args
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  print Dumper(\%sds);
+
+  my $index;
+  if (exists $sds{INDEX}) {
+    $index = $sds{INDEX};
+  } elsif (exists $sds{Argument1}) {
+    $index = $sds{Argument1};
+  }
+
+
+  # Get the current entry to make sure we have one highlighted
+  my $curentry = $QUEUE->contents->curentry;
+  unless ($curentry) {
+    addmessage($status, "Cut MSB attempted but no entries in queue");
+    return $status;
+  }
+
+  $QUEUE->contents->cutmsb($index);
 
   return $status;
 }
@@ -643,12 +695,14 @@ sub SUSPENDMSB {
   # then ask the entry for the MSBID, ProjectID and ObsLabel
   # these should be methods of the entry but for now
   # we assume the "entity" has them
-  my $proj = $entry->entity->getProjectid;
-  my $msbid = $entry->entity->getMSBID;
+  my $proj = $entry->projectid;
+  my $msbid = $entry->msbid;
   my $label = $entry->entity->getObsLabel;
 
   if ($proj && $msbid && $label) {
-    OMP::MSBServer->suspendMSB($proj, $msbid, $label);
+    # Suspend the MSB unless we are in simulate mode
+    OMP::MSBServer->suspendMSB($proj, $msbid, $label)
+	unless $SIM;
 
     addmessage($status, "MSB for project $proj has been suspended at the current observation");
 
@@ -659,9 +713,12 @@ sub SUSPENDMSB {
   return $status;
 }
 
-# SUSPENDMSB
+# DONEMSB
 # Mark the MSB as done [relies on the MSB entry being active]
 # the currently highlighted position
+# Not clear that this has any additional functionality over CUTMSB
+# since we do not want to mark it done if it has not been observed
+# at all and we would probably like to be asked about it.
 sub DONEMSB {
   my $status = shift;
 
@@ -672,18 +729,23 @@ sub DONEMSB {
     return $status;
   }
 
+  addmessage($status, "doneMSB currently not supported. Pending review");
+  return $status;
+
   # then ask the entry for the MSBID and projectID
   # these should be methods of the entry but for now
   # we assume the "entity" has them
-  my $proj = $entry->entity->getProjectid;
-  my $msbid = $entry->entity->getMSBID;
+  my $proj = $entry->projectid;
+  my $msbid = $entry->msbid;
 
   if ($proj && $msbid) {
 
     if ($proj =~ /SCUBA|JCMTCAL/) {
       addmessage($status, "Can not mark a standard calibration as complete");
     } else {
-      OMP::MSBServer->doneMSB($proj, $msbid);
+      # Only mark as done if we are in live mode
+      OMP::MSBServer->doneMSB($proj, $msbid)
+	  unless $SIM;
 
       addmessage($status, "MSB for project $proj has been marked as completed");
     }
@@ -807,50 +869,134 @@ sub GETODF {
 
 }
 
-# This action triggers MSBDONE
+# This action triggers MSBDONE on request
+# Sds Argument contains a structure with a timestamp key
+# pointing to 
+#   COMPLETE   - logical (doneMSB or rejectMSB)
+#   USERID     - user associated with this request [optional]
+#   REASON     - String describing any particular reason
+# There can be more than one timestamp entry so we can trigger
+# multiple MSBs at once....
+# Alternatively, for ease of use at the command line we also
+# support Argument1=timestamp Argument2=complete Argument3=userid
+# Argument4=reason
 sub MSBCOMPLETE {
   my $status = shift;
+
+  DRAMA::MsgOut($status,"MSB COMPLETE")
+    if $VERBOSE;
 
   # argument is a boolean governing whether or not we should
   # mark the MSB as done or not
   my $arg = Dits::GetArgument( $status );
-  my $mark = $arg->Geti( "Argument1", $status );
 
-  addmessage($status,"Attempting to mark MSB as complete Mark=$mark");
+  # Tie to a hash
+  my %sds;
+  tie %sds, 'Sds::Tie', $arg;
 
-  # can do nothing if we do not have an MSBID or PROJECTID
-  # Get the project details
-  if (exists $COMPLETE_DETAILS{MSBID} && exists $COMPLETE_DETAILS{PROJECTID}) {
-    if ($mark) {
+  use Data::Dumper;
+  print Dumper( \%sds );
 
-      # Need to mark it as done
-      OMP::MSBServer->doneMSB($COMPLETE_DETAILS{PROJECTID},
-			      $COMPLETE_DETAILS{MSBID} );
-
-      addmessage($status,"MSB marked as done for project $COMPLETE_DETAILS{PROJECTID}");
-
-    } else {
-      # file a comment to indicate that the MSB was rejected
-      my $comment = new OMP::Info::Comment(status => OMP__DONE_REJECTED,
-					   text => "This MSB was observed but was not accepted by the observer/TSS",
-					  );
-
-      OMP::MSBServer->addMSBcomment($COMPLETE_DETAILS{PROJECTID},
-				    $COMPLETE_DETAILS{MSBID},
-				    $comment);
-
-      addmessage($status,"MSB rejected for project $COMPLETE_DETAILS{PROJECTID}");
+  my @completed;
+  if (exists $sds{Argument1}) {
+    # We have numbered args
+    push(@completed, { timestamp => $sds{Argument1},
+		       complete => $sds{Argument2},
+		       userid => $sds{Argument3},
+		       reason => $sds{Argument4},
+		     });
+  } else {
+    # We have timestamp args
+    for my $key (keys %sds) {
+      # see if we have a hash ref
+      next unless ref($sds{$key}) eq 'HASH';
+      push(@completed, {
+			timestamp => $key,
+			complete => $sds{$key}->{COMPLETE},
+			userid => $sds{$key}->{USERID},
+			reason => $sds{$key}->{REASON},
+		       });
 
     }
 
-    # and clear the hash
-    %COMPLETE_DETAILS = ();
+  }
+
+  print "Processed arguments:\n";
+  print Dumper(\@completed);
+
+  if (!@completed) {
+    $status->SetStatus(Dits::APP_ERROR);
+    $status->ErsRep(0,"Attempting to mark MSB as completed but can not find any arguments to the action");
+    addmessage($status,"Attempting to mark MSB as completed but can not find any arguments to the action");
+    return $status;
+  }
+
+  # Now loop over all the timestamps
+  for my $donemsb (@completed) {
+
+    # First get the MSBID and PROJECTID
+    my %details = get_msbcomplete_parameter_timestamp( $status,$donemsb->{timestamp});
+
+    my $projectid = $details{PROJECTID};
+    my $msbid     = $details{MSBID};
+    my $msb       = $details{MSB};
+
+    print "ProjectID: $projectid MSBID: $msbid TimeStamp: ".
+      $donemsb->{timestamp}."\n";
+
+    # Ooops if we have nothing
+    if (!$msbid || !$projectid) {
+        addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete but can no longer find it in the parameter system.");
+	next;
+    }
+
+    my $mark = $donemsb->{complete};
+
+    addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete Mark=$mark");
+
+    if ($mark) {
+
+      # Need to mark it as done [unless we are in simulate mode]
+      OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
+			      $donemsb->{reason})
+	  unless $SIM;
+
+      addmessage($status,"MSB marked as done for project $projectid");
+
+    } else {
+      # file a comment to indicate that the MSB was rejected
+      # unless we are in simulation mode
+      OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
+				 $donemsb->{reason})
+	  unless $SIM;
+
+      addmessage($status,"MSB rejected for project $projectid");
+
+    }
+
+    # and clear the parameter
+    clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
+
+    # And remove the MSB from the queue
+    if ($msb) {
+      addmessage($status, "Removing completed MSB from queue");
+
+      # Get an entry from the MSB
+      my $entry = $msb->entries->[0];
+
+      # Convert to an index
+      if ($entry) {
+	my $index = $QUEUE->contents->getindex( $entry );
+	if (defined $index) {
+	  # Cut it
+	  $QUEUE->contents->cutmsb( $index );
+	}
+      }
+    }
 
   }
 
-  # reset the parameters regardless
-  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
-
+  return $status;
 }
 
 
@@ -858,21 +1004,19 @@ sub MSBCOMPLETE {
 # Utility routines (not ACTIONS)
 
 # This routine converts an Sds structure to 
-# a set of Queue::Entry::HashODF objects
+# a set of Queue::Entry::SCUBAODF objects
 
-# An ODF is assumed to either be a file name (assuming macro)
-# or an actual ODF in key ODF in the supplied structure
+# Currently assumes that the macro odf file name is in the sds
+# structure as Argument1. Can not yet accept the ODF as an SDS
+# structure.
 
-# Looking for Arguments of form
-#   ODFn => {
-#            Label => 'label',
-#            ODF   => { Actual key/values hash   }
-#           }
-# where n can be 0..$ncomp
-# The entries will be placed on the queue in the numbered order
+# An optional argument can be used to indicate that the ODFs
+# correspond to CAL observations and should not be grouped
+# as MSBs. Default is to group into MSBs.
 
 sub Sds_to_Entry {
   my $argId = shift;
+  my $iscal = shift;
 
   return unless defined $argId;
 
@@ -883,20 +1027,23 @@ sub Sds_to_Entry {
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
 
-  # Sort keys into ODFn order (also extract ODF entries)
-  my @sorted = sort { substr($a,3) <=> substr($b,3) } grep {/^ODF\d/i} keys %sds;
+  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
+  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
 
-  # Loop over keys searching for ODF\d entries
-  my @entries;
-  foreach my $key (@sorted) {
-    # already know they match ODF\d from sort
-    if ($key =~ /^ODF\d/i) {
-      my $odf_entry = $sds{$key};
-      my $label = $odf_entry->{Label};
-      my %odf = %{$odf_entry->{ODF}};
-      my $entry = $QUEUE->entryClass->new($label, \%odf);
-      push(@entries, $entry) if defined $entry;
-    }
+  # Associate them with an MSB object
+  # Note that this constructor associates itself with each
+  # entry and so will not be destroyed when this $msb goes
+  # out of scope.
+  # If we are calibrations we do not want an MSB associations
+  unless ($iscal) {
+    my $msb = new Queue::MSB( entries => \@entries,
+			      projectid => $entries[0]->projectid,
+			      msbid => $entries[0]->msbid,
+			    );
+
+    # Register a completion handler
+    $msb->msbcomplete( \&msbtidy );
+
   }
 
   untie $argId;
@@ -993,7 +1140,7 @@ sub update_index_param {
     $LOCAL_INDEX = $curindex;
 
     # Update the time remaining
-    update_time_remaining( $_[0] );
+    update_time_remaining( $status );
 
   }
 
@@ -1149,28 +1296,19 @@ sub set_failure_parameter {
 
 # Set the contents of the msb complete parameter
 # Arguments: Inherited status, information hash
+# This method takes the data, timestamps it and places it
+# into the parameter. Use clear_msbcomplete_parameter
+# to remove it. This allows us to stack up MSB completion
+# requests if we do not have a qmonitor running.
+
+my %MSBComplete;
 sub set_msbcomplete_parameter {
   my $status = shift;
   return unless $status->Ok;
 
-  # Read the FAILURE parameter
+  # Read the MSBCOMPLETED parameter
   my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
-
-  # Now need to look for the DETAILS object
-  # (use a private status)
-  my $lstat = new DRAMA::Status;
-
-  # Have to remove the old entries
-  {
-    my $detsds = $sds->Find("DETAILS", $lstat);
-
-    if ($detsds) {
-      # if we have a DETAILS object we need to
-      # configure it so that it is deleted when it goes out of scope
-      $detsds->flags(1,1,1);
-    }
-  }
 
   # Read the arguments
   my %details = @_;
@@ -1178,11 +1316,27 @@ sub set_msbcomplete_parameter {
   print Dumper(\%details);
   print ($status->Ok ? "status ok\n" : "status bad\n");
 
+  # Generate a timestamp (not that it really needs to be
+  # unique since Sds will handle it if we keep on adding
+  # identical entries but they are hard to remove)
+  my $tstamp = time();
+
+  # The MSB object should not go in the SDS structure
+  # so we store all this information in a hash outside
+  # of it [that only the *_msbcomplete functions use -
+  # this is essentially a Queue::MSBComplete object
+  # Take a copy
+  $MSBComplete{$tstamp} = { %details };
+
+  # Remove the MSB field
+  delete $details{MSB};
+
+  # Add it to the parameter
   # standard kluge
   bless $sds, "Sds";
 
   # put in the inormation
-  $sds->PutHash( \%details, "DETAILS", $status);
+  $sds->PutHash( \%details, "$tstamp", $status);
 
   $sds->List($status);
 
@@ -1191,6 +1345,68 @@ sub set_msbcomplete_parameter {
 
   print "Get to the end of qcompleted param setting\n";
   return;
+}
+
+# Remove the completed information from the parameter.
+# This requires the timestamp to be removed.
+sub clear_msbcomplete_parameter {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the MSBCOMPLETED parameter
+  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
+  return undef unless defined $sds;
+
+  my $tstamp = shift;
+
+  # Now need to look for the timestamp object
+  # (use a private status)
+  my $lstat = new DRAMA::Status;
+
+  # Have to remove the old entries
+  my $updated;
+  {
+    my $detsds = $sds->Find("$tstamp", $lstat);
+
+    if ($detsds) {
+      # if we have a DETAILS object we need to
+      # configure it so that it is deleted when it goes out of scope
+      $detsds->flags(1,1,1);
+
+      # We are going to destroy it
+      $updated = 1;
+
+    }
+
+  }
+
+  # And we need to trigger a parameter update notification
+  # if it was changed
+  $sdp->Update($sds, $status) if $updated;
+
+  # Clear the hash entry
+  delete $MSBComplete{$tstamp};
+
+  return;
+}
+
+# Retrieve the MSBID and Projectid information
+# associated with the supplied timestamp.
+# Simply return the hash entry in %MSBComplete (the pseudo Queue::MSBComplete
+# object)
+
+# %details = get_msbcomplete_parameter_timestamp($status,$tstamp);
+sub get_msbcomplete_parameter_timestamp {
+  my $status = shift;
+  return unless $status->Ok;
+  my $tstamp = shift;
+
+  if (exists $MSBComplete{$tstamp}) {
+    return %{ $MSBComplete{$tstamp} };
+  } else {
+    return ();
+  }
+
 }
 
 # Sub to compare an SDS array with a perl array, updating

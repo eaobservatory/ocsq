@@ -413,24 +413,23 @@ sub cvtsub {
 
   } elsif ($param eq 'MSBCOMPLETED') {
 
+    print "Got MSBCOMPLETED parameter:\n";
     use Data::Dumper;
     print Dumper(\%tie);
 
     # Always delete the window if it is up since the details might
     # be different
     if ($QCOMP_GUI) {
+      print "Removing pre-existing GUI\n";
       $QCOMP_GUI->destroy;
       undef $QCOMP_GUI;
     }
 
     # first check that we have to react
-    if (exists $tie{DETAILS}) {
-      if ($tie{DETAILS}->{REQUEST}) {
-
-	# Trigger a callback
-	$MW->after(1, sub { respond_to_qcomplete($tie{DETAILS})});
-
-      }
+    if (keys %tie) {
+      # Trigger a callback
+      print "Got keys, so instantiating window\n";
+      $MW->after(1, sub { respond_to_qcomplete(\%tie)});
     }
   } elsif ($param eq 'MESSAGES') {
     my @lines = @{$tie{MESSAGE}};
@@ -819,30 +818,43 @@ sub respond_to_failure {
 sub respond_to_qcomplete {
   my $details = shift;
 
-  # popup
-  $QCOMP_GUI = $MW->DialogBox(-title => "Mark MSB as done?",
-			     -buttons => ["Yes","No"]);
 
-  # add a label
-  $QCOMP_GUI->add('Label',-text => "Mark MSB ".$details->{MSBID}." for project ".
-		  $details->{PROJECTID}." as done?")->pack;
+  # A popup per MSB request
+  # This does not work because the obey gets sent 
+  # which triggers a new popup...
+  foreach my $tstamp (keys %$details) {
 
-  play_sound('chime.wav');
-  my $but = $QCOMP_GUI->Show;
+    # Get the MSBID and Projectid 
+    my $msbid = $details->{$tstamp}->{MSBID};
+    my $projectid = $details->{$tstamp}->{PROJECTID};
 
-  # send the obey
-  unless ($but eq "Ignore") {
-    my $val = ( $but eq "Yes" ? 1 : 0 );
-    my $arg = Arg->Create;
-    my $status = new DRAMA::Status;
-    $arg->PutString("Argument1",$val, $status);
+    # popup
+    $QCOMP_GUI = $MW->DialogBox(-title => "Mark MSB as done?",
+				   -buttons => ["Yes","No"]);
 
-    obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0});
+    # add a label
+    $QCOMP_GUI->add('Label',-text => "Mark MSB $msbid for project $projectid ".
+		    " as done?")->pack;
+
+    # Now that we have made the popups we can display them
+    # Note that this blocks.
+    play_sound('chime.wav');
+    my $but = $QCOMP_GUI->Show;
+
+    # send the obey
+    unless ($but eq "Ignore") {
+      my $val = ( $but eq "Yes" ? 1 : 0 );
+      my $arg = Arg->Create;
+      my $status = new DRAMA::Status;
+      $arg->PutString("Argument1",$tstamp, $status);
+      $arg->PutString("Argument2",$val, $status);
+
+      obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0});
+    }
+
+    # need to undefine the gui variable
+    undef $QCOMP_GUI;
   }
-
-  # need to undefine the gui variable
-  undef $QCOMP_GUI;
-
 }
 
 
@@ -1120,13 +1132,21 @@ sub ContentsMenu {
 						     $arg,{-deletearg=>0});}
 				      ],
 				      ["command" => "Cut observation at index $index",
-				      -command => sub {
-					my $arg = Arg->Create;
-					my $status = new DRAMA::Status;
-					$arg->Puti("Argument1",$index,$status);
-					DRAMA::obey($QNAME,"CUTQ",
-						    $arg,{-deletearg=>0});
-				      }],
+				       -command => sub {
+					 my $arg = Arg->Create;
+					 my $status = new DRAMA::Status;
+					 $arg->Puti("Argument1",$index,$status);
+					 DRAMA::obey($QNAME,"CUTQ",
+						     $arg,{-deletearg=>0});
+				       }],
+				      ["command" => "Cut MSB containing index $index",
+				       -command => sub {
+					 my $arg = Arg->Create;
+					 my $status = new DRAMA::Status;
+					 $arg->Puti("Argument1",$index,$status);
+					 DRAMA::obey($QNAME,"CUTMSB",
+						     $arg,{-deletearg=>0});
+				       }],
 				     ],
 		      );
 #  $menu->Popup(-popover => "cursor");
