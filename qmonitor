@@ -325,20 +325,20 @@ sub cvtsub {
     use Data::Dumper;
     print Dumper(\%tie);
 
+    # if we are prompting for changes to the ODF we
+    # need to destroy that widget here because this may
+    # indicate that someone else has responded or that another
+    # problem is requested
+    if ($FAIL_GUI) {
+      $FAIL_GUI->destroy;
+      undef $FAIL_GUI;
+    }
+
     # first check that we have to react
     if (exists $tie{DETAILS}) {
 
       # Trigger a callback
       $MW->after(1, sub {respond_to_failure($tie{DETAILS})});
-
-    } else {
-      # if we are prompting for changes to the ODF we
-      # need to destroy that widget here because this may
-      # indicate that someone else has responded
-      if ($FAIL_GUI) {
-	$FAIL_GUI->destroy;
-	undef $FAIL_GUI;
-      }
 
     }
 
@@ -522,10 +522,9 @@ sub gui_addq {
 sub respond_to_failure {
   my $details = shift;
 
-  print Dumper($details);
+  #print Dumper($details);
 
   if ($details->{REASON} eq 'MissingTarget') {
-
     # Let us try to get the ODF
     my $odf = new SCUBA::ODF( Hash => $details->{ENTRY});
 
@@ -555,7 +554,7 @@ sub respond_to_failure {
 
     # Create object based on AZEL
     # can only do distance if we know where we are now. May require
-    # access to the TCS
+    # access to the TCS. If we do not have AZ just give everything
     if (exists $details->{AZ}) {
       my $refcoord = new Astro::Coords(az=> $details->{AZ},
 				       el=> $details->{EL},
@@ -564,12 +563,41 @@ sub respond_to_failure {
       # first 10 degrees
       my @results = $cat->findByArea( $refcoord,(10*60*60*Astro::SLA::DAS2R));
 
-      my $w = new Tk::SrcCatalog( $MW,-onDestroy => sub {},
-                            -upDate => sub {},
-                            -addCmd => sub { print "object: $_[0]\n"; },
-                            -catalog => $cat);
-
     }
+
+    $FAIL_GUI = new Tk::SrcCatalog( $MW,-onDestroy => sub {},
+				    -upDate => sub {},
+				    -addCmd => sub {
+				      # First reset the gui object
+				      undef $FAIL_GUI;
+
+				      # The actual coordinate (come in as an array)
+				      my $arr = shift;
+				      my $c = $arr->[0];
+				      print "C is $c\n";
+
+				      # Store that coordinate in the
+				      # object
+				      $odf->setTarget( $c );
+				      my %hash = $odf->odf;
+
+				      # Add INDEX field
+				      $hash{INDEX} = $details->{INDEX};
+
+				      my $status = new DRAMA::Status;
+				      my $sds = Sds->PutHash( \%hash, "ODF", $status);
+
+				      # and load the ODF back in
+				      &DRAMA::obey(QNAME, "REPLACEQ", $sds, { -deletearg => 0,
+									      -success => sub {
+										&DRAMA::obey(QNAME,"STARTQ");
+									      },
+									    } );
+
+				    },
+				    -catalog => $cat,
+				    -transient => 1,
+				  );
 
   } else {
     print "Unable to deal with reason: " . $details->{REASON}. "\n";

@@ -153,6 +153,7 @@ Dits::DperlPutActions("STOPQ",   \&STOPQ,   undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("CUTQ",    \&CUTQ,    undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
+Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 
@@ -206,6 +207,7 @@ exit;
 # EXIT action
 sub EXIT {
   my $status = shift;
+  &CLEARQ($status);
   Dits::PutRequest(Dits::REQ_EXIT,$status);
   return $status;
 }
@@ -253,10 +255,60 @@ sub LOADQ {
   my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
   $QUEUE->contents->loadq( @entries );
 
+  # Always clear if we have tweaked something
+  clear_failure_parameter($status);
+
 #  print Dumper($grp);
 #  print Dumper(\@entries);
 #  print Dumper($QUEUE);
 #  print "Found " . scalar(@entries) . " ODFs\n";
+
+  return $status;
+}
+
+# Replace an entry on the queue
+# Argument is either SDS structure called ODF with a key INDEX
+# or Argument1 == INDEX and Argument2 == ODF filename
+# (latter can be used for ditscmd)
+
+sub REPLACEQ {
+  my $status = shift;
+
+  DRAMA::MsgOut( $status, "Running REPLACEQ" ) if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # tie the argId to a perl Hash
+  print "Listing......\n";
+  $argId->List($status);
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  print Dumper(\%sds);
+
+  my ($index, $odf);
+  if (exists $sds{INDEX}) {
+    $index = $sds{INDEX};
+    my %copy = %sds;
+    delete $copy{INDEX};
+    $odf = new SCUBA::ODF(Hash => \%copy );
+    print "Reading via ODF hash\n";
+
+  } elsif (exists $sds{Argument1}) {
+    $index = $sds{Argument1};
+    my $odffile = $sds{Argument2};
+    $odf = new SCUBA::ODF( File => $odffile );
+  }
+
+  # should set bad status on error
+  my $entry = new Queue::Entry::SCUBAODF("X", $odf);
+  $QUEUE->contents->replaceq( $index, $entry );
+
+  # Always clear if we have tweaked something
+  clear_failure_parameter($status);
 
   return $status;
 }
@@ -299,7 +351,6 @@ sub STOPQ {
 
 sub CLEARQ {
   $QUEUE->contents->clearq;
-  $QUEUE->contents->pastebuffer->clearq;
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
 }
@@ -328,9 +379,6 @@ sub CUTQ {
   update_contents_param($status);
 
   my @Cur_contents = $QUEUE->contents->stringified;
-  my @Cur_paste    = $QUEUE->contents->pastebuffer->stringified;
-
-  # print Dumper([\@Cur_contents,\@Cur_paste]);
 
   return $status;
 }
