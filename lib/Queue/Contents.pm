@@ -446,10 +446,12 @@ entries that are missing target information.
 The propagation stops for the following two conditions:
 
  1. We hit an entry that has a valid target
- 2. Once we hit a calibration observation
+ 2. Once we hit a calibration observation we continue
+    to propogate until we are no longer doing calibrations.
+    This allows us to propogate through a set of 6 scan maps.
 
-This should probably be in the indexed subclass and should not need
-to know about the iscal method in "entity".
+This should probably not need to know about the iscal method in "entity".
+An entry should probably be modified to no about calibrations.
 
 =cut
 
@@ -463,15 +465,26 @@ sub propsrc {
 
   my $c = $entry->getTarget;
 
-  $index++; # do not check current
+  # do not check the current observation although we can set
+  # the "foundcal" flag if the current observation is a cal
+  # observation
+  $index++;
+  my $foundcal = 0;
+  $foundcal = 1 if $entry->entity->iscal;
+
   while (defined( my $entry = $self->getentry($index) ) ) {
 
     # if we have a target abort from search
     last if $entry->getTarget;
 
-    # if we have a calibrator also abort after setting it
+    # if we have a calibrator flag this fact
+    # if we did have a calibrator and have now not got one
+    # we abort
     if ($entry->entity->iscal) {
-      $entry->setTarget( $c );
+      $foundcal = 1;
+    } elsif ($foundcal) {
+      # we have already found a calibrator and now we have not
+      # got one so we stop here
       last;
     }
     # set the target
