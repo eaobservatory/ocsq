@@ -1,0 +1,233 @@
+#!/local/perl-5.6/bin/perl
+
+=head1 NAME
+
+jac_inst - DRAMA task emulating the queue functionality of the JAC instrument task
+
+=head1 SYNOPSIS
+
+ jac_inst -tel ukirt -transdir /tmp
+
+ ditscmd "JAC_INST_TEST" "xxx.exec"
+
+
+=head1 DESCRIPTION
+
+This is a "dummy" DRAMA task that emulates the interface provided by
+the JAC instrument task for loading sequences from the queue into UKIRT.
+
+Only has a single action (OBSERVE) that takes a single argument
+(the file name). After a random amount of time (between 5 and 15 seconds)
+the action will complete with either good or bad status (randomly).
+
+Will return bad status if the file can not be opened.
+
+=head1 OPTIONS
+
+The following command-line options are supported:
+
+=over 4
+
+=item B<-tel>
+
+Configure the queue for use at a specific telescope. This option
+is mandatory. Can be one of "JCMT" or "UKIRT".
+
+=item B<-transdir>
+
+The directory in which queue entries will appear. It is also
+the directory  used to write rewritten files prior to sending
+them to the instrument. Default is to use current working directory.
+
+=item B<-alwayserr>
+
+Force the default state of the ALWAYSERR parameter to be true
+such that the OBSERVE action always returns an error. This is
+useful for testing error conditions.
+
+=item B<-help>
+
+Print a small help message.
+
+=item B<-man>
+
+Print the full manual page.
+
+=back
+
+=head1 NOTES
+
+This can not be used to test the queue extensively because
+it only has a single action and can only fail or succeed.
+
+=head1 AUTHOR
+
+Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) 2002-2004 Particle Physics and Astronomy Research Council.
+All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
+
+=cut
+
+
+use strict;
+use warnings;
+
+use Jit;
+use DRAMA;
+use Pod::Usage;
+use Getopt::Long;
+use constant DTASK => 'JAC_INST_TEST';
+use SCUBA::ODF;
+use UKIRT::Sequence;
+use File::Basename;
+use File::Spec;
+
+my ($man, $help, $tel, $transdir, $awerr);
+my $optstatus = GetOptions("transdir=s"=> \$transdir,
+                        "help"    => \$help,
+                        "man"     => \$man,
+			"alwayserr" => \$awerr,
+                        "telescope=s" => \$tel,
+                       );
+
+die "Unknown option. Aborting\n" unless $optstatus;
+pod2usage(1)  if ($help);
+pod2usage(-verbose => 2)  if ($man);
+
+die "Must supply a telescope" unless defined $tel;
+$tel = uc($tel);
+die "Unrecognized telescope '$tel'"
+  unless ($tel eq 'UKIRT' || $tel eq 'JCMT');
+
+# Init Jit
+Jit::Init( DTASK );
+
+# Initiate actions
+my $status = new DRAMA::Status;
+Dits::DperlPutActions("OBSERVE",\&observe,undef,0,undef,$status);
+
+# Have a parameter for dealing with error modes
+my $sdp = Dits::GetParId();
+
+# If true, the OBSERVE action always triggers an error
+my $state = ($awerr ? 1 : 0);
+$sdp->Create("ALWAYSERR","UBYTE",$state);
+
+
+# Enter the main loop
+Dits::MainLoop( $status );
+
+
+# ACTIONS
+
+# OBSERVE - read the supplied ODF and reschedule a pseudo-random
+# time in the future.
+
+# Once resheduled, send a success
+
+sub observe {
+  my $status = shift;
+  Jit::ActionEntry( $status );
+  my $seq = Dits::GetSeq();          # Get the sequence number
+
+  # If ALWAYSERR is true (non-zero) we always simply trigger
+  # an error
+  my $errstate = $sdp->Getu("ALWAYSERR", $status);
+  if ($errstate) {
+    seterr($status, "Mandatory error");
+    return $status;
+  }
+
+  # If this is the first time in the action
+  if ($seq == 0) {
+
+    my $argID = Dits::GetArgument;
+
+    unless ($argID) {
+      # No argument specified, this is an error
+      seterr( $status, "Please supply an ODF name as Argument1");
+      return $status;
+
+    }
+
+    my $fname = $argID->GetString( 'Argument1', $status);
+    DRAMA::MsgOut($status, "Attempting to read file $fname");
+
+    # Prepend transdir
+    my ($v,$d,$f) = File::Spec->splitdir( $fname);
+    if ($d) {
+      DRAMA::MsgOut($status, "Using directory from path");
+    } else {
+      if ($transdir) {
+	DRAMA::MsgOut($status, "Using command line directory: $transdir");
+	$fname = File::Spec->catdir( $transdir, $fname);
+      } else {
+	DRAMA::MsgOut($status, "Using current directory");
+      }
+    }
+
+    #print "None drama: Reading ODF $odfname\n";
+    my $thing;
+    eval {
+      if ($tel eq 'JCMT') {
+	$thing = new SCUBA::ODF( File => $fname);
+      } elsif ($tel eq 'UKIRT') {
+	$thing = new UKIRT::Sequence( File => $fname );
+      } else {
+	seterr( $status, "Unrecognized telescope $tel");
+      }
+
+    };
+
+    if ($thing) {
+      DRAMA::MsgOut($status, "File has been opened");
+    } else {
+      # Failed to read the ODF
+      seterr( $status, "Error opening file $fname");
+    }
+
+    # Everything okay. Need to reschedule
+    # Now set up the rescheduling for all actions
+    # Using the code to set the delay
+    Jit::DelayRequest( int(rand(5)+1), $status);
+    DRAMA::MsgOut($status, "Delaying");
+
+  } else {
+    # This is a reschedule - just finish with a message
+    # good or bad
+    if (rand(10) > 1) {
+      DRAMA::MsgOut($status, "Observation complete");
+    } else {
+      seterr( $status, "Observation aborted due to error");
+    }
+  }
+  Jit::ActionExit( $status );
+  return $status;
+}
+
+
+# subroutine to set bad status and attach a message
+sub seterr {
+  my $status = shift;
+  my $msg = shift;
+
+  $status->SetStatus( Dits::APP_ERROR ) # random status value
+    if $status->StatusOk; # if status is good
+
+  $status->ErsRep(0, $msg);
+  return;
+}

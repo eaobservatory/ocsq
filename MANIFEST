@@ -1,7 +1,9 @@
 Makefile.PL
 README
+ocsqueue
 t/contents.t
 t/1_compile.t
+t/msb.t
 lib/Queue.pm
 lib/Queue/Contents.pm
 lib/Queue/Contents/Indexed.pm

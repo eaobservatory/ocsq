@@ -6,10 +6,11 @@ my $file = File::Spec->catfile(File::Spec->curdir, "lib", "Queue.pm");
 WriteMakefile( 
                'NAME'           => 'Queue',
                'VERSION_FROM'   => $file,
-	       'EXE_FILES'      => [  'scuqueue' ],
+	       'EXE_FILES'      => [  'ocsqueue', 'ocsqmon' ],
                'PREREQ_PM'      => { 
                                     'Test::More' => 0,
                                     'DRAMA' => 0,
+				    'Jit' => 1.18,
                                    },
                'dist'           => { COMPRESS => "gzip -9f"},
                ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
