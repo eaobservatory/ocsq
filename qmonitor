@@ -331,8 +331,8 @@ my $QUEUE_CANCELLED = 1; # For queue monitor
 destroy $TKSTATUS if Exists($TKSTATUS);
 destroy $BAR      if Exists($BAR);
 
-# Ask for the OMP user ID
-my $OMP_User_Obj = OMP::General->determine_user( $MW );
+# Ask for the OMP user ID [but do not put up a popup
+my $OMP_User_Obj = OMP::General->determine_user();
 my $OMP_User;
 $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
 
@@ -978,6 +978,11 @@ sub msbcompletion {
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1",$tstamp, $status);
   $arg->PutString("Argument2",$accept, $status);
+
+  # Attempt to get a user id but non fatal if we do not
+  # get it
+  $OMP_User = OMP::General->determine_user( $MW )
+    unless defined $OMP_User;
 
   # A user [I could verify it here...]
   $arg->PutString("Argument3", $OMP_User, $status)
