@@ -448,7 +448,9 @@ sub cvtsub {
     # indicate that someone else has responded or that another
     # problem is requested
     if ($FAIL_GUI) {
-      $FAIL_GUI->destroy if Exists($FAIL_GUI);
+      # Can not use the Exists method because we do not yet
+      # treat this as a real Tk widget
+      $FAIL_GUI->destroy; # if Exists($FAIL_GUI);
       undef $FAIL_GUI;
     }
 
