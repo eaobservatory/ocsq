@@ -173,6 +173,7 @@ is($q->curindex, undef,"check index");
 
 # Now check to make sure we dont trigger warnings with
 # an empty queue.
+print "# Empty Queue\n";
 is($q->popq,undef,"check pop");
 is($q->shiftq,undef,"shift");
 is($q->cutq(1), 0,"cut"); # scalar context
@@ -202,6 +203,7 @@ is($q->countq,1,"check count");
 
 # Create a Queue::Contents object
 # And store the entries
+print "# Paste buffer\n";
 $q = new Queue::Contents::PasteBuff( @entries );
 ok( $q, "paste queue" );
 is($q->countq, scalar(@entries),"check count");
