@@ -2,7 +2,7 @@ package Queue::Server::DRAMA;
 
 =head1 NAME
 
-Queue::Impl::DRAMA - Implementation of a queue server task using DRAMA
+Queue::Server::DRAMA - Implementation of a queue server task using DRAMA
 
 =head1 SYNOPSIS
 
@@ -19,18 +19,21 @@ task.
 Things that need to be tidied up:
 
   - QUEUEID [currently shared lexical]
-      + Should really be determined by the queue but this requires
-        that an Entry
-  - MSBComplete hash [shared lexical]
-      + Could be part of this object directly or use a hasa
-        relationship for the hash and provide a little wrapper object
+      + Should really be determined by the queue object when
+        entries are pushed onto the queue.
   - What to do about MSBTidy
       + It calls an update_param function so clearly needs to know
         about drama. Everything else is actually generic and could go
         in a base class but that won't work because we are passing around
         just the code ref.
   - Do we put the callbacks in their own package?
-  - [RELATED] Location of TRANS_DIR
+    They could be called using   POLL => sub { $self->POLL( @_ )}
+    if we wanted to do it "properly"
+
+Also,
+
+  - MSBCOMPLETE stuff could be done using a new class and a has-a
+    relationship.
 
 I don't think we can associate this object directly with the callbacks
 at this time.
@@ -56,6 +59,7 @@ $VERSION = '0.01';
 # Default parameters
 # These control the number of entries in the DRAMA parameter
 # and the length of each line.
+# Should be using SdsResize to deal with this constraint
 use constant NENTRIES => 200;
 use constant MAXWIDTH => 110;
 
@@ -202,23 +206,30 @@ sub init_msgsys {
   DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
+  # Basic control
+  Dits::DperlPutActions("POLL",       \&POLL,\&KICK_POLL,$flag,undef,$status);
+  Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$status);
   Dits::DperlPutActions("STARTQ",     \&STARTQ,  undef,$flag,undef,$status);
   Dits::DperlPutActions("STOPQ",      \&STOPQ,   undef,$flag,undef,$status);
+
+  # Put stuff in the queue
   Dits::DperlPutActions("LOADQ",      \&LOADQ,  undef,$flag,undef,$status);
   Dits::DperlPutActions("ADDBACK",    \&ADDBACK,  undef,$flag,undef,$status);
   Dits::DperlPutActions("ADDFRONT",   \&ADDFRONT,  undef,$flag,undef,$status);
   Dits::DperlPutActions("INSERTQ",    \&INSERTQ,  undef,$flag,undef,$status);
+
+  # Remove stuff from the queue
   Dits::DperlPutActions("CLEARQ",     \&CLEARQ,    undef,$flag,undef,$status);
-  Dits::DperlPutActions("POLL",       \&POLL,\&KICK_POLL,$flag,undef,$status);
-  Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$status);
-  Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$status);
-  Dits::DperlPutActions("GETENTRY",   \&GETENTRY,    undef,0,undef,$status);
-  Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$status);
   Dits::DperlPutActions("MSBCOMPLETE",\&MSBCOMPLETE,    undef,0,undef,$status);
   Dits::DperlPutActions("CUTQ",       \&CUTQ,    undef,0,undef,$status);
   Dits::DperlPutActions("CUTMSB",     \&CUTMSB,    undef,0,undef,$status);
   Dits::DperlPutActions("SUSPENDMSB", \&SUSPENDMSB, undef,0,undef,$status);
-  Dits::DperlPutActions("DONEMSB",    \&DONEMSB, undef,0,undef,$status);
+
+  # Manipulation of individual entries
+  Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$status);
+  Dits::DperlPutActions("GETENTRY",   \&GETENTRY,    undef,0,undef,$status);
+  Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$status);
+
 
   # Check status
   if (!$status->Ok) {
@@ -281,12 +292,6 @@ example, a request for a calibration target.
 An SDS structure containing information on MSBs that are awaiting
 acceptance or rejection by the observer.
 
-=item MESSAGES
-
-An SDS structure containing a string array of lines with interesting
-messages from the observing system whilst observing the current entry
-and also a corresponding integer status.
-
 =back
 
 =cut
@@ -325,14 +330,6 @@ sub init_pars {
   my $msbcomplete_sds = Sds->Create("MSBCOMPLETED",undef, Sds::STRUCT,0,
 				    $status);
 
-  # Create message parameter. Includes a status and a message
-  # 50 lines of 132 characters per line
-  my $msglen = 132;
-  my $msgnum = 50;
-  my $msg_sds = Sds->Create("MESSAGES",undef, Sds::STRUCT,0,$status);
-  $msg_sds->Create("MESSAGE", undef, Sds::CHAR,[$msglen,$msgnum],$status);
-  $msg_sds->Create("STATUS",undef,Sds::INT,0,$status);
-
   # Initialise the arrays that hold the queue entries
   {
     my @array = ();
@@ -344,15 +341,12 @@ sub init_pars {
   $sdp->Create('','SDS',$queue_sds);
   $sdp->Create('','SDS',$failure_sds);
   $sdp->Create('','SDS',$msbcomplete_sds);
-  $sdp->Create('','SDS',$msg_sds);
 
   # Have to make sure that these SDS objects don't go out of scope
   # and destroy their contents prior to use in the parameter system
   # Can either put them in a hash inside $self OR simply prevent them
   # from being freed. Cache them for now
-  $self->_param_sds_cache( $queue_sds, $failure_sds, $msbcomplete_sds,
-			 $msg_sds );
-
+  $self->_param_sds_cache( $queue_sds, $failure_sds, $msbcomplete_sds );
 
   # Store the parameters in the object
   $self->_params( $sdp );
@@ -695,7 +689,8 @@ sub addmessage {
     # intercept this and attach it to a parameter!
     # Would be nice to send it to STDOUT if we are in user interface
     # context so that we can log if everything is acting up.
-    Dits::UfaceCtxEnable(sub {use Data::Dumper;print Dumper(\@_);}, $status);
+    Dits::UfaceCtxEnable(sub {use Data::Dumper;
+			      print "CTXENABLE:".Dumper(\@_);}, $status);
     DRAMA::MsgOut($status, $msg);
     Dits::UfaceCtxEnable(undef, $status);
     # Simple "good" messages go in a simple parameter
@@ -1009,8 +1004,8 @@ sub CLEARQ {
 =item B<LOADQ>
 
 Clear the queue and load the specified ODFs onto it.
-Accepts a single argument that specifies the ODF file
-name of the ODF macro name. See C<Sds_to_Entry>.
+Accepts a single argument that specifies the XML content
+description of the entries. See C<Sds_to_Entry>.
 
 =cut
 
@@ -1024,16 +1019,22 @@ sub LOADQ {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
   # Extract the ODF entries from the argument
   my @entries = &Sds_to_Entry( $argId );
 
   $Q->queue->contents->loadq( @entries );
 
-  # Always clear if we have tweaked something
-  clear_failure_parameter($status);
 
+  # Update the parameter
+  update_contents_param($status);
+  update_index_param($status);
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -1047,7 +1048,7 @@ sub LOADQ {
 
 =item B<ADDBACK>
 
-Add the supplied ODFs to the back of the queue.
+Add the supplied entries to the back of the queue.
 Accepts the same arguments as C<LOADQ>.
 
 If the time remaining on the queue exceeds a threshold
@@ -1070,26 +1071,32 @@ sub ADDBACK {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return $status unless defined $argId;
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
-  # Retrieve the ODF entries associated with the args
+  # Retrieve the queue entries associated with the args
   my @entries = &Sds_to_Entry($argId);
 
   if ($#entries > -1) {
     # Add these entries to the back of the queue
     $Q->queue->contents->addback(@entries);
 
-    # Update the DRAMA parameters
+    # Update the DRAMA parameters. Index will not have changed
     update_contents_param($status);
 
   }
+
   Jit::ActionExit( $status );
   return $status;
 }
 
 =item B<ADDFRONT>
 
-Add the supplied ODFs to the front of the queue.
+Add the supplied entries to the front of the queue.
 Accepts the same arguments as C<LOADQ>.
 
 If the time remaining on the queue exceeds a threshold
@@ -1112,7 +1119,12 @@ sub ADDFRONT {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return $status unless defined $argId;
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
   # Retrieve the ODF entries associated with the args
   my @entries = &Sds_to_Entry($argId);
@@ -1122,8 +1134,9 @@ sub ADDFRONT {
     $Q->queue->contents->addfront(@entries);
 
     # Update the DRAMA parameters
+    # Index will have changed
     update_contents_param($status);
-
+    update_index_param($status);
   }
   Jit::ActionExit( $status );
   return $status;
@@ -1132,11 +1145,11 @@ sub ADDFRONT {
 
 =item B<INSERTQ>
 
-Insert calibration ODFs into the queue at the current highlight
+Insert calibration observations into the queue at the current highlight
 or at the specified index. Note that these calibrations are not
 treated as MSBs.
 
-ODFs are specified in the same way as for C<LOADQ>.
+Observations are specified in the same way as for C<LOADQ>.
 
 The optional index can be specified as "Argument2".
 
@@ -1152,7 +1165,12 @@ sub INSERTQ {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
   # Get the entries [mark them as calibrations]
   my @entries = &Sds_to_Entry( $argId, 1);
@@ -1177,9 +1195,9 @@ sub INSERTQ {
 
   $Q->queue->contents->insertq($newindex, @entries );
 
-  # Always clear if we have tweaked something
-  clear_failure_parameter($status);
-
+  # Contents will have changed and index may have changed
+  update_contents_param($status);
+  update_index_param($status);
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -1261,7 +1279,9 @@ sub REPLACEQ {
     if $propsrc;
 
   # Always clear if we have tweaked something
-  clear_failure_parameter($status);
+  update_contents_param($status);
+  update_index_param($status);
+
   Jit::ActionExit( $status );
   return $status;
 }
@@ -1367,6 +1387,8 @@ sub CUTQ {
 
   # Update the DRAMA parameters
   update_contents_param($status);
+  update_index_param($status);
+
   Jit::ActionExit( $status );
   return $status;
 }
@@ -1426,6 +1448,8 @@ sub CUTMSB {
 
   $Q->queue->contents->cutmsb($index);
   update_contents_param($status);
+  update_index_param($status);
+
   Jit::ActionExit( $status );
   return $status;
 }
@@ -1472,6 +1496,9 @@ sub SUSPENDMSB {
     # and cut it
     $Q->queue->contents->cutmsb( $Q->queue->contents->curindex );
 
+    # Make sure things are up to date (although POLL should deal with that)
+    update_contents_param($status);
+    update_index_param($status);
   } else {
     $Q->addmessage($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
   }
@@ -1622,6 +1649,8 @@ sub GETENTRY {
   my $status = shift;
   Jit::ActionEntry( $status );
   return $status unless $status->Ok;
+
+  croak "Not yet generic";
 
   my $arg = Dits::GetArgument( $status );
   my $index = $arg->Geti( "Argument1", $status );
@@ -2460,7 +2489,7 @@ sub msbtidy {
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>.
 
-Copyright (C) 2002-2003 Particle Physics and Astronomy Research Council.
+Copyright (C) 2002-2004 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
