@@ -231,7 +231,7 @@ update_status 'Setting up monitor',95;
 
 my $CANCELLED = 0;  # True if monitor is ended
 monitor(QNAME, "START", 
-	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE",
+	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","QCOMPLETED",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,
@@ -373,13 +373,14 @@ sub cvtsub {
     }
 
     # first check that we have to react
-    if ($tie{REQUEST}) {
+    if (exists $tie{DETAILS}) {
+      if ($tie{DETAILS}->{REQUEST}) {
 
-      # Trigger a callback
-      $MW->after(1, sub { respond_to_qcomplete($tie{DETAILS})});
+	# Trigger a callback
+	$MW->after(1, sub { respond_to_qcomplete($tie{DETAILS})});
 
+      }
     }
-
   }
 
 }
@@ -672,23 +673,27 @@ sub respond_to_failure {
 
 # Respond to a qompletion request
 sub respond_to_qcomplete {
-  my %details = @_;
+  my $details = shift;
 
   # popup
   $QCOMP_GUI = $MW->DialogBox(-title => "Mark MSB as done?",
-			     -buttons => ["Yes","No"]);
+			     -buttons => ["Yes","No","Ignore"]);
 
   # add a label
-  $QCOMP_GUI->add('Label',-text => "Mark MSB $details{MSBID} for project $details{PROJECTID} as done?")->pack;
+  $QCOMP_GUI->add('Label',-text => "Mark MSB ".$details->{MSBID}." for project ".
+		  $details->{PROJECTID}." as done?")->pack;
 
   my $but = $QCOMP_GUI->Show;
 
   # send the obey
-  my $val = ( $but eq "Yes" ? 1 : 0 );
-  my $arg = Arg->Create;
-  $arg->PutString("Argument1",$val);
+  unless ($but eq "Ignore") {
+    my $val = ( $but eq "Yes" ? 1 : 0 );
+    my $arg = Arg->Create;
+    my $status = new DRAMA::Status;
+    $arg->PutString("Argument1",$val, $status);
 
-  obey(QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
+    obey(QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
+  }
 
   # need to undefine the gui variable
   undef $QCOMP_GUI;
@@ -899,7 +904,7 @@ sub nbs_cvtsub {
 sub handle_accept {
   my $self = shift;
   $ACC_GUI = $MW->DialogBox( -title => "Accept/Refuse observation",
-				-buttons => ["Accept","Refuse"],
+				-buttons => ["Accept","Refuse","Accept+Stopq"],
 			      );
   my $button = $ACC_GUI->Show;
 
@@ -911,6 +916,9 @@ sub handle_accept {
     &gui_accept;
   } elsif ($button eq 'Refuse') {
     &gui_refuse;
+  } elsif ($button eq 'Accept+Stopq') {
+    stopq;
+    &gui_accept;
   }
 
   # remove it

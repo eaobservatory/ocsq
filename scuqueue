@@ -231,9 +231,14 @@ sub qtidy {
 
   my $projectid = $odf->{PROJECT_ID};
 
+  DRAMA::MsgOut($status, "Queue contents fully observed");
+
   # if we do not have an MSBID and project then we cant do anything else
   # so dd not change the parameter
   if ($msbid && $projectid) {
+
+    DRAMA::MsgOut($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+
     # Store it
     $data{MSBID} = $msbid;
     $data{PROJECTID} = $projectid;
@@ -242,7 +247,7 @@ sub qtidy {
     set_qcomplete_parameter($status, %data);
 
   } else {
-    Dits::MsgOut($status, "Queue contents fully observed but no MSBID or PROJECTID available.");
+    DRAMA::MsgOut($status, "Queue contents fully observed but no MSBID or PROJECTID available.");
   }
 }
 
@@ -855,8 +860,26 @@ sub set_qcomplete_parameter {
   my $sds = $sdp->GetSds('QCOMPLETED',$status);
   return undef unless defined $sds;
 
+  # Now need to look for the DETAILS object
+  # (use a private status)
+  my $lstat = new DRAMA::Status;
+
+  # Have to remove the old entries
+  {
+    my $detsds = $sds->Find("DETAILS", $lstat);
+
+    if ($detsds) {
+      # if we have a DETAILS object we need to
+      # configure it so that it is deleted when it goes out of scope
+      $detsds->flags(1,1,1);
+    }
+  }
+
   # Read the arguments
   my %details = @_;
+
+  print Dumper(\%details);
+  print ($status->Ok ? "status ok\n" : "status bad\n");
 
   # standard kluge
   bless $sds, "Sds";
@@ -864,11 +887,12 @@ sub set_qcomplete_parameter {
   # put in the inormation
   $sds->PutHash( \%details, "DETAILS", $status);
 
-  #$sds->List($status);
+  $sds->List($status);
 
   # Notify the parameter system
   $sdp->Update($sds,$status);
 
+  print "Get to the end of qcompleted param setting\n";
   return;
 }
 
