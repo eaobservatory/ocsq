@@ -192,6 +192,10 @@ my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
 # This contains queue completion triggers
 my $msbcomplete_sds = Sds->Create("MSBCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
 
+# Create message parameter. Includes a status and a message
+my $msg_sds = Sds->Create("MESSAGES",undef, Sds::STRUCT,0,$STATUS);
+$msg_sds->Create("MESSAGE", undef, Sds::CHAR,[132,50],$STATUS);
+$msg_sds->Create("STATUS",undef,Sds::INT,0,$STATUS);
 
 # Initialise the arrays
 {
@@ -204,7 +208,9 @@ my $msbcomplete_sds = Sds->Create("MSBCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
 $sdp->Create('','SDS',$queue_sds);
 $sdp->Create('','SDS',$failure_sds);
 $sdp->Create('','SDS',$msbcomplete_sds);
+$sdp->Create('','SDS',$msg_sds);
 
+addmessage(0, "Queue created at ".gmtime . "UT");
 
 # Create a Queue
 # This is a global, make sure that we only have one
@@ -241,22 +247,22 @@ sub msbtidy {
 
   my $projectid = $odf->{PROJECT_ID};
 
-  DRAMA::MsgOut($status, "Queue contents fully observed");
+  addmessage($status, "Queue contents fully observed");
 
   # if we do not have an MSBID and project then we cant do anything else
   # so dd not change the parameter
   if ($msbid && $projectid) {
 
     if ($projectid eq 'SCUBA' || $projectid =~ /CAL/ ) {
-      DRAMA::MsgOut($status, "Completed JCMT 'calibration' observations. No doneMSB");
-      DRAMA::MsgOut($status, "Project ID was $projectid");
+      addmessage($status, "Completed JCMT 'calibration' observations. No doneMSB");
+      addmessage($status, "Project ID was $projectid");
 
     } elsif ($projectid eq 'UNKNOWN') {
-      DRAMA::MsgOut($status, "Unable to determine project ID. No doneMSB");
+      addmessage($status, "Unable to determine project ID. No doneMSB");
 
     } else {
 
-      DRAMA::MsgOut($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+      addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
 
       # Store it
       $data{MSBID} = $msbid;
@@ -268,7 +274,8 @@ sub msbtidy {
     }
 
   } else {
-    DRAMA::MsgOut($status, "Queue contents fully observed but no MSBID or PROJECTID available.");
+    my $msg = "Queue contents fully observed but no MSBID or PROJECTID available.";
+    addmessage($status, $msg)
   }
 }
 
@@ -646,9 +653,11 @@ sub POLL {
     $lstat->ErsRep(0,"Error from SCUBA: $message");
     $lstat->ErsRep(0,"Error from SCUBA: Stopping the queue");
     $lstat->Flush;
+    &addmessage($scuba_status, $message);
+    &addmessage($scuba_status, "Stopping the queue");
     &STOPQ($lstat);
-  } elsif (defined $message) {
-    DRAMA::MsgOut($status,"From SCUBA: $message");
+  } elsif ($message) {
+    &addmessage($scuba_status, $message);
   }
 
   # Update the DRAMA parameters
@@ -1117,4 +1126,37 @@ sub compare_sds_to_perl ($$$$) {
 
   # Return the cur_diff flag - true if we have updated
   return $cur_diff;
+}
+
+
+# Store messages in the parameter that is monitored
+# takes status and text message
+sub addmessage {
+  my ($msgstatus, $msg) = @_;
+
+  # trap for DRAMA status
+  if (UNIVERSAL::can($msgstatus, "GetStatus")) {
+    # extract the value of the status
+    $msgstatus = $msgstatus->GetStatus;
+  }
+
+  my $status = new DRAMA::Status;
+  my $sds = $sdp->GetSds('MESSAGES',$status);
+  return undef unless defined $sds;
+
+  # split messages on new lines
+  my @lines = split(/\n/,$msg);
+
+  # print them using MsgOut
+  DRAMA::MsgOut($status, $msg);
+
+  my $msgsds = $sds->Find('MESSAGE',$status);
+  return unless defined $msgsds;
+  my $stsds = $sds->Find('STATUS',$status);
+  return unless defined $stsds;
+
+  use PDL;
+  $msgsds->PutStringArrayExists(\@lines,$status);
+  $stsds->PutPdl(pdl([$msgstatus]));
+  $sdp->Update($sds,$status);
 }

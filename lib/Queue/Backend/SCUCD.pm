@@ -239,7 +239,7 @@ sub _send {
   # First the success handler
   my $success = sub { 
     # print "SUCCESS\n";
-    $self->_pushmessage( 0, "CLIENT: Observation completed successfully");
+    $self->_pushmessage( 0, "Observation completed successfully");
 
     # change status
     $entry->status("OBSERVED");
@@ -270,7 +270,8 @@ sub _send {
   my $info = sub {
     my $msg = shift;
     print "SCUBA MESSAGE: $msg\n";
-    $self->_pushmessage( 0, "REMOTE: $msg");
+    $self->_pushmessage( 0, "SCUCD: $msg");
+    use Data::Dumper;
   };
 
   # Indicate that we are not accepting at the moment
@@ -278,7 +279,7 @@ sub _send {
 
 
   my $retstatus = 1;
-  $self->_pushmessage( 0, "Sending ODF to SCUCD [mode=$MODE]");
+  $self->_pushmessage( 0, "Sending ODF to SCUCD...");
   if ($MODE eq 'NONBLOCK') {
 
     # do the obey and return immediately but make sure we set

@@ -263,6 +263,7 @@ my $NBS_CANCELLED = 0; # for nbs monitor
 my $CANCELLED = 0;  # True if monitor is ended
 monitor($QNAME, "START", 
 	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
+	"MESSAGES",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,
@@ -422,6 +423,12 @@ sub cvtsub {
 
       }
     }
+  } elsif ($param eq 'MESSAGES') {
+    my @lines = @{$tie{MESSAGE}};
+    clean_array(\@lines);
+    $MsgText->insert('end',join("\n",@lines)."\n");
+    $MsgText->see('end');
+
   }
   return $value;
 }
@@ -1063,4 +1070,19 @@ sub ContentsMenu {
 				     ],
 		      );
   $menu->Popup(-popover => "cursor");
+}
+
+# This method "cleans" an array so that empty lines are removed
+# from the end as well as trailing space. Used to convert SDS arrays
+# to a usable perl array.
+# Takes the array ref and modifies it in place.
+
+sub clean_array {
+  my $arr = shift;
+
+  @$arr = grep {/\w/} @$arr;
+  foreach (@$arr) {
+    s/\s+$//;
+  }
+
 }

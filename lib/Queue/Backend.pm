@@ -471,8 +471,10 @@ sub poll {
   }
 
 
-  # Check for messages (if we are connected)
-  ($bestatus, $msg) = $self->messages if $self->isconnected;
+  # Check for messages (if we are connected) and append these
+  # messages to the one we read earlier
+  ($bestatus, my $newmsg) = $self->messages if $self->isconnected;
+  $msg .= $newmsg if defined $newmsg;
 
   #print "QStatus: $status, SCUCD status: $bestatus ";
   #print "QRunning: ". $self->qrunning . " Accepting: ". $self->accepting;
