@@ -1,68 +1,46 @@
 #!/usr/local/bin/perl
 
-=head1 SCUQUEUE
+=head1 NAME
 
-This is the DRAMA-based Queue. It is a layer on top of the 
-Queue::* perl modules (Queue, Queue::Contents, Queue::Entry
-and Queue::Backend). It is designed for use with the TODD.
+SCUQUEUE - DRAMA-based queue for controlling SCUBA observing
+
+=head1 SYNOPSIS
+
+  scuqueue &
+  scuqueue -sim -transdir /tmp
+
+=head1 DESCRIPTION
+
+This is the DRAMA-based Queue used to simplify the sequencing of SCUBA
+ODFs. It is a layer on top of the Queue::* perl modules (Queue,
+Queue::Contents, Queue::Entry and Queue::Backend).
 
 The SCUBA system (SCUCD) itself must be running before the queue can
 be started.  To start the queue simply run this program in the
 background.  The Queue registers itself as B<SCUQUEUE> in the DRAMA
 message system.
 
-Queue clients (e.g. C<qmonitor> and C<qctrl>) can be started as required.
+Queue clients (e.g. C<qmonitor>) can be started as required.
 
-=head1 ACTIONS
+=head1 OPTIONS
 
-The following DRAMA actions are supported:
+The following command-line options are supported:
 
 =over 4
 
-=item STARTQ
+=item B<-sim>
 
-Start the queue so that items will be sent to the Todd.
+Run the task in simulate mode. When running in this mode
+no commands are sent to the OMP database (MSBs are not marked
+as complete) and the task does not attempt to talk to the SCUCD
+task on SCUVAX. The task will attempt to talk to the demo scucd
+program on the same machine (see L<scucd>).
 
-=item STOPQ
+=item B<-transdir>
 
-Stop the queue. No new items will be sent to the Todd.
-
-=item CLEARQ
-
-Clear all items from the queue.
-
-=item LOADQ
-
-Clear the queue and add the specified ODF group file onto the queue.
-
-Single argument: file name
-
-[this is to get something done quickly. In the future may revert
-to a system where the ODF is sent as an array of strings or something]
-
-=item CUTQ
-
-Cut entries from the queue. Two SDS arguments are supplied:
-
-  INDEX - position/index in Queue to start cut (start at 0)
-  NCUT - Number of entries to cut from the queue.
-
-This may be reversed if followed by a PASTEQ before another
-call to CUTQ.
-
-=item POLL
-
-This action continually checks the backend to see whether new
-entries can be sent. This action reschedules itselfs on a regular 
-basis and does not need to be started by an external obey.
-
-=item SUSPENDMSB
-
-Suspend the MSB at the current entry.
-
-=item EXIT
-
-Closedown the Queue.
+The directory in which translated ODFs will appear. It is also
+the directory  used to write rewritten ODFs prior to sending
+them to SCUBA. Default is to use C</observe/ompodf>.
 
 =back
 
@@ -75,34 +53,51 @@ The following DRAMA parameters are available:
 =item Queue
 
 This contains the information on the current contents of the
-queue. This is an SDS structure stored in the
-parameter containing a single array labelled "Contents".
+queue. This is an SDS structure stored in the parameter containing a
+single array labelled "Contents".
 
 
 =item STATUS
 
-Whether the queue is running or not. (value is RUNNING or STOPPED).
+A string indicating whether the queue is running or not. (value is
+RUNNING or STOPPED).
+
 
 =item INDEX
 
-Current position in the queue.
+Current position in the queue [INTEGER].
+
+=item CURRENT
+
+As string describing the entry that is currently being observed.
+
+=item TIMEONQUEUE
+
+The time (in minutes) remaining on the queue. [INTEGER]
+
+=item FAILURE
+
+An SDS structure containing details on why the queue was stopped.
+Usually used to trigger a target request. Usually contains a single
+structure (named "DETAILS") containing the reason type and the entry
+number that triggered this reason.
+
+=item MSBCOMPLETED
+
+A SDS structure containing details on MSBs that have been completed
+by the queue but are awaiting confirmation of status from the
+observer. (see the MSBCOMPLETED action).
+
+=item MESSAGES
+
+SDS structure indicating the messages that can be displayed on a GUI.
+Contains a MESSAGE string and STATUS integer.
 
 =back
 
-=head1 SEE ALSO
-
-=head1 AUTHOR
-
-Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
-
-Copyright (C) Particle Physics and Astronomy Research Council
-1999-2001. All Rights Reserved.
-
 =cut
 
-#use FindBin;
-#use lib "$FindBin::Bin/../site_perl";
-
+# Send all STDOUT immediately
 $| = 1;
 
 use 5.006;
@@ -153,11 +148,19 @@ use subs qw/ LOADQ STARTQ STOPQ CUTQ POLL EXIT GETODF
 
 # Read command line options
 use Getopt::Long;
+use Pod::Usage;
 
+my ($man,$help);
 my $status = GetOptions("verbose" => \$VERBOSE,
 			"sim"     => \$SIM,
 			"transdir=s"=> \$TRANS_DIR, # override translator dir
+			"help"    => \$help,
+			"man"     => \$man,
 		       );
+
+pod2usage(1)  if ($help);
+pod2usage(-verbose => 2)  if ($man);
+
 
 
 # Drama Good status
@@ -245,84 +248,6 @@ if ($TRANS_DIR) {
   $Queue::Entry::SCUBAODF::TRANS_DIR = $TRANS_DIR;
 }
 
-# This is the callback when the MSB queue finishes
-# or if an MSB has been cut whilst some of it has been observed.
-# all it needs to do is extract the MSBID and set the completion parameter
-# Passed either an entry object or a Queue::MSB object
-sub msbtidy {
-  my $object = shift;
-
-  # Return immediately if we have no object
-  return unless defined $object;
-
-  # Now get the projectid and msbid
-  my $projectid = $object->projectid;
-  my $msbid = $object->msbid;
-
-  # create a new drama status
-  my $status = new DRAMA::Status;
-
-  # What we really need is the Queue::MSB object so that we can
-  # remove the MSB entries from the queue when it has been marked
-  # as complete
-  my $msb;
-  if (UNIVERSAL::isa($object, "Queue::MSB")) {
-    $msb = $object;
-  } elsif (UNIVERSAL::isa($object,"Queue::Entry")) {
-    $msb = $object->msb;
-  }
-
-  addmessage($status, "MSB contents fully observed");
-
-  # If the MSB has not been observed at all then we do not
-  # need to trigger anything here
-  if ($msb && ! $msb->hasBeenObserved) {
-    return;
-  }
-
-  # Since we are already processing an MSBCOMPLETE
-  # we do not want to trigger another one
-  # so disable the completion
-  $msb->hasBeenObserved( 0 ) if $msb;
-
-  # Collect the information we need to send the qmonitor
-  # The REQUEST key is not really required since we never
-  # set REQUEST to 0
-  my %data;
-  $data{REQUEST} = 1;
-  $data{MSB}     = $msb;
-
-  # if we do not have an MSBID and project then we cant do anything else
-  # so do not change the parameter
-  if ($msbid && $projectid) {
-
-    if ($projectid eq 'SCUBA' || $projectid =~ /JCMTCAL/ ) {
-      addmessage($status, "Completed JCMT 'calibration' observations. No doneMSB");
-      addmessage($status, "Project ID was $projectid");
-
-    } elsif ($projectid eq 'UNKNOWN') {
-      addmessage($status, "Unable to determine project ID. No doneMSB");
-
-    } else {
-
-      addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
-
-      # Store it
-      $data{MSBID} = $msbid;
-      $data{PROJECTID} = $projectid;
-
-      # And now store it in the parameter
-      set_msbcomplete_parameter($status, %data);
-
-    }
-
-  } else {
-    my $msg = "Queue contents fully observed but no MSBID or PROJECTID available.";
-    addmessage($status, $msg)
-  }
-}
-
-
 # Register this routine with the backend class
 $QUEUE->backend->msbcomplete( \&msbtidy );
 
@@ -339,6 +264,18 @@ exit;
 
 #################### A C T I O N S ##################################
 
+=head1 ACTIONS
+
+The following DRAMA actions are supported:
+
+=over 4
+
+=item B<EXIT>
+
+Cause the task to shutdown and exit. No arguments.
+
+=cut
+
 # EXIT action
 sub EXIT {
   my $status = shift;
@@ -348,31 +285,58 @@ sub EXIT {
   return $status;
 }
 
+=item B<STARTQ>
 
+Start the queue.
 
-sub ADDBACK {
-  my $status = shift;
+=cut
 
-  DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
-
-  my $argId = Dits::GetArgument;
-
-  # If no argument simply return
-  return unless defined $argId;
-
-  # Retrieve the ODF entries associated with the args
-  my @entries = &Sds_to_Entry($argId);
-
-  if ($#entries > -1) {
-    # Add these entries to the back of the queue
-    $QUEUE->contents->addback(@entries);
-
-    # Update the DRAMA parameters
-    update_contents_param($status);
-
+sub STARTQ {
+  unless ($QUEUE->backend->qrunning) {
+    $QUEUE->startq;
+    DRAMA::MsgOut($_[0], "Queue is running");
   }
-  return $status;
+  # still sync parameters even if we do not print the message
+  update_status_param($_[0]);
+  clear_failure_parameter($_[0]);
 }
+
+=item B<STOPQ>
+
+Stop the queue from sending any more entries to the backend.
+
+=cut
+
+sub STOPQ {
+  if ($QUEUE->backend->qrunning) {
+    $QUEUE->stopq;
+    DRAMA::MsgOut($_[0], "Queue is stopped");
+  }
+  # still sync the parameter
+  update_status_param($_[0]);
+}
+
+=item B<CLEARQ>
+
+Remove all entries from the queue.
+
+=cut
+
+sub CLEARQ {
+  $QUEUE->contents->clearq;
+  DRAMA::MsgOut($_[0], "Queue cleared");
+  update_contents_param($_[0]);
+  update_index_param($_[0]);
+}
+
+
+=item B<LOADQ>
+
+Clear the queue and load the specified ODFs onto it.
+Accepts a single argument that specifies the ODF file
+name of the ODF macro name. See C<Sds_to_Entry>.
+
+=cut
 
 sub LOADQ {
   my $status = shift;
@@ -402,9 +366,80 @@ sub LOADQ {
 }
 
 
-# Insert calibration ODFs at the current (or specified) index
-# Argument1: ODF file name
-# Argument2 [optional] Index
+=item B<ADDBACK>
+
+Add the supplied ODFs to the back of the queue.
+Accepts the same arguments as C<LOADQ>.
+
+=cut
+
+sub ADDBACK {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the ODF entries associated with the args
+  my @entries = &Sds_to_Entry($argId);
+
+  if ($#entries > -1) {
+    # Add these entries to the back of the queue
+    $QUEUE->contents->addback(@entries);
+
+    # Update the DRAMA parameters
+    update_contents_param($status);
+
+  }
+  return $status;
+}
+
+=item B<ADDFRONT>
+
+Add the supplied ODFs to the front of the queue.
+Accepts the same arguments as C<LOADQ>.
+
+=cut
+
+sub ADDFRONT {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running ADDFRONT") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the ODF entries associated with the args
+  my @entries = &Sds_to_Entry($argId);
+
+  if ($#entries > -1) {
+    # Add these entries to the back of the queue
+    $QUEUE->contents->addfront(@entries);
+
+    # Update the DRAMA parameters
+    update_contents_param($status);
+
+  }
+  return $status;
+}
+
+
+=item B<INSERTQ>
+
+Insert calibration ODFs into the queue at the current highlight
+or at the specified index. Note that these calibrations are not
+treated as MSBs.
+
+ODFs are specified in the same way as for C<LOADQ>.
+
+The optional index can be specified as "Argument2".
+
+=cut
 
 sub INSERTQ {
   my $status = shift;
@@ -451,17 +486,23 @@ sub INSERTQ {
   return $status;
 }
 
-# Replace an entry on the queue
-# Argument is either SDS structure called ODF with a key INDEX
-# or Argument1 == INDEX and Argument2 == ODF filename
-# (latter can be used for ditscmd)
-# Third argument controls whether the source parameters in this
-# ODF are propogated to later ODFs that are missing targets.
-# default is false. Parameter name is either Argument3 or 
-# PROPSRC in the ODF SDS structure
+=item B<REPLACEQ>
 
-# The status of the entry matches that of the one it replaces
-# ie whether it is the first or last obs in an MSB
+Replace an entry on the queue with another. This action takes three
+arguments. An index specifying the location in the queue to place the
+new entry, the ODF specification itself (as a filename), and a logical
+indicating whether source information from this ODF should be
+propagated to following entries. The arguments can either be specified
+by number ("Argument1" for the index and "Argument2" for the file name
+and "Argument3" for the source propagation flag) or by name (INDEX and
+PROPSRC, all remaining SDS entries used to construct a single ODF
+directly).
+
+The status of the entry matches that of the one it replaces
+ie whether it is the first or last obs in an MSB. It is automatically
+associated with the MSB of the entry it is replacing.
+
+=cut
 
 sub REPLACEQ {
   my $status = shift;
@@ -517,9 +558,12 @@ sub REPLACEQ {
   return $status;
 }
 
-# Clear the target information associated with the specified
-# index.
-# Argument1 contains the index entry.
+=item B<CLEARTARG>
+
+Clear the target information associated with the specified index.
+"Argument1" contains the index entry.
+
+=cut
 
 sub CLEARTARG {
   my $status = shift;
@@ -547,59 +591,14 @@ sub CLEARTARG {
 }
 
 
-sub ADDFRONT {
-  my $status = shift;
+=item B<CUTQ>
 
-  DRAMA::MsgOut($status, "Running ADDFRONT") if $VERBOSE;
+Remove entries beginning at the specified index position.  The index
+is mandatory (either as "Argument1" or as "INDEX") and an optional
+parameter can be used to specify the number of entries to remove
+("Argument2" or "NCUT"). Defaults to a single entry.
 
-  my $argId = Dits::GetArgument;
-
-  # If no argument simply return
-  return unless defined $argId;
-
-  # Retrieve the ODF entries associated with the args
-  my @entries = &Sds_to_Entry($argId);
-
-  if ($#entries > -1) {
-    # Add these entries to the back of the queue
-    $QUEUE->contents->addfront(@entries);
-
-    # Update the DRAMA parameters
-    update_contents_param($status);
-
-  }
-  return $status;
-}
-
-sub STARTQ {
-  unless ($QUEUE->backend->qrunning) {
-    $QUEUE->startq;
-    DRAMA::MsgOut($_[0], "Queue is running");
-  }
-  # still sync parameters even if we do not print the message
-  update_status_param($_[0]);
-  clear_failure_parameter($_[0]);
-}
-
-sub STOPQ {
-  if ($QUEUE->backend->qrunning) {
-    $QUEUE->stopq;
-    DRAMA::MsgOut($_[0], "Queue is stopped");
-  }
-  # still sync the parameter
-  update_status_param($_[0]);
-}
-
-sub CLEARQ {
-  $QUEUE->contents->clearq;
-  DRAMA::MsgOut($_[0], "Queue cleared");
-  update_contents_param($_[0]);
-  update_index_param($_[0]);
-}
-
-# Remove the entry at INDEX 
-# Multiple entries can be cut at once using the second
-# optional argument.
+=cut
 
 sub CUTQ {
   my $status = shift;
@@ -641,9 +640,14 @@ sub CUTQ {
   return $status;
 }
 
-# CUT MSB
-# Remove the MSB associated with the currently highlighted observation
-# or the supplied index
+=item B<CUTMSB>
+
+Remove the MSB associated with the currently highlighted observation
+or the supplied index. The optional index can be specified as either
+"Argument1" or as "INDEX" in the SDS argument structure.
+
+=cut
+
 sub CUTMSB {
   my $status = shift;
 
@@ -668,20 +672,20 @@ sub CUTMSB {
   }
 
 
-  # Get the current entry to make sure we have one highlighted
-  my $curentry = $QUEUE->contents->curentry;
-  unless ($curentry) {
-    addmessage($status, "Cut MSB attempted but no entries in queue");
-    return $status;
-  }
+  # Make sure there are entries in the queue
+  return $status unless defined $QUEUE->contents->countq;
 
   $QUEUE->contents->cutmsb($index);
 
   return $status;
 }
 
-# SUSPENDMSB
-# Suspend the MSB at the currently highlighted position
+=item B<SUSPENDMSB>
+
+Suspend the MSB at the currently highlighted position.
+
+=cut
+
 sub SUSPENDMSB {
   my $status = shift;
 
@@ -713,12 +717,22 @@ sub SUSPENDMSB {
   return $status;
 }
 
-# DONEMSB
-# Mark the MSB as done [relies on the MSB entry being active]
-# the currently highlighted position
-# Not clear that this has any additional functionality over CUTMSB
-# since we do not want to mark it done if it has not been observed
-# at all and we would probably like to be asked about it.
+=item B<DONEMSB>
+
+Mark the MSB as done [relies on the MSB entry being active] that is
+associated with the currently highlighted position.
+
+Not clear that this has any additional functionality over CUTMSB since
+we do not want to mark it done if it has not been observed at all and
+we would probably like to be asked about it.
+
+This action should be used with caution since it will always mark the
+MSB as complete if it can obtain the project ID and MSBID from the
+entry, regardless of whether it has been observed. This action
+needs to be reviewed.
+
+=cut
+
 sub DONEMSB {
   my $status = shift;
 
@@ -757,6 +771,15 @@ sub DONEMSB {
   return $status;
 }
 
+=item B<POLL>
+
+This is the core action in the queue. It continually reschedules
+itself checking to make sure that the queue is in a good state and
+sending the next entry if the queue is active and the backend is ready
+to accept it. This action is triggered by the queue on startup. It can
+be kicked to disable the rescheduling.
+
+=cut
 
 # continuously rescheduling action
 sub POLL {
@@ -842,10 +865,22 @@ sub KICK_POLL {
   return $status;
 }
 
-# retrieve an ODF
-# ODF contents are put in an Sds structure using key
-# ODF
-# Index number is present in arg Argument1
+
+=item B<GETODF>
+
+Retrieves the contents of an ODF from the queue using the specified
+index position. The index is specified as "Argument1".
+
+The Sds structure returned by this action has a key "ODF"
+containing the keyword/value pairs that form the ODF itself.
+
+Usually used to force a new target into an ODF in conjunction
+with REPLACEQ.
+
+Note that there is no C<SETTARG> action.
+
+=cut
+
 sub GETODF {
   my $status = shift;
   my $arg = Dits::GetArgument( $status );
@@ -869,17 +904,30 @@ sub GETODF {
 
 }
 
-# This action triggers MSBDONE on request
-# Sds Argument contains a structure with a timestamp key
-# pointing to 
-#   COMPLETE   - logical (doneMSB or rejectMSB)
-#   USERID     - user associated with this request [optional]
-#   REASON     - String describing any particular reason
-# There can be more than one timestamp entry so we can trigger
-# multiple MSBs at once....
-# Alternatively, for ease of use at the command line we also
-# support Argument1=timestamp Argument2=complete Argument3=userid
-# Argument4=reason
+=item B<MSBCOMPLETE>
+
+This action sends a doneMSB or rejectMSB to the OMP database
+if the corresponding entries can be found in the completion
+data structure.
+
+Sds Argument contains a structure with a timestamp key (which must be
+recognized by the system [ie in the completion parameter]) pointing
+to:
+
+  COMPLETE   - logical (doneMSB or rejectMSB)
+  USERID     - user associated with this request [optional]
+  REASON     - String describing any particular reason
+
+There can be more than one timestamp entry so we can trigger
+multiple MSBs at once (this will be the case if we have been
+running the queue without a monitor GUI).
+
+Alternatively, for ease of use at the command line we also support
+Argument1=timestamp Argument2=complete Argument3=userid
+Argument4=reason
+
+=cut
+
 sub MSBCOMPLETE {
   my $status = shift;
 
@@ -1000,19 +1048,36 @@ sub MSBCOMPLETE {
 }
 
 
-#--------------------------------------------------------------
-# Utility routines (not ACTIONS)
+=back
 
-# This routine converts an Sds structure to 
-# a set of Queue::Entry::SCUBAODF objects
+=begin __PRIVATE__
 
-# Currently assumes that the macro odf file name is in the sds
-# structure as Argument1. Can not yet accept the ODF as an SDS
-# structure.
+=head1 Internal Routines
 
-# An optional argument can be used to indicate that the ODFs
-# correspond to CAL observations and should not be grouped
-# as MSBs. Default is to group into MSBs.
+These internal routines are used to simplify the individual actions by
+grouping shared code. They are not in a stand-alone module simply
+because the only program that currently needs these routines is this
+program. They do not form part of the public interface.
+
+=over 4
+
+=item Sds_to_Entry
+
+Converts an SDS structure into an array of C<Queue::Entry>
+objects suitable for placing on the queue.
+
+  @entries = Sds_to_Entry( $argid );
+
+Currently assumes that the macro odf file name is in the sds structure
+as Argument1. Can not yet accept the ODF itself as an SDS structure.
+
+An optional argument can be used to indicate that the ODFs
+correspond to CAL observations and should not be grouped
+as MSBs. Default is to group into MSBs.
+
+  @entries = Sds_to_entry( $argid, $iscal );
+
+=cut
 
 sub Sds_to_Entry {
   my $argId = shift;
@@ -1053,8 +1118,13 @@ sub Sds_to_Entry {
 
 # PARAMETER MANIPULATION
 
-# Update the CONTENTS parameter
-# Argument: inherited status
+=item B<update_contents_param>
+
+Update the CONTENTS parameter
+
+  update_contents_param( $status );
+
+=cut
 
 sub update_contents_param {
   return unless $_[0]->Ok;
@@ -1092,8 +1162,16 @@ sub update_contents_param {
 
 }
 
-# Update the Stopped/Running flag using the STATUS parameter
-# Argument: inherited status
+=item B<update_status_param>
+
+Update the Stopped/Running flag using the STATUS parameter.
+
+  update_status_param( $status );
+
+The status argument is the DRAMA inherited status and not the
+queue status.
+
+=cut
 
 sub update_status_param {
   my $status = shift;
@@ -1114,8 +1192,13 @@ sub update_status_param {
 
 }
 
-# Sync the index parameter with the queue
-# Argument: inherited status
+=item B<update_index_param>
+
+Sync the index parameter with the queue
+
+  update_index_param( $status );
+
+=cut
 
 sub update_index_param {
   my $status = shift;
@@ -1146,7 +1229,14 @@ sub update_index_param {
 
 }
 
-# Update the time remaining
+=item B<update_time_remaining>
+
+Update the time remaining parameter.
+
+  update_time_remaining( $status );
+
+=cut
+
 sub update_time_remaining {
   my $status = shift;
   return unless $status->Ok;
@@ -1163,10 +1253,18 @@ sub update_time_remaining {
 
 }
 
-# See if the queue index and parameter have changed independently
-# The LOCAL_INDEX variable helps us with this since we know it
-# can not be changed by an external prompt.
-# Argument: inherited status
+=item B<check_index_param_sync>
+
+See if the queue index and parameter have changed independently
+The LOCAL_INDEX variable helps us with this since we know it
+can not be changed by an external prompt.
+
+  check_index_param_sync( $status );
+
+The correct way to do this may be to set up an internal monitor
+on the parameter itself.
+
+=cut
 
 sub check_index_param_sync {
   my $status = shift;
@@ -1201,8 +1299,16 @@ sub check_index_param_sync {
 
 }
 
-# Update the Current string
-# Argument: inherited status
+=item B<update_current_param>
+
+Update the CURRENT parameter.
+
+  update_current_param( $status );
+
+The details of the entry currently being observed are obtained
+via the global Queue object.
+
+=cut
 
 sub update_current_param {
   return unless $_[0]->Ok;
@@ -1228,8 +1334,15 @@ sub update_current_param {
 
 }
 
-# Clear the contents of the failure parameter
-# Arguments: inherited status
+=item B<clear_failure_parameter>
+
+Clear the contents of the failure parameter.
+Arguments: inherited status
+
+  clear_failure_parameter( $status );
+
+=cut
+
 sub clear_failure_parameter {
   my $status = shift;
   return unless $status->Ok;
@@ -1263,8 +1376,15 @@ sub clear_failure_parameter {
   return;
 }
 
-# Set the contents of the failure parameter
-# Arguments: Inherited status, information hash
+=item B<set_failure_parameter>
+
+Set the contents of the failure parameter.
+Arguments: Inherited status, information hash
+
+  set_failure_parameter( $status, %reason);
+
+=cut
+
 sub set_failure_parameter {
   my $status = shift;
   return unless $status->Ok;
@@ -1294,12 +1414,21 @@ sub set_failure_parameter {
   return;
 }
 
-# Set the contents of the msb complete parameter
-# Arguments: Inherited status, information hash
-# This method takes the data, timestamps it and places it
-# into the parameter. Use clear_msbcomplete_parameter
-# to remove it. This allows us to stack up MSB completion
-# requests if we do not have a qmonitor running.
+=item B<set_msbcomplete_parameter>
+
+Set the contents of the MSB complete parameter.  Arguments: Inherited
+status, information hash This method takes the data (a hash of
+information that should be sent to the monitoring system), timestamps
+it and places it into the parameter. Use
+C<clear_msbcomplete_parameter> to remove it. This allows us to stack
+up MSB completion requests if we do not have a qmonitor running.
+
+  set_msbcomplete_parameter( $status, %details)
+
+Note that the MSB key is treated as a special case (the relevant
+Queue::MSB object) and is not stored directly in the parameter.
+
+=cut
 
 my %MSBComplete;
 sub set_msbcomplete_parameter {
@@ -1347,8 +1476,14 @@ sub set_msbcomplete_parameter {
   return;
 }
 
-# Remove the completed information from the parameter.
-# This requires the timestamp to be removed.
+=item B<clear_msbcomplete_parameter>
+
+Remove the completed information from the DRAMA parameter.
+
+ clear_msbcomplete_parameter($status, $timestamp);
+
+=cut
+
 sub clear_msbcomplete_parameter {
   my $status = shift;
   return unless $status->Ok;
@@ -1390,12 +1525,16 @@ sub clear_msbcomplete_parameter {
   return;
 }
 
-# Retrieve the MSBID and Projectid information
-# associated with the supplied timestamp.
-# Simply return the hash entry in %MSBComplete (the pseudo Queue::MSBComplete
-# object)
+=item B<get_msbcomplete_parameter_timestamp>
 
-# %details = get_msbcomplete_parameter_timestamp($status,$tstamp);
+Retrieve the MSBID and Projectid information associated with the
+supplied timestamp.  Simply returns the hash entry in %MSBComplete (the
+pseudo C<Queue::MSBComplete> object)
+
+ %details = get_msbcomplete_parameter_timestamp($status,$tstamp);
+
+=cut
+
 sub get_msbcomplete_parameter_timestamp {
   my $status = shift;
   return unless $status->Ok;
@@ -1409,14 +1548,21 @@ sub get_msbcomplete_parameter_timestamp {
 
 }
 
-# Sub to compare an SDS array with a perl array, updating
-# the SDS array if necessary
-# Arguments: Sds structure
-#            Name of structure
-#            Reference to comparison array
-#            Status
+=item B<compare_sds_to_perl>
 
-# Returns true if they were different, otherwise returns false
+Sub to compare an SDS array with a perl array, updating the SDS array
+if necessary. Arguments are an sds structure, the name of the
+component in that structure that is to be compared, reference to a
+reference perl array and inherited status:
+
+  $changed = compare_sds_to_perl( $sdsid, $name, \@comp, $status);
+
+Returns true if they were different, otherwise returns false.
+This is used to decide whether a DRAMA parameter should have its
+update state triggered for remote monitors (rather than sending
+a monitor trigger every time we may have changed the Perl array).
+
+=cut
 
 sub compare_sds_to_perl ($$$$) {
   die 'Usage: compare_sds_to_perl($sds,$name,$arref,$status)'
@@ -1484,6 +1630,18 @@ sub compare_sds_to_perl ($$$$) {
 }
 
 
+=item B<addmessage>
+
+Given a message status and a message string, "publish"
+that message as a parameter and simultaneously "print"
+it using MsgOut. This method is useful for monitor
+tasks that did not initiate the action that generates
+the message.
+
+  addmessage( $status, $text );
+
+=cut
+
 # Store messages in the parameter that is monitored
 # takes status and text message
 sub addmessage {
@@ -1510,8 +1668,108 @@ sub addmessage {
   my $stsds = $sds->Find('STATUS',$status);
   return unless defined $stsds;
 
-  use PDL;
+  use PDL::Lite;
   $msgsds->PutStringArrayExists(\@lines,$status);
   $stsds->PutPdl(pdl([$msgstatus]));
   $sdp->Update($sds,$status);
 }
+
+=item B<msbtidy>
+
+This is the callback when the MSB queue finishes or if an MSB has been
+cut whilst some of it has been observed.  all it needs to do is
+extract the MSBID and set the completion parameter Passed either an
+entry object or a C<Queue::MSB> object
+
+=cut
+
+sub msbtidy {
+  my $object = shift;
+
+  # Return immediately if we have no object
+  return unless defined $object;
+
+  # Now get the projectid and msbid
+  my $projectid = $object->projectid;
+  my $msbid = $object->msbid;
+
+  # create a new drama status
+  my $status = new DRAMA::Status;
+
+  # What we really need is the Queue::MSB object so that we can
+  # remove the MSB entries from the queue when it has been marked
+  # as complete
+  my $msb;
+  if (UNIVERSAL::isa($object, "Queue::MSB")) {
+    $msb = $object;
+  } elsif (UNIVERSAL::isa($object,"Queue::Entry")) {
+    $msb = $object->msb;
+  }
+
+  addmessage($status, "MSB contents fully observed");
+
+  # If the MSB has not been observed at all then we do not
+  # need to trigger anything here
+  if ($msb && ! $msb->hasBeenObserved) {
+    return;
+  }
+
+  # Since we are already processing an MSBCOMPLETE
+  # we do not want to trigger another one
+  # so disable the completion
+  $msb->hasBeenObserved( 0 ) if $msb;
+
+  # Collect the information we need to send the qmonitor
+  # The REQUEST key is not really required since we never
+  # set REQUEST to 0
+  my %data;
+  $data{REQUEST} = 1;
+  $data{MSB}     = $msb;
+
+  # if we do not have an MSBID and project then we cant do anything else
+  # so do not change the parameter
+  if ($msbid && $projectid) {
+
+    if ($projectid eq 'SCUBA' || $projectid =~ /JCMTCAL/ ) {
+      addmessage($status, "Completed JCMT 'calibration' observations. No doneMSB");
+      addmessage($status, "Project ID was $projectid");
+
+    } elsif ($projectid eq 'UNKNOWN') {
+      addmessage($status, "Unable to determine project ID. No doneMSB");
+
+    } else {
+
+      addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+
+      # Store it
+      $data{MSBID} = $msbid;
+      $data{PROJECTID} = $projectid;
+
+      # And now store it in the parameter
+      set_msbcomplete_parameter($status, %data);
+
+    }
+
+  } else {
+    my $msg = "Queue contents fully observed but no MSBID or PROJECTID available.";
+    addmessage($status, $msg)
+  }
+}
+
+
+=back
+
+=end __PRIVATE__
+
+=head1 SEE ALSO
+
+L<Queue::Contents>, L<qmonitor>
+
+=head1 AUTHOR
+
+Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) Particle Physics and Astronomy Research Council
+1999-2002. All Rights Reserved.
+
+=cut

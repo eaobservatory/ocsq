@@ -6,6 +6,10 @@ Queue::Contents::Indexed - Manipulate contents of an indexed queue
 
 =head1 SYNOPSIS
 
+  use Queue::Contents::Indexed;
+
+  $q->curindex( 4 );
+
 =head1 DESCRIPTION
 
 This class provides methods for manipulating the contents
@@ -425,20 +429,23 @@ sub cutq {
   $num = 1 unless defined $num;
   if ($num > 0) {
     my $max = $self->maxindex;
-    my $end = $startindex + $num - 1;
-    $end = ( $end > $max ? $max : $end  );
-    my %msbs;
-    for my $i ($startindex .. $end) {
-      my $entry = $self->getentry( $i );
-      # For efficiency just find each MSB object
-      my $msb = $entry->msb;
-      next unless defined $msb;
-      $msbs{ $msb } = $msb unless exists $msbs{$msb};
-    }
-    # Now register the current entry
-    my $cur = $self->curentry;
-    for my $msb (values %msbs) {
-      $msb->refentry( $cur );
+    # If max is not defined we probably have an empty queue
+    if (defined $max) {
+      my $end = $startindex + $num - 1;
+      $end = ( $end > $max ? $max : $end  );
+      my %msbs;
+      for my $i ($startindex .. $end) {
+	my $entry = $self->getentry( $i );
+	# For efficiency just find each MSB object
+	my $msb = $entry->msb;
+	next unless defined $msb;
+	$msbs{ $msb } = $msb unless exists $msbs{$msb};
+      }
+      # Now register the current entry
+      my $cur = $self->curentry;
+      for my $msb (values %msbs) {
+	$msb->refentry( $cur );
+      }
     }
   }
 

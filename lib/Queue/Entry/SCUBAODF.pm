@@ -212,7 +212,7 @@ sub getTarget {
   return $self->entity->getTarget;
 }
 
-=item B<getTarget>
+=item B<setTarget>
 
 Set target information associated with the entry. Requires an C<Astro::Coords>
 object.

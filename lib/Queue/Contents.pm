@@ -79,6 +79,7 @@ sub new {
   return $q;
 }
 
+=back
 
 =head2 Accessor Methods
 

@@ -83,9 +83,9 @@ use Time::Piece qw/ :override /;
 # named QUEDOER for historical reasons
 #DPerlInit( "QUEDOER" );
 
-=head2 METHODS
+=head1 METHODS
 
-=head1 Class Methods
+=head2 Class Methods
 
 =over 4
 
@@ -548,6 +548,8 @@ sub messages {
 =begin __PRIVATE_METHODS__
 
 =head2 Private Methods
+
+=over 4
 
 =item B<_pending>
 

@@ -7,7 +7,7 @@ Queue - Generic Queue class containing Contents and Backend objects
 =head1 SYNOPSIS
 
   use Queue;
-  
+
   $Q = new Queue;
 
   $Q->contents->addback(@entries);

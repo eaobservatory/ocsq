@@ -85,6 +85,8 @@ sub new {
 
 }
 
+=back
+
 =head2 Accessor Methods
 
 =over 4
@@ -106,7 +108,7 @@ sub projectid {
   return $self->{ProjectID};
 }
 
-=item B<projectid>
+=item B<msbid>
 
 The MSB ID associated with this MSB.
 
@@ -253,6 +255,8 @@ sub msbcomplete {
 =back
 
 =head2 General Methods
+
+=over 4
 
 =item B<update>
 
@@ -531,7 +535,7 @@ sub cut {
 }
 
 
-=cut
+=back
 
 =head1 NOTES
 

@@ -109,7 +109,7 @@ sub index {
 }
 
 
-=over 4 B<details>
+=item B<details>
 
 Detailed data on how to fix the problem. For MissingTarget this
 will hopefully include keys:
