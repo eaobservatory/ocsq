@@ -1678,7 +1678,7 @@ sub addmessage {
 
   use PDL::Lite;
   $msgsds->PutStringArrayExists(\@lines,$status);
-  $stsds->PutPdl(pdl([$msgstatus]));
+  $stsds->PutPdl(PDL::Core::pdl([$msgstatus]));
   $sdp->Update($sds,$status);
 }
 
