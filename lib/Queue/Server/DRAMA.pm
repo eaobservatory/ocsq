@@ -585,6 +585,21 @@ sub _local_index {
   return $self->{_LOCAL_INDEX};
 }
 
+=item B<_msbcomplete_table>
+
+Return a reference to a hash representing the MSB completion
+information that is currently awaiting approval.
+
+ $msbcompl = $self->_msbcomplete_table();
+
+=cut
+
+sub _msbcomplete_table {
+  my $self = shift;
+  $self->{MSBCOMPLETE} = {} unless defined $self->{MSBCOMPLETE};
+  return $self->{MSBCOMPLETE};
+}
+
 =back
 
 =head2 Main methods
@@ -746,6 +761,157 @@ sub ersRep {
   my $self = shift;
   croak "Q->ersRep Not trustworthy yet!\n";
 }
+
+=item B<set_msbcomplete_parameter>
+
+Set the contents of the MSB complete parameter.
+
+Arguments: Inherited status, information hash.
+
+This method takes the data (a hash of information that should be sent
+to the monitoring system), timestamps it and places it into the
+parameter. Use C<clear_msbcomplete_parameter> method to remove
+it. This allows us to stack up MSB completion requests if we do not
+have a queue monitor running.
+
+  $Q->set_msbcomplete_parameter( $status, %details)
+
+Note that the MSB key is treated as a special case (the relevant
+Queue::MSB object) and is not stored directly in the parameter.
+
+The expectation is that %details includes sufficient information
+to identify the MSB. It will likely include the position of the
+MSB in the queue, the projectid and the MSBID.
+
+=cut
+
+sub set_msbcomplete_parameter {
+  my $self = shift;
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the MSBCOMPLETED parameter
+  my $sdp = $self->_params;
+  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
+  return undef unless defined $sds;
+
+  # Read the arguments
+  my %details = @_;
+
+  print Dumper(\%details);
+  print ($status->Ok ? "status ok\n" : "status bad\n");
+
+  # Generate a timestamp (not that it really needs to be
+  # unique since Sds will handle it if we keep on adding
+  # identical entries but they are hard to remove)
+  my $tstamp = time();
+
+  # The MSB object should not go in the SDS structure
+  # so we store all this information in a hash outside
+  # of it [that only the *_msbcomplete functions use -
+  # this is essentially a Queue::MSBComplete object
+  # Take a copy
+  $self->_msbcomplete_table->{$tstamp} = { %details };
+
+  # Remove the MSB field
+  delete $details{MSB};
+
+  # Add it to the parameter
+  # standard kluge
+  bless $sds, "Sds";
+
+  # put in the inormation
+  $sds->PutHash( \%details, "$tstamp", $status);
+
+  $sds->List($status);
+
+  # Notify the parameter system
+  $sdp->Update($sds,$status);
+
+  print "Get to the end of qcompleted param setting\n";
+  return;
+}
+
+=item B<clear_msbcomplete_parameter>
+
+Remove the completed information from the DRAMA parameter.
+
+ $Q->clear_msbcomplete_parameter($status, $timestamp);
+
+The timestamp must match a timestamp stored in the completion table.
+
+=cut
+
+sub clear_msbcomplete_parameter {
+  my $self = shift;
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the MSBCOMPLETED parameter
+  my $sdp = $self->_params;
+  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
+  return undef unless defined $sds;
+
+  my $tstamp = shift;
+
+  # Now need to look for the timestamp object
+  # (use a private status)
+  DRAMA::ErsPush();
+  my $lstat = new DRAMA::Status;
+
+  # Have to remove the old entries
+  my $updated;
+  {
+    my $detsds = $sds->Find("$tstamp", $lstat);
+
+    if ($detsds) {
+      # if we have a DETAILS object we need to
+      # configure it so that it is deleted when it goes out of scope
+      $detsds->flags(1,1,1);
+
+      # We are going to destroy it
+      $updated = 1;
+
+    }
+
+  }
+  $lstat->Annul() unless $lstat->Ok();
+  DRAMA::ErsPop();
+
+  # And we need to trigger a parameter update notification
+  # if it was changed
+  $sdp->Update($sds, $status) if $updated;
+
+  # Clear the hash entry
+  delete $self->_msbcomplete_table->{$tstamp};
+
+  return;
+}
+
+=item B<get_msbcomplete_parameter_timestamp>
+
+Retrieve the MSBID and Projectid information associated with the
+supplied timestamp.  Simply returns the hash entry in the MSB completion table.
+(the pseudo C<Queue::MSBComplete> object).
+
+ %details = $Q->get_msbcomplete_parameter_timestamp($status,$tstamp);
+
+=cut
+
+sub get_msbcomplete_parameter_timestamp {
+  my $self = shift;
+  my $status = shift;
+  return unless $status->Ok;
+  my $tstamp = shift;
+
+  if (exists $self->_msbcomplete_table->{$tstamp}) {
+    return %{ $self->_msbcomplete_table->{$tstamp} };
+  } else {
+    return ();
+  }
+
+}
+
 
 
 =back
@@ -1539,7 +1705,8 @@ Sds Argument contains a structure with a timestamp key (which must be
 recognized by the system [ie in the completion parameter]) pointing
 to:
 
-  COMPLETE   - logical (doneMSB or rejectMSB)
+  COMPLETE   - tri-valued  0 - reject +ve - accept MSB
+               -ve - remove MSB without action "took no data"
   USERID     - user associated with this request [optional]
   REASON     - String describing any particular reason
 
@@ -1559,7 +1726,7 @@ sub MSBCOMPLETE {
   Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  $Q->addmessage($status,"MSB COMPLETE")
+  $Q->addmessage($status,"Running MSB COMPLETE action.")
     if $Q->verbose;
 
   # argument is a boolean governing whether or not we should
@@ -1611,26 +1778,41 @@ sub MSBCOMPLETE {
   for my $donemsb (@completed) {
 
     # First get the MSBID and PROJECTID
-    my %details = get_msbcomplete_parameter_timestamp( $status,$donemsb->{timestamp});
+    my %details = $Q->get_msbcomplete_parameter_timestamp( $status,$donemsb->{timestamp});
 
     my $projectid = $details{PROJECTID};
     my $msbid     = $details{MSBID};
     my $msb       = $details{MSB};
 
-    print "ProjectID: $projectid MSBID: $msbid TimeStamp: ".
-      $donemsb->{timestamp}."\n";
+    print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
+      " MSBID: ".(defined $msbid ? $msbid : "<undef>").
+	" TimeStamp: ". (defined $donemsb->{timestamp} ? 
+			 $donemsb->{timestamp} : "<undef>").
+			   "\n";
 
     # Ooops if we have nothing
-    if (!$msbid || !$projectid) {
-        $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete but can no longer find it in the parameter system.");
-	next;
+    if (!$donemsb->{timestamp}) {
+      $Q->addmessage($status,"Attempting to mark MSB as complete but no timestamp supplied!");
+      next;
+    } elsif (!$msbid || !$projectid) {
+      $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete but can no longer find it in the parameter system.");
+      next;
     }
 
     my $mark = $donemsb->{complete};
+    my $martxt;
+    if ($mark == 0) {
+      $martxt = 'REJECT';
+    } elsif ($mark > 0) {
+      $martxt = 'ACCEPT';
+    } elsif ($mark < 0) {
+      $martxt = 'IGNORE';
+    } else {
+      $martxt = 'UNKNOWN';
+    }
+    $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete [$martxt]");
 
-    $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete Mark=$mark");
-
-    if ($mark) {
+    if ($mark > 0) {
 
       try {
 	# Need to mark it as done [unless we are in simulate mode]
@@ -1638,7 +1820,9 @@ sub MSBCOMPLETE {
 			      $donemsb->{reason})
 	    unless $Q->simdb;
 
-	$Q->addmessage($status,"MSB marked as done for project $projectid");
+	my $msg = ( $Q->simdb ? '[without modifying DB]' : "");
+	$Q->addmessage($status,
+		       "MSB marked as done for project $projectid $msg");
       } otherwise {
 	# Big problem with OMP system
 	my $E = shift;
@@ -1647,7 +1831,8 @@ sub MSBCOMPLETE {
 	$Q->addmessage($status, "Error marking msb $msbid as done: $E");
       };
 
-    } else {
+    } elsif ($mark == 0) {
+      # Reject the MSB
 
       try {
 	# file a comment to indicate that the MSB was rejected
@@ -1656,7 +1841,9 @@ sub MSBCOMPLETE {
 				   $donemsb->{reason})
 	    unless $Q->simdb;
 
-	$Q->addmessage($status,"MSB rejected for project $projectid");
+	my $msg = ( $Q->simdb ? '[without modifying DB]' : "");
+	$Q->addmessage($status,"MSB rejected for project $projectid $msg");
+
       } otherwise {
 	# Big problem with OMP system
 	my $E = shift;
@@ -1665,6 +1852,9 @@ sub MSBCOMPLETE {
 	$Q->addmessage($status, "Error marking msb $msbid as rejected: $E");
       };
 
+    } else {
+      $Q->addmessage($status,
+		     "Removing MSB without notifying OMP database [noactivity]");
     }
 
     # Return if we have bad status
@@ -1674,7 +1864,7 @@ sub MSBCOMPLETE {
     }
 
     # and clear the parameter
-    clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
+    $Q->clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
 
     # And remove the MSB from the queue
     if ($msb) {
@@ -2123,145 +2313,6 @@ sub set_failure_parameter {
   return;
 }
 
-=item B<set_msbcomplete_parameter>
-
-Set the contents of the MSB complete parameter.
-
-Arguments: Inherited status, information hash 
-
-This method takes the data (a hash of information that should be sent
-to the monitoring system), timestamps it and places it into the
-parameter. Use C<clear_msbcomplete_parameter> to remove it. This
-allows us to stack up MSB completion requests if we do not have a
-qmonitor running.
-
-  set_msbcomplete_parameter( $status, %details)
-
-Note that the MSB key is treated as a special case (the relevant
-Queue::MSB object) and is not stored directly in the parameter.
-
-=cut
-
-my %MSBComplete;
-sub set_msbcomplete_parameter {
-  my $status = shift;
-  return unless $status->Ok;
-
-  # Read the MSBCOMPLETED parameter
-  my $sdp = $Q->_params;
-  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
-  return undef unless defined $sds;
-
-  # Read the arguments
-  my %details = @_;
-
-  print Dumper(\%details);
-  print ($status->Ok ? "status ok\n" : "status bad\n");
-
-  # Generate a timestamp (not that it really needs to be
-  # unique since Sds will handle it if we keep on adding
-  # identical entries but they are hard to remove)
-  my $tstamp = time();
-
-  # The MSB object should not go in the SDS structure
-  # so we store all this information in a hash outside
-  # of it [that only the *_msbcomplete functions use -
-  # this is essentially a Queue::MSBComplete object
-  # Take a copy
-  $MSBComplete{$tstamp} = { %details };
-
-  # Remove the MSB field
-  delete $details{MSB};
-
-  # Add it to the parameter
-  # standard kluge
-  bless $sds, "Sds";
-
-  # put in the inormation
-  $sds->PutHash( \%details, "$tstamp", $status);
-
-  $sds->List($status);
-
-  # Notify the parameter system
-  $sdp->Update($sds,$status);
-
-  print "Get to the end of qcompleted param setting\n";
-  return;
-}
-
-=item B<clear_msbcomplete_parameter>
-
-Remove the completed information from the DRAMA parameter.
-
- clear_msbcomplete_parameter($status, $timestamp);
-
-=cut
-
-sub clear_msbcomplete_parameter {
-  my $status = shift;
-  return unless $status->Ok;
-
-  # Read the MSBCOMPLETED parameter
-  my $sdp = $Q->_params;
-  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
-  return undef unless defined $sds;
-
-  my $tstamp = shift;
-
-  # Now need to look for the timestamp object
-  # (use a private status)
-  my $lstat = new DRAMA::Status;
-
-  # Have to remove the old entries
-  my $updated;
-  {
-    my $detsds = $sds->Find("$tstamp", $lstat);
-
-    if ($detsds) {
-      # if we have a DETAILS object we need to
-      # configure it so that it is deleted when it goes out of scope
-      $detsds->flags(1,1,1);
-
-      # We are going to destroy it
-      $updated = 1;
-
-    }
-
-  }
-
-  # And we need to trigger a parameter update notification
-  # if it was changed
-  $sdp->Update($sds, $status) if $updated;
-
-  # Clear the hash entry
-  delete $MSBComplete{$tstamp};
-
-  return;
-}
-
-=item B<get_msbcomplete_parameter_timestamp>
-
-Retrieve the MSBID and Projectid information associated with the
-supplied timestamp.  Simply returns the hash entry in %MSBComplete (the
-pseudo C<Queue::MSBComplete> object)
-
- %details = get_msbcomplete_parameter_timestamp($status,$tstamp);
-
-=cut
-
-sub get_msbcomplete_parameter_timestamp {
-  my $status = shift;
-  return unless $status->Ok;
-  my $tstamp = shift;
-
-  if (exists $MSBComplete{$tstamp}) {
-    return %{ $MSBComplete{$tstamp} };
-  } else {
-    return ();
-  }
-
-}
-
 =item B<compare_sds_to_perl>
 
 Sub to compare an SDS array with a perl array, updating the SDS array
@@ -2376,6 +2427,8 @@ sub msbtidy {
     $msb = $object;
   } elsif (UNIVERSAL::isa($object,"Queue::Entry")) {
     $msb = $object->msb;
+  } else {
+    croak "Unable to determine class of the object supplied to msbtidy\n";
   }
 
   $Q->addmessage($status, "MSB contents fully observed");
@@ -2420,7 +2473,7 @@ sub msbtidy {
       $data{PROJECTID} = $projectid;
 
       # And now store it in the parameter
-      set_msbcomplete_parameter($status, %data);
+      $Q->set_msbcomplete_parameter($status, %data);
 
     }
 

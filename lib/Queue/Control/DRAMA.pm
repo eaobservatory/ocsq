@@ -250,9 +250,61 @@ sub cutq {
   obeyw($self->qtask,"CUTQ",$arg);
 }
 
+=item B<msbcomplete>
+
+Indicate that the MSB is complete.
+
+  $Q->msbcomplete( $userid, $tstamp, $accept, $reason );
+
+where $accept is -1 to remove the MSB from the pending list
+without action, 0 rejects the MSB, and 1 accepts the MSB.
+
+The userid must be a valid OMP userid.
+
+=cut
+
+sub msbcomplete {
+  my $self = shift;
+  my ($userid, $tstamp, $accept, $reason) = @_;
+
+  DRAMA::ErsPush();
+  my $status = new DRAMA::Status;
+  my $arg = Arg->Create;
+  $arg->PutString("Argument1",$tstamp, $status);
+  $arg->PutString("Argument2",$accept, $status);
+
+
+  # A user [I could verify it here...]
+  $arg->PutString("Argument3", $userid, $status)
+    if $userid;
+
+  # Make sure we have content
+  if (defined $reason && length($reason) > 0 && $reason =~ /\w/) {
+    $arg->PutString("Argument4", $reason, $status);
+  }
+
+  my %obeyargs;
+  $obeyargs{-deletearg} = 0;
+  $obeyargs{-error} = $self->error if defined $self->error;
+
+  $arg->List( $status);
+
+  # Run the actual obey
+  if ($status->Ok) {
+    obey($self->qtask,"MSBCOMPLETE",$arg, \%obeyargs);
+    print "Sent MSBCOMPLETE obey to queue\n";
+  } else {
+    print "Error forming arguments for MSBCOMPLETE obey!\n";
+    $status->Flush();
+  }
+
+
+  DRAMA::ErsPop();
+
+}
+
 
 =back
-
 
 =head1 REQUIREMENTS
 
