@@ -74,6 +74,9 @@ If the current index is undefined but the queue has entries,
 the current index will automatically be set to 0 when
 the value is requested.
 
+If a valid new index is supplied the lastindex() is not reset
+to C<undef> (since lastindex() still refers to a valid entry).
+
 =cut
 
 sub curindex {
@@ -84,7 +87,6 @@ sub curindex {
       if ($new =~ /^\d+$/ && $self->indexwithin($new) ) {
 	# A number and it is in range
 	$self->{CurIndex} = $new;
-	$self->lastindex(undef);
       }
     }
   } else {

@@ -121,13 +121,19 @@ sub contents {
 
 =item B<lastindex>
 
-Index of last entry retrieved from the queue via 
+Index of last entry retrieved from the queue via C<get_for_observation>.
 
-Undefined by default and if the queue contents are changed or the index
-changed.
+Undefined by default and if the queue contents are changed.
+It is not modified if the index is changed (this allows you to compare
+the current index with that of the observation just sent).
 
 Used to determine whether anything was modified between sending and
 dealing with the aftermath.
+
+An attempt is made to keep lastindex() current (as is done for
+curindex()) in order to keep track of the same entry. This allows you
+to make sure you are still using the same entry even if some new
+entries have been inserted into the queue.
 
 =cut
 
@@ -264,6 +270,9 @@ is cut from the queue. If the second argument is less than
 one nothing happens. If the start index is out of range
 then nothing happens.
 
+If the lastindex is defined and refers to one of the entries that
+was cut it is reset.
+
 =cut
 
 sub cutq {
@@ -275,6 +284,17 @@ sub cutq {
   # Check the range for the cut number and index
   return unless $num > 0;
   return unless $self->indexwithin( $startindex );
+
+  # reset lastindex if we are in the cut region
+  # or after the cut region
+  my $last = $self->lastindex;
+  if (defined $last) {
+    if ($last > ($startindex+$num-1)) {
+      $self->lastindex( $last - $num);
+    } elsif ($last >= $startindex && $last <= ($startindex+$num-1)) {
+      $self->lastindex(undef);
+    }
+  }
 
   # Cut the entries from the queue
   return splice(@{$self->contents}, $startindex, $num);
@@ -327,6 +347,13 @@ sub addfront {
   if (@_) {
     my @new = grep { $self->_test_type($_) } @_;
     unshift(@{$self->contents}, @new);
+
+    # correct lastindex
+    my $last = $self->lastindex;
+    if (defined $last) {
+      $last += scalar(@new);
+      $self->lastindex($last);
+    }
   }
   return;
 }
@@ -344,6 +371,14 @@ This is similar to the Perl shift() command.
 
 sub shiftq {
   my $self = shift;
+
+  # correct lastindex
+  my $last = $self->lastindex;
+  if (defined $last) {
+    $last--;
+    $self->lastindex($last);
+  }
+
   return shift(@{$self->contents});
 }
 
@@ -381,6 +416,8 @@ to C<addfront>.
 If the queue is empty the entries are simply added to the queue
 using C<addback> regardless of the supplied index.
 
+lastindex() is kept up-to-date.
+
 =cut
 
 sub insertq {
@@ -405,6 +442,16 @@ sub insertq {
 
     # Now splice the array into the main Q contents
     splice(@{$self->contents}, $pos, 0, @paste);
+
+    # correct lastindex
+    my $last = $self->lastindex;
+    if (defined $last) {
+      if ($last >= $pos) {
+	$last += scalar(@paste);
+	$self->lastindex($last);
+      }
+    }
+
   }
 
   return;
@@ -419,6 +466,8 @@ Replace an entry with a new entry at the specified index position.
 Returns true if successfull, else if the specified position is not in
 range or the entry is not of the correct type, returns false.
 
+lastindex() is reset I<if> it equals the entry that was replaced.
+
 =cut
 
 sub replaceq {
@@ -432,6 +481,14 @@ sub replaceq {
     return 0 unless $self->_test_type($entry);
 
     $self->contents->[$pos] = $entry;
+
+    # reset lastindex if need be
+    my $last = $self->lastindex;
+    if (defined $last) {
+      if ($pos == $last) {
+	$self->lastindex(undef);
+      }
+    }
 
   } else {
     return 0;

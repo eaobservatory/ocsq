@@ -363,7 +363,9 @@ sub post_obs_tidy {
   # if the index has changed we are in trouble
   # so dont do any tidy. if lastindex is not defined that means
   # we have reloaded the queue and so should not do any tidy up
-  if (defined $self->qcontents->lastindex) {
+  if (defined $self->qcontents->lastindex &&
+     $self->qcontents->lastindex == $self->qcontents->curindex) {
+    print "LASTINDEX was defined and was equal to curindex\n";
     $status = $self->qcontents->incindex;
     if (!$status) {
       # The associated parameters must be updated independently since
@@ -378,7 +380,12 @@ sub post_obs_tidy {
       }
 
     }
+  } else {
+    print "LASTINDEX did not match so we do not change curindex\n";
   }
+
+  # clear the lastindex field since we have done it now
+  $self->qcontents->lastindex(undef);
 
   # call handler if we have one and if this is the last observation
   # in the MSB
