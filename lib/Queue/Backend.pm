@@ -40,6 +40,8 @@ use warnings;
 use strict;
 use Carp;
 
+use constant GOOD_STATUS => 0;
+
 =head1 METHODS
 
 The following methods are provided:
@@ -450,14 +452,18 @@ sub poll {
   my $status = 1;
 
   # Check for messages (if we are connected) before and after
-  # sending entries. Need to do this because weith asyncronous
+  # sending entries. Need to do this because with asyncronous
   # callbacks it is possible that an error has occurred between
   # polls.
-  my ($bestatus, $msg) = $self->messages if $self->isconnected;
+  my ($bestatus, $msg);
+  ($bestatus, $msg) = $self->messages if $self->isconnected;
 
   # Return if we are already in trouble
+  # Note that if there are no messages we get undef which actually
+  # maps to false [or good status in this case] but we should
+  # be explicit about it
   return ($status, $bestatus, $msg)
-    if $bestatus;
+    if (defined $bestatus && $bestatus != $self->_good);
 
   # Try to send an entry if the queue is running.
   # this will do nothing if the queue is not accepting
@@ -473,8 +479,18 @@ sub poll {
 
   # Check for messages (if we are connected) and append these
   # messages to the one we read earlier
-  ($bestatus, my $newmsg) = $self->messages if $self->isconnected;
-  $msg .= $newmsg if defined $newmsg;
+  my @new;
+  @new = $self->messages if $self->isconnected;
+
+  # if there are some messages assign backend status and append
+  # the information
+  if (@new) {
+    $bestatus = $new[0];
+    $msg .= $new[1] if defined $new[1];
+  } else {
+    # just assume good status
+    $bestatus = $self->_good;
+  }
 
   #print "QStatus: $status, SCUCD status: $bestatus ";
   #print "QRunning: ". $self->qrunning . " Accepting: ". $self->accepting;
@@ -488,15 +504,81 @@ sub poll {
 =item B<post_obs_tidy>
 
 Runs code that should occur after the observation has been completed
-but before the next observation is requested.
+successfully but before the next observation is requested. The
+argument is the entry object that was sent to the backend.
 
-In the base class this does nothing. For SCUCD this will cause the
-index to be incremented.
+  $be->post_obs_tidy( $curenty );
+
+Increments the current index position by one to indicate that the next
+observation should be selected. If the index is not incremented (no
+more observations remaining) the queue is stopped and the index is
+reset to the start.
+
+Additionally, the MSB associated with the entry is marked to indicate
+that a part of the MSB has been observed (see L<OMP::MSB/"hasBeenObserved">).
+
+If a completion handler has been registered with the object (using
+method qcomplete()) it will be invoked with argument of the last entry
+when the last observation in the queue has been completed. Queue
+completion handler will not trigger if the queue has been reloaded.
+
+If a completion handler has been registered with the entry to trigger
+when an MSB has been completely observed (using the method
+C<msbcomplete()>) it will be called with that entry. This callback
+triggers even if the queue has been modified in the mean time because
+the entry knows that it was the last entry in the MSB.
+
+If the index in the queue has been modified between sending this
+entry and it completing, the index will not be incremented.
+
+Does not yet trap to see whether the actual queue was reloaded.
 
 =cut
 
 sub post_obs_tidy {
   my $self = shift;
+  my $entry = shift;
+  my $status;
+
+  # Indicate that an entry in the MSB has been observed
+  if ($entry->msb) {
+    $entry->msb->hasBeenObserved( 1 );
+  }
+
+  # if the index has changed we are in trouble
+  # so dont do any tidy. if lastindex is not defined that means
+  # we have reloaded the queue and so should not do any tidy up
+  if (defined $self->qcontents->lastindex &&
+     $self->qcontents->lastindex == $self->qcontents->curindex) {
+    print "LASTINDEX was defined and was equal to curindex\n";
+    $status = $self->qcontents->incindex;
+    if (!$status) {
+      # The associated parameters must be updated independently since
+      # we do not have access to the DRAMA parameters from here
+      $self->qrunning(0);
+      $self->qcontents->curindex(0);
+      $self->_pushmessage( $self->_good,
+			   "No more entries to process. Queue is stopped.");
+
+      # trigger when the queue hits the end
+      if ($entry && $self->qcomplete) {
+	$self->qcomplete->($entry);
+      }
+
+    }
+  } else {
+    print "LASTINDEX did not match so we do not change curindex\n";
+  }
+
+  # clear the lastindex field since we have done it now
+  $self->qcontents->lastindex(undef);
+
+  # call handler if we have one and if this is the last observation
+  # in the MSB
+  if ($entry && $entry->lastObs && $self->msbcomplete) {
+    $self->msbcomplete->($entry);
+  }
+
   return;
 }
 
@@ -517,29 +599,40 @@ sub addFailureContext {
 }
 
 
-=item messages
+=item B<messages>
 
-Retrieves pending messages from the backend.
-Any status values from the backend are returned
-along with any pending messages. undef is used if we are not
-connected or there are no pending messages.
+Retrieves messages (one at a time) that have been returned by
+the cache.
 
-  ($bestatus, $msg) = $be->messages;
+ ($msgstatus, $msg) = $be->messages;
 
-The base class returns a backend status of 0 and a message
-containing the current time (UT).
+Empty list is returned if we have no pending messages.
+
+Note that messages can be present even if the queue is accepting
+again. Care must be taken that the method reading these messages clears
+the message stack before assuming further action can be taken.
 
 =cut
 
 sub messages {
   my $self = shift;
-  my $msg = undef;
+#  my ($status, $msg) = $self->_shiftmessage;
 
-  $msg = gmtime if $self->isconnected;
+  # clear all the messages but keep non-zero status
+  my ($status, $msg);
+  my @msgs;
+  $status = 0;
+  while (@msgs = $self->_shiftmessage) {
+    $status = $msgs[0] if $msgs[0] != 0;
+    $msg .= $msgs[1] . "\n";
+  }
 
-  return (0, $msg);
+  if (defined $msg) {
+    return ($status, $msg);
+  } else {
+    return ();
+  }
 }
-
 
 =item _send
 
@@ -571,12 +664,89 @@ sub _send {
 
 =back
 
+=begin __PRIVATE_METHODS__
+
+=head2 Private Methods
+
+These methods are not part of the public interface. They control
+the caching of messages from the backend subsystem.
+
+=over 4
+
+=item B<_pending>
+
+Array of arrays containing messages (and associated status) that have
+been recieved from the remote task and that are waiting to be read by
+the C<messages> method.
+
+The first element in each array is the status, the second element
+is the actual message. Use the C<_good> method to indicate good status.
+
 =cut
 
+sub _pending {
+  my $self = shift;
+  # initialize first time in
+  $self->{PendingMessages} = [] unless $self->{PendingMessages};
 
+  # read arguments
+  @{$self->{PendingMessages}} = @_ if @_;
 
+  # Return ref in scalar context
+  if (wantarray) {
+    return @{$self->{PendingMessages}};
+  } else {
+    return $self->{PendingMessages};
+  }
 
-1;
+}
+
+=item B<_pushmessage>
+
+Push message (and status) onto pending stack.
+
+  $self->_pushmessage( $status, $message );
+
+=cut
+
+sub _pushmessage {
+  my $self = shift;
+  push(@{$self->_pending}, [ @_ ]);
+}
+
+=item B<_shiftmessage>
+
+Shift oldest message off the pending stack.
+
+  ($status, $message) = $self->_shiftmessage;
+
+=cut
+
+sub _shiftmessage {
+  my $self = shift;
+  my $arr = shift(@{$self->_pending});
+  if (defined $arr) {
+    return @$arr;
+  } else {
+    return ();
+  }
+
+}
+
+=item B<_good>
+
+Class method that returns the internal representation of a good message
+status.
+
+=cut
+
+sub _good {
+  return GOOD_STATUS;
+}
+
+=back
+
+=end __PRIVATE_METHODS__
 
 =head1 SEE ALSO
 
@@ -589,5 +759,19 @@ Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 Copyright (C) 1999-2002 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
+
 =cut
 
+1;
