@@ -13,6 +13,7 @@ Tk::OCSQMonitor - MegaWidget for monitoring an OCS Queue
                            -qwidth => 110,
                            -qheight => 10,
                            -msgwidth => 100,
+                           -msbcompletecb => \&msbcomplete,
                            -user => new OMP::User(),
                           );
 
@@ -33,6 +34,29 @@ is running or stopped.
 
 Buttons for stopping, starting and clearing the queue and for disposing
 or suspending MSBs.
+
+=head1 ATTRIBUTES
+
+The following options can be set when the widget is constructed:
+
+=over 4
+
+=item B<-msbcompletecb>
+
+Callback to be invoked when the widget receives notification that the
+MSBCOMPLETED parameter has been modified. Called with the current
+widget as first argument, reference to a scalar holding the OMP ID of
+the current user and reference to a hash of MSB completion information
+(with timestamps as keys). Can be called with an empty hash (since the
+update triggers when the parameter is cleared). This can be used to
+remove a widget when a second monitor has accepted the MSB. A default
+method is provided that will pop up a tabbed notebook allowing
+detailing each MSB.
+
+A reference to the user ID is passed in so that it can be modified in
+the callback.
+
+=back
 
 =cut
 
@@ -64,6 +88,9 @@ sub Populate {
   # Provide defaults for width and height
   my %def = ( -qwidth => 110, -qheight => 10, -msgwidth => 100 );
 
+  # Default for msbcomplete callback
+  $def{'-msbcompletecb'} = \&respond_to_qcomplete;
+
   # merge with supplied arguments
   %$args = ( %def, %$args );
 
@@ -76,6 +103,7 @@ sub Populate {
 		   -qheight => ['PASSIVE'],
 		   -msgwidth => ['PASSIVE'],
 		   -user => ['PASSIVE'],
+		   -msbcompletecb => ['PASSIVE'],
 		 );
 
   # Generic widget options
@@ -87,6 +115,7 @@ sub Populate {
   $w->configure('-qheight' => $args->{'-qheight'});
   $w->configure('-msgwidth' => $args->{'-msgwidth'});
   $w->configure('-user' => $args->{'-user'});
+  $w->configure('-msbcompletecb' => $args->{'-msbcompletecb'});
 
   # Get the internal hash data
   my $priv = $w->privateData();
@@ -171,6 +200,7 @@ sub Populate {
 			       -height=>16,
 			       -width=>$args->{'-msgwidth'},
 			      );
+  BindMouseWheel($MsgText);
 
   my $MsgBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_INFO},
 				 -text     => 'Info messages...',
@@ -178,9 +208,10 @@ sub Populate {
 				)->grid(-row=>0,-column=>1,-sticky=>'w');
 
   my $ErsText = $Fr4->Scrolled('Text',-scrollbars=>'w',
-			       -height=>4,
+			       -height=>8,
 			       -width=>$args->{'-msgwidth'},
 			      );
+  BindMouseWheel($MsgText);
 
   $priv->{MORE_ERS} = 0;
   my $ErsBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_ERS},
@@ -256,6 +287,25 @@ sub _shutdown {
   Dits::UfacePutErsOut( undef, new DRAMA::Status);
   print "Closedown\n";
 }
+
+sub BindMouseWheel {
+  my $w = shift;
+
+# Mousewheel binding from Mastering Perl/Tk, pp 370-371.
+  if ($^O eq 'MSWin32') {
+    $w->bind('<MouseWheel>' =>
+             [ sub { $_[0]->yview('scroll', -($_[1] / 120) * 3, 'units') },
+                 Ev('D') ]
+            );
+  } else {
+    $w->bind('<4>' => sub {
+               $_[0]->yview('scroll', -3, 'units') unless $Tk::strictMotif;
+             });
+    $w->bind('<5>' => sub {
+               $_[0]->yview('scroll', +3, 'units') unless $Tk::strictMotif;
+             });
+  }
+} # end BindMouseWheel
 
 
 # These routines relate to the handling of DRAMA monitors
@@ -533,21 +583,20 @@ sub cvtsub {
     use Data::Dumper;
     print Dumper(\%tie);
 
-    # Always delete the window if it is up since the details might
-    # be different
-    if ($priv->{QCOMP_GUI}) {
-      $priv->{QCOMP_GUI}->destroy if Exists($priv->{QCOMP_GUI});
-      undef $priv->{QCOMP_GUI};
-    }
+    # The parameter has been changed. Run the supplied callback.
+    # By default this will put up a GUI with tabs asking to accept
+    # or reject the MSB.
+    if ($w->cget("-msbcompletecb")) {
+      # Get current user id
+      my $userid = $w->cget('-user');
 
-    # first check that we have to react
-    if (keys %tie) {
-      # Put up the window requsting clarification on accept/reject
-      # We can do this without an after() because this method
-      # just puts up a GUI rather than blocking and waiting
-      # for a response directly.
-      print "Creating MSBCOMPLETE GUI\n";
-      respond_to_qcomplete(\%tie);
+      # Run callback
+      $w->cget("-msbcompletecb")->($w,\$userid,\%tie);
+
+      # Store modified value
+      $w->configure('-user',$userid);
+    } else {
+      print "No registered callback for MSBCOMPLETED\n";
     }
   } elsif ($param eq 'JIT_ERS_OUT') {
     $value->List(new DRAMA::Status);
@@ -599,8 +648,8 @@ sub _toggleq {
 #    print "Stopping Q\n";
     $priv->{QCONTROL}->stopq;
   }
-
 }
+
 
 # Subroutine to play a sound on the speaker. Do not test
 # return value since it should be non-fatal if it fails
@@ -775,7 +824,136 @@ sub respond_to_failure {
   Dump($var);
 }
 
+# Respond to a qompletion request
+# Argument is reference to hash of MSBCOMPLETED information
+my $QCOMP_GUI;
+require Tk::LabEntry;
+require Tk::NoteBook;
+sub respond_to_qcomplete {
+  my $w = shift;
+  my $userid = shift;
+  my $details = shift;
 
+  # Pull down GUI if it is up
+  if ($QCOMP_GUI) {
+    $QCOMP_GUI->destroy() if Exists($QCOMP_GUI);
+    undef $QCOMP_GUI;
+  }
+
+  return unless keys %$details;
+
+  print "Creating MSBCOMPLETE GUI\n";
+
+  # We will need the q control object
+  # Get the internal hash data
+  my $priv = $w->privateData();
+  my $qc = $priv->{QCONTROL};
+
+  # Since we can have multiple MSB triggers at once we need
+  # to create our onw top level rather than a dialog box
+  my $gui = $w->Toplevel(-title => "MSB Accept/Reject");
+
+  my $entry = $gui->LabEntry( -label => "OMP User ID:",
+                              -width => 10,
+                              -textvariable => $userid,
+                            )->pack(-fill => 'x', -expand => 1);
+
+  # Tabbed notebook
+  my $NB = $gui->NoteBook();
+  $NB->pack(-fill => 'x', -expand=>1);
+
+  # A tab per MSB request
+  foreach my $tstamp (keys %$details) {
+
+    # Create the tab itself
+    my $tab = $NB->add( $tstamp,
+                        -label => "MSB".$details->{$tstamp}->{QUEUEID});
+
+    # create the tab contents
+    &create_msbcomplete_tab( $tab, $qc, $userid, $tstamp, 
+			     %{$details->{$tstamp}});
+  }
+
+  # Now that we have made the popups we can display them
+  # Note that this blocks.
+  _play_sound('chime.wav');
+
+  # Store the gui reference
+  $QCOMP_GUI = $gui;
+}
+
+# Create the tab for each MSB in turn
+sub create_msbcomplete_tab {
+  my $w = shift;
+  my $qc = shift;
+  my $userid = shift;
+  my $tstamp = shift;
+  my %details = @_;
+
+  my $text = "MSB $details{MSBID} of project $details{PROJECTID} was completed at\n".
+    scalar(gmtime($tstamp)) ."UT\n".
+ " Please either accept or reject it and enter a reason (if desired)";
+
+  $w->Label( -text => $text,
+             -wraplength=>400)->pack(-side =>'top',-expand => 1,-fill=>'both');
+
+  my $Reason = $w->Text(-height => 5, -width => 50)->pack(-side => 'top');
+
+  # Now add on the buttons on the bottom
+  my $butframe = $w->Frame->pack;
+  $butframe->Button(-text => "Accept",
+		    -command => [ \&msbcompletion, $w, $qc,
+				  $userid, $tstamp, 1, $Reason]
+                   )->pack(-side =>'left');
+  $butframe->Button(-text => "Reject",
+		    -command => [ \&msbcompletion, $w, $qc,
+				  $userid, $tstamp, 0, $Reason]
+                   )->pack(-side =>'left');
+  $butframe->Button(-text => "Took no Data",
+		    -command => [ \&msbcompletion, $w, $qc,
+				  $userid, $tstamp, -1, $Reason]
+                   )->pack(-side =>'left');
+}
+
+# This is the trigger that actually sends the obey in response
+# to an accept/reject. Takes a timestamp an accept/reject flag
+# and a reference to the text widget containing the reason (if any)
+# Is called once for each MSB - this will cause problems since the
+# obey will trigger an update of the parameter...
+sub msbcompletion {
+  my $w = shift;
+  my $qc = shift;
+  my $userid = shift;
+  my $tstamp = shift;
+  my $accept = shift;
+  my $rw = shift;
+
+  # Attempt to get a user id but non fatal if we do not get it
+  if (!defined $$userid || $$userid !~ /\w/) {
+    my $OMP_User_Obj = OMP::General->determine_user( $w );
+    $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+  }
+
+  # read the widget
+  my $reason = $rw->get( '0.0','end');
+
+  # Should verify user here if we have one
+
+  print "*****************************\n";
+  print "** TSTAMP  $tstamp\n";
+  print "** USER    $$userid\n";
+  print "** ACCEPT  $accept\n";
+  print "*****************************\n";
+
+  # Send completion message
+  $qc->msbcomplete( $$userid, $tstamp, $accept, $reason);
+
+  # need to undefine the gui variable
+  # Note that this is strange when we have multiple MSBs
+  destroy $QCOMP_GUI if defined $QCOMP_GUI && Exists($QCOMP_GUI);
+  undef $QCOMP_GUI;
+
+}
 
 =head1 ADVERTISED WIDGETS
 
