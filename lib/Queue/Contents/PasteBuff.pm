@@ -53,14 +53,8 @@ objects to initialise the Queue contents.
 
   $queue = new Queue::Contents::PasteBuff(@entries);
 
-If an optional hash reference is supplied for the first argument,
-this is deemed to contain options for the constructor. Currently,
-the only option supported is:
-
-   PASTE => 1/0
-
-If PASTE is set to true (1) the object is configured as a paste buffer,
-else it is configured as a primary Queue::Contents::PasteBuff object.
+The paste buffer is implemented as a normal Queue::Contents
+object.
 
 =cut
 
@@ -76,11 +70,9 @@ sub new {
   # Delete PASTE and replace with PasteBuffer
   # creating a new queue if PASTE is false (if it is false
   # than we are the primary queue and we need a pastebuffer)
-  my $ispaste = (exists $options{PASTE} ? $options{PASTE} : 0);
-  $options{PasteBuffer} = ( $ispaste ? undef 
-			    : $class->new({PASTE => 1}));
-  # and remove the key before passing to constructor
-  delete $options{PASTE};
+  # The paste buffer itself must be a normal queue (which means we
+  # can get rid of all the $ispaste stuff.
+  $options{PasteBuffer} = new Queue::Contents();
 
   # Use base class constructor
   my $q = $class->SUPER::new(\%options, @_);
