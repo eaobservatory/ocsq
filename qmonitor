@@ -183,7 +183,8 @@ use constant TASKNAME => "QTK_$$"; # Name of this task
 # %MONITOR contains the monitored variables
 # $TOGGLE is used to determine the state of the START/STOPQ button
 # $MORE_INFO is true if we are displaying the MsgOut text window
-use vars qw/%MONITOR %NBS_MONITOR $TOGGLE $MORE_INFO $MORE_DISPLAYED_ONCE/;
+use vars qw/%MONITOR %NBS_MONITOR $TOGGLE $MORE_INFO $MORE_DISPLAYED_ONCE
+  $MORE_ERS/;
 
 $TOGGLE = '---';
 
@@ -298,9 +299,10 @@ $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy 
 $MORE_INFO = 0;  # is the window visible
 $MORE_DISPLAYED_ONCE = 0; # Has it been visible at least once?
 
+my $TextWidth= 100;
 my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
 			     -height=>16,
-			     -width=>100,
+			     -width=>$TextWidth,
 			    );
 
 my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
@@ -308,10 +310,28 @@ my $MsgBut = $Fr4->Checkbutton(-variable => \$MORE_INFO,
 			       -command => [\&show_info, $MsgText],
 			      )->grid(-row=>0,-col=>1,-sticky=>'w');
 
+my $ErsText = $Fr4->Scrolled('Text',-scrollbars=>'w',
+			     -height=>4,
+			     -width=>$TextWidth,
+			    );
+$MORE_ERS = 0;
+my $ErsBut = $Fr4->Checkbutton(-variable => \$MORE_ERS,
+			       -text     => 'Error messages...',
+			       -command => [\&show_ers, $ErsText],
+			      )->grid(-row=>2,-col=>1,-sticky=>'w');
+$MORE_ERS = 1; # Force display
+show_ers( $ErsText );
 
 # print information to this text widget
 Dits::UfacePutMsgOut( sub {
 			write_info_message( $MsgText, $_[0] );
+		      },
+		      new DRAMA::Status);
+
+# Also want this to appear in the log file so just print it
+Dits::UfacePutErsOut( sub {
+			print "Err: $_[1]\n";
+			write_info_message( $ErsText, $_[1] );
 		      },
 		      new DRAMA::Status);
 
@@ -372,14 +392,27 @@ sub shutdown {
     select undef,undef,undef,0.1; # Wait for any shutdown messages
     DoDramaEvents;
   }
-  # Need to clear the MsgOut tie
+  # Need to clear the MsgOut and ErsOuttie
   Dits::UfacePutMsgOut( undef, new DRAMA::Status);
+  Dits::UfacePutErsOut( undef, new DRAMA::Status);
 
   # Destroy the window
   destroy $MW if Exists($MW);
 
   # and exit
   exit;
+}
+
+# Generic error handler for DRAMA obeys
+sub drama_error {
+  my ($status, $msg) = @_;
+  require Tk::Dialog;
+  my $dialog = $MW->Dialog( -text => $msg,
+			    -title => "Error from DRAMA action",
+			    -buttons => ["OK"],
+			    -bitmap => 'error',
+			  );
+  $dialog->Show;
 }
 
 
@@ -492,7 +525,12 @@ sub cvtsub {
       respond_to_qcomplete(\%tie);
     }
   } elsif ($param eq 'MESSAGES') {
-    write_info_message( $MsgText, $tie{MESSAGE} );
+    if ($tie{STATUS} == 0) {
+      write_info_message( $MsgText, $tie{MESSAGE} );
+    } else {
+      write_info_message( $ErsText, $tie{MESSAGE} );
+    }
+
 
   }
   #print "*********** Completed Monitor conversion [$param]\n";
@@ -733,6 +771,17 @@ sub show_info {
     $w->grid(-row=>1,-col=>1,-sticky=>'ens');
     # Indicate that we have been displayed at least once
     $MORE_DISPLAYED_ONCE = 1;
+  } else {
+    $w->gridForget;
+  }
+}
+
+# For Errors
+
+sub show_ers {
+  my $w = shift;  # The text widget
+  if ($MORE_ERS) {
+    $w->grid(-row=>3,-col=>1,-sticky=>'ens');
   } else {
     $w->gridForget;
   }
@@ -1015,7 +1064,7 @@ sub msbcompletion {
     $arg->PutString("Argument4", $reason, $status);
   }
 
-  obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0});
+  obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0,-error => \&drama_error});
 
   # need to undefine the gui variable
   # Note that this is strange when we have multiple MSBs
