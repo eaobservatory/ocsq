@@ -41,7 +41,7 @@ use warnings;
 use Carp;
 use XML::LibXML;
 use File::Spec;
-use Time::HiRes qw/ time /;
+use Time::HiRes qw/ gettimeofday /;
 
 use Queue::Entry; # To make sure we have the right search path
 
@@ -189,6 +189,9 @@ The following keys are supported in the options hash:
   noxmlfile => If true the entries will be written to disk but
                the XML will be returned as a string rather than
                writing to disk. Default is false.
+  fprefix   => Prefix string to use for the outpyt Queue entry
+               XML file. Defautls to "qentries".
+  chmod     => Permissions mode to write the output files
 
 If written, the output file name for the XML is returned and includes
 the full path.
@@ -205,7 +208,7 @@ methods identically to the C<Queue::Entry> class:
   telescope
   duration
   instrument
-  write_entry
+  write_entry or write_file
 
 This would allow the OMP translators to call this function
 using only a lightweight wrapper.
@@ -216,6 +219,7 @@ sub writeXML {
   my %options = (
 		 outputdir => File::Spec->curdir,
 		 noxmlfile => 0,
+		 fprefix => "qentries",
 		);
 
   # See if the first argument is a hash reference
@@ -229,6 +233,15 @@ sub writeXML {
   my @entries = @_;
 
   croak "No entries supplied" unless @entries;
+
+  # Check attributes
+  for my $e (@entries) {
+    for my $method  (qw/ telescope instrument duration /) {
+      croak ("Entry of class '".ref($e).
+	     "' can not support the '$method' method")
+	unless $e->can($method);
+    }
+  }
 
   # Retrieve the telescope name and verify that it is the same
   # for each entry
@@ -244,11 +257,22 @@ sub writeXML {
   my $xml = '<?xml version="1.0" encoding="ISO-8859-1"?>'."\n".
     "<$RE $TA=\"$tel>\n";
 
+  # Options for file output
+  my %fileopt;
+  $fileopt{chmod} = $options{chmod} if exists $options{chmod};
+
   # Ask each entry to write itself to the output directory
   # returning the relevant file name.
   for my $e (@entries) {
     # Write
-    my @files = $e->write_entry( $options{outputdir} );
+    my @files;
+    if ($e->can("write_entry")) {
+      @files = $e->write_entry( $options{outputdir}, \%fileopt );
+    } elsif ($e->can("write_file")) {
+      @files = $e->write_file( $options{outputdir}, \%fileopt );
+    } else {
+      croak "Do not know how to write entry of class '".ref($e)."' to disk";
+    }
     my $duration = $e->duration->seconds;
     my $inst = $e->instrument;
 
@@ -272,16 +296,19 @@ sub writeXML {
     # Currently do not check that the file previously exists
     # Time::HiRes returns microseconds
     # so only need the first 3 digits
-    my $time = time;
-    my $int = int($time);
-    my $ms = int(($time - $int)*1000);
+    my ($sec, $mic_sec) = gettimeofday();
+    my $ms = substr($mic_sec,0,3);
     my $filename = File::Spec->catfile($options{outputdir},
-				       "qentries_$int"."_$ms.xml");
+				       $options{fprefix}."_$sec"."_$ms.xml");
     print "Writing XML File: $filename\n" if $DEBUG;
 
     open my $fh, ">$filename" or croak "Error writing XML file:$filename - $!";
     print $fh $xml;
     close($fh) or croak "Error closing XML file: $filename - $!";
+
+    chmod $options{chmod}, $filename
+      if exists $options{chmod};
+
     return $filename;
   }
 }
