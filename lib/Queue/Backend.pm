@@ -458,12 +458,22 @@ sub poll {
   my ($bestatus, $msg);
   ($bestatus, $msg) = $self->messages if $self->isconnected;
 
+  # Go through the bestatus values to see if we are in trouble
+  my $trouble = 0;
+  if (defined $bestatus) {
+    for (@$bestatus) {
+      if ($_ != $self->_good) {
+	$trouble = 1;
+	last;
+      }
+    }
+  }
+
   # Return if we are already in trouble
   # Note that if there are no messages we get undef which actually
   # maps to false [or good status in this case] but we should
   # be explicit about it
-  return ($status, $bestatus, $msg)
-    if (defined $bestatus && $bestatus != $self->_good);
+  return ($status, $bestatus, $msg) if $trouble;
 
   # Try to send an entry if the queue is running.
   # this will do nothing if the queue is not accepting
@@ -485,11 +495,15 @@ sub poll {
   # if there are some messages assign backend status and append
   # the information
   if (@new) {
-    $bestatus = $new[0];
-    $msg .= $new[1] if defined $new[1];
-  } else {
-    # just assume good status
-    $bestatus = $self->_good;
+    $bestatus = [] unless defined $bestatus;
+    $msg = [] unless defined $msg;
+    push(@$bestatus, @{ $new[0] });
+    push(@$msg, @{ $new[1]});
+  } elsif (!defined $bestatus) {
+    # Need to specify a good status and empty message
+    # if nothing was pending
+    $bestatus = [ $self->_good ];
+    $msg = [];
   }
 
   #print "QStatus: $status, SCUCD status: $bestatus ";
@@ -601,10 +615,16 @@ sub addFailureContext {
 
 =item B<messages>
 
-Retrieves messages (one at a time) that have been returned by
-the cache.
+Retrieve all the messages, and their associated statuses,
+that have been stored from the backend task.
 
- ($msgstatus, $msg) = $be->messages;
+ ($statuses, $messages) = $be->messages;
+
+Returns references to two arrays. The number of elements in the status
+array will match the number of elements in the messages array.
+
+These messages will only be returned once (ie the pending queue
+is cleared during this call).
 
 Empty list is returned if we have no pending messages.
 
@@ -616,19 +636,22 @@ the message stack before assuming further action can be taken.
 
 sub messages {
   my $self = shift;
-#  my ($status, $msg) = $self->_shiftmessage;
 
-  # clear all the messages but keep non-zero status
-  my ($status, $msg);
-  my @msgs;
-  $status = 0;
-  while (@msgs = $self->_shiftmessage) {
-    $status = $msgs[0] if $msgs[0] != 0;
-    $msg .= $msgs[1] . "\n";
+  # Store all the status and message values
+  # in a slightly different layout to the internal view.
+  # Clears any pending messages
+
+  my @allmsgs;
+  my @stats;
+  while (my ($st,$msg) = $self->_shiftmessage) {
+    push(@stats, $st);
+    push(@allmsgs, $msg);
   }
 
-  if (defined $msg) {
-    return ($status, $msg);
+  # Return empty list if no messages
+  # else return the references
+  if (scalar(@stats)) {
+    return (\@stats, \@allmsgs);
   } else {
     return ();
   }

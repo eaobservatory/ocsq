@@ -680,9 +680,12 @@ sub addmessage {
     # intercept this and attach it to a parameter!
     # Would be nice to send it to STDOUT if we are in user interface
     # context so that we can log if everything is acting up.
+    Dits::UfaceCtxEnable(sub {use Data::Dumper;print Dumper(\@_);}, $status);
     DRAMA::MsgOut($status, $msg);
+    Dits::UfaceCtxEnable(undef, $status);
     # Simple "good" messages go in a simple parameter
-    $sdp->PutString( 'JIT_MSG_OUT', $msg, $status);
+#    $sdp->PutString( 'JIT_MSG_OUT', $msg, $status);
+    print "MsgOut: $msg\n";
   } else {
     # bad status so we have to populate JIT_ERS_OUT
     # with values of MESSAGE, FLAGS and STATUS
@@ -703,7 +706,8 @@ sub addmessage {
 	  $fsds->PutPdl(PDL::Core::pdl(\@flags));
 
 	  # Trigger update in parameter system
-	  print "------- TRIGGERING UPDATE with @lines\n";
+	  print "------- TRIGGERING UPDATE [$msgstatus] with ".
+	    join("\n",@lines)."\n";
 	  $sdp->Update($sds,$status);
 	}
       }
@@ -1395,8 +1399,7 @@ sub POLL {
     DRAMA::ErsPush();
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);
-    $lstat->ErsRep(0,"Error polling the backend [$pstat] - Queue stopped");
-    $lstat->Flush;
+    $lstat->ErsOut(0,"Error polling the backend [status = $pstat] - Queue stopped");
 
     # Did we get a reason
     my $r = $Q->queue->backend->failure_reason;
@@ -1420,19 +1423,37 @@ sub POLL {
     # been flushed this now corresponds to a good status.
     &STOPQ($lstat);
     DRAMA::ErsPop();
-  } elsif (defined $be_status && $be_status != 0) {
-    DRAMA::ErsPush();
-    my $lstat = new DRAMA::Status;
-    $lstat->SetStatus(Dits::APP_ERROR);
-    $lstat->ErsRep(0,"Error from Inst: $message");
-    $lstat->ErsRep(0,"Error from Inst: Stopping the queue");
-    $lstat->Flush;
-    $Q->addmessage($be_status, $message);
-    $Q->addmessage($be_status, "Stopping the queue");
-    &STOPQ($lstat);
-    DRAMA::ErsPop();
-  } elsif ($message) {
-    $Q->addmessage($be_status, $message);
+  } else {
+    # Need to go through the backend messages and check status on each
+    my $good = $Q->queue->backend->_good;
+    my $err_found = 0; # true if we have found an error
+    for my $i (0..$#$be_status) {
+      my $bestat = $be_status->[$i];
+      my $bemsg  = $message->[$i];
+      if ($bestat == $good) {
+	$Q->addmessage( $bestat, $bemsg) if defined $bemsg;
+      } else {
+	# We have an error from the backend itself
+	# We need to file the message and stop the queue
+	if (!$err_found) {
+	  # we have found an error
+	  $err_found = 1;
+
+	  DRAMA::ErsPush();
+	  my $lstat = new DRAMA::Status;
+	  $lstat->SetStatus(Dits::APP_ERROR);
+	  $lstat->ErsOut(0,
+			 "Error from queue backend task - Stopping the queue");
+	  &STOPQ( $lstat );
+	  DRAMA::ErsPop();
+	  $Q->addmessage($bestat, "Stopping the queue due to backend error");
+	}
+	# Send the message
+	$bemsg = "Status bad without associated error message!"
+	  unless defined $bemsg;
+	$Q->addmessage($bestat, $bemsg);
+      }
+    }
   }
 
   # Need to reschedule polltime seconds
