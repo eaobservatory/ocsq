@@ -508,7 +508,7 @@ sub update_index {
   }
 
   # only do something if we have a value
-  if ($index) {
+  if (defined $index) {
     my $dtag = "d" . $index;
 
     # Now set the highlight
