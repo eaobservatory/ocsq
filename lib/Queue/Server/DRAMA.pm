@@ -1845,8 +1845,16 @@ sub MSBCOMPLETE {
 	  $msg = "[in simulation without modifying the DB]";
 	} else {
 	  # Reality - blank message and update DB
+          # SOAP message
+          use SOAP::Lite;
+          my $msbserv =  new SOAP::Lite();
+
+          $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
+
+          $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
+
 	  $msg = '';
-	  OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
+	  $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
 				$donemsb->{reason});
 	}
 	$Q->addmessage($status,
