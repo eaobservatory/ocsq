@@ -188,15 +188,18 @@ $DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
 # queue running
 # Depending on the tel switch
 my $QUEUE;
+my $REMOTE_TASK;
 if (defined $tel) {
   # case-insensitive match
   $tel = uc($tel);
   if ($tel eq 'JCMT') {
     require Queue::SCUCD;
     $QUEUE = new Queue::SCUCD;
+    $REMOTE_TASK = 'JCMT_INST@palila';
   } elsif ($tel eq 'UKIRT') {
     require Queue::UKIRT;
     $QUEUE = new Queue::UKIRT;
+    $REMOTE_TASK = 'UKIRT_INST@ohi';
   } else {
     die "Do not recognize telescope $tel";
   }
@@ -209,7 +212,7 @@ if (defined $tel) {
 if ($sim) {
   $QUEUE->backend->TASK( "JAC_INST_TEST" );
 } else {
-  $QUEUE->backend->TASK( 'JAC_INST@kiki' );
+  $QUEUE->backend->TASK( $REMOTE_TASK );
 }
 
 # override translator directory
