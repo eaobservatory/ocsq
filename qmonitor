@@ -315,6 +315,8 @@ sub cvtsub {
     if ($value =~ /Stop/i) {
       $Qstatus->configure(-background=>'red',-foreground=>'black');
       $TOGGLE = 'STARTQ';
+      # beep
+      #for (1..5) {print STDOUT "\a"; select undef,undef,undef,0.2}
     } else {
       $Qstatus->configure(-background=>'green',-foreground=>'black');
       $TOGGLE = 'STOPQ';
@@ -456,13 +458,10 @@ sub update_listboxes {
     # default foreground is black
     my $fgcol = 'black';
     if ($line =~ /SENT/) {
-      $fgcol = '#33ffff';
-      $fgcol = 'yellow';
+      $fgcol = 'yellow4';
     } elsif ($line =~ /OBSERVED/) {
-      $fgcol = '#333333';
-      $fgcol = 'grey';
+      $fgcol = 'grey55';
     } elsif ($line =~ /ERROR/) {
-      $fgcol = '#ff3333';
       $fgcol = 'red';
     }
 
