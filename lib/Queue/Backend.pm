@@ -555,7 +555,13 @@ sub post_obs_tidy {
   my $status;
 
   # Indicate that an entry in the MSB has been observed
+  my $prevstat;
   if ($entry->msb) {
+    # Get the previous status of the MSB so that we can
+    # work out whether we are the last chance to complete this MSB.
+    $prevstat = $entry->msb->hasBeenObserved();
+
+    # Indicate that the msb has now been observed
     $entry->msb->hasBeenObserved( 1 );
   }
 
@@ -591,6 +597,24 @@ sub post_obs_tidy {
   # in the MSB
   if ($entry && $entry->lastObs && $self->msbcomplete) {
     $self->msbcomplete->($entry);
+    $entry->msb->hasBeenCompleted(1) if $entry->msb;
+  } elsif ($entry && $entry->msb && $prevstat == 0 
+	  && !$entry->msb->hasBeenCompleted) {
+    # Edge case. If this entry was the only entry in the MSB successfully
+    # observed AND the MSB itself was removed from the queue (using
+    # DISPOSE MSB) we still need to invoke the msbcomplete callback.
+    # We determine what state we are in by first seeing if this
+    # is the first completed observation in the MSB and then by seeing
+    # if the MSB has been "completed" previously
+
+    # If those conditions are okay, finally, we go through the queue
+    # itself to determine whether this entry is currently on the queue
+    my $found = $self->qcontents->getindex( $entry );
+    if (!defined $found) {
+      print "Completing MSB that has been cut from queue whilst first obs is being observed\n";
+      $self->msbcomplete->($entry);
+      $entry->msb->hasBeenCompleted(1) if $entry->msb;
+    }
   }
 
   return;
