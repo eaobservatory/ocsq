@@ -1,0 +1,192 @@
+JCMT OMP Queue requirements
+===========================
+
+[The queue task]
+
+- The observer will no longer interact with the SCUBA queue via ODFs
+directly. Via the OT or (with canned non-science target observations) a pull
+down menu.
+
+- A engineering interface will support the ability to load an ODF/MACRO
+directly from disk.
+
+- Since the observer no longer has direct access to the live ODFs, the queue
+will no longer remove entries that have been sent to SCUBA. A highlighter will
+indicate the current active entry. This will allow the observer to re-observe
+and ODF if, for example, a fault occurred.
+
+- The queue must be able to accept MACROS or single ODFs (since that is what
+the translator generates at the moment). 
+
+- Boring ASIDE: In principal it should be able to accept an ODF in the form of
+an SDS structure or XML string. This would allow the translator to return an
+XML representation of the entire entry which can be passed from the QT
+directly to the queue without appearing on disk. [loadORAC equivalent would be
+a bottle neck equivalent to the old todd in this respect]. Again, in principal
+we only need to actually write an ODF to disk just before it is sent to SCUBA
+(this will happen anyway since the odf will be tweaked internally anyway
+as happens for the current queue)
+
+- Simple validation of the ODF must be performed and exception raised if ODF
+can not be observed (final arbiter is, of course, SCUBA itself - I'm not
+going to do a full validation).
+
+- The stringified form of the queue entries should be descriptive.
+eg:
+
+  1  POINTING: 3C273 850      3int
+  2  MAP:      TwHya 450/850  10int
+  3  MAP:      TwHya 350/750  10int
+  4. POINTING: TBD
+
+- The queue should be able to determine whether the ODF that is 
+about to be sent to SCUCD needs more information. Specifically:
+
+   = missing target (only allowed for FOCUS, POINTING and CALIBRATOR
+   observations)
+
+   = missing sample_pa for scanning
+
+   = Azimuth of skydip
+
+The former will require observer/TSS input. The latter two will simply be
+calculated on the fly either from the supplied target information (for scan)
+or from the next valid science target (for skydip).
+
+- The queue is therefore a post-translator itself.
+
+- Question: Should the user have an ability to apply a target choice
+to multiple queue entries at once? Should they be able to choose targets
+for any odfs that are TBD or just the one that is "current"?
+
+
+- If the queue needs more information a STATE parameter must be set containing
+the type of information requested and additional useful information.
+eg for target:
+
+    REQUEST:    TARGET
+    MODE:       POINTING | FOCUS | MAP | PHOTOM
+    WAVELENGTH: 850 
+    AZ:         234
+    EL:         45
+
+where AZ and EL are the azimuth and elevation of the next entry
+(well, the next entry that includes a target). EL = -1 if none
+of the entries include targets.
+
+- When the final ODF on the queue is completed (or sent?) the doneMSB
+should trigger. If loadq becomes the equivalent of "addback" we will need
+to keep track of the load boundaries and trigger doneMSB at a boundary.
+Should the queue present a popup if another MSB is loaded before the doneMSB
+has triggered? [asking the person to "accept" the trigger]
+
+- ISSUE: How can the queue trigger "doneMSB" if the MSB contains more than
+one instrument? This is a problem since the ACSIS queue is distinct from the
+SCUBA queue.
+
+
+[the queue GUI/clients]
+
+- Multiple GUIs (clients) can monitor a single queue
+
+- The GUI can also monitor the instrument and telescope
+
+- The queue gui should have an ability to:
+
+  = stop and start the queue (controls whether the next entry is sent
+  automatically when the previous entry completes).
+
+  = determine when a POINTING observations is waiting for ACCEPT or REFUSE and
+  send the correct response to SCUCD (removing the request widget from 
+  each cloned GUI even if the button was never pressed)
+
+  = Allow users to edit odfs that are on the queue. [by fetching it,
+  editing it and inserting at the same position]
+
+  = Allow pre-canned odfs to be inserted into the queue at the highlighted
+  position (for skydips, focuses and pointings)
+
+  = Determine whether the queue is waiting for more information to be added to
+  an ODF and provide that information. Initial support will be for
+  REQUEST=TARGET. This will pop up a list of pointing targets (for POINTING
+  and FOCUS) or secondary calibrators (for MAP and PHOTOM) that are in the
+  same quadrant (maybe even with a plot showing relative postions) sorted by
+  distance from the reference AZ/EL. [All clients will respond in the same way
+  - care should be taken to prevent race conditions]. Probably should have
+  as default the previous target selection.
+
+
+
+[IMPLEMENTATION]
+
+
+Queue consists of:
+
+   - Contents
+        - array of queue "entries"
+
+   - Some idea of the system receiving the queue entries
+
+   - knowledge of whether the queue is running or stopped (in the sense
+     of whether additional items will be sent to the backend),
+     whether an entry is currently being observed and which entry on the
+     queue is being observed.
+
+   - Queue reads and writes entries on demand.
+
+Entries:
+
+   - entries have all the knowledge
+
+      - is the "ODF" fully-specified (ie more information required)
+
+      - if it is not fully-specified which information is required?
+
+      - should extra information be calculated when the entry is sent
+        for observation
+
+      - what is the stringified form of the entry
+
+      - This is really a SCUBA::ODF class attached to a Queue::Entry::SCUBAODF
+        object
+
+      - takes SCUBA::ODF object in constructor and converts it to
+        Queue::Entry::SCUBAODF
+
+SCUBA::ODF
+
+   - knows how to read an ODF/macro and convert it into a
+     SCUBA::ODF
+
+   - Macros? - arrays of SCUBA::ODF objects
+
+   - Need a constructor that will be able to return a SCUBA::ODF
+     or SCUBA::ODFs depending on the argument.
+
+   - Translator generates SCUBA::ODF or SCUBA::ODFs
+
+   - Knows how to write.
+
+   - ISSUE: Waveplate angles are generated by translator and written
+     into separate file. Presumably a SCUBA::ODF object should not
+     attempt to translate file arguments within the ODF into actual
+     content (eg jiggle files) since the files will not necessarily
+     be visible to the class [vax locations]. This implies that the
+     translator must write waveplate information to disk and only
+     store the filename in the ODF object [currently an array is stored
+     during translation]
+
+   - ODF must be an array of entries rather than a hash in order
+     to retain comments (this is essentially Astro::FITS::Header)
+       [only important if we dont care about existing comments
+        and dont want to use order to indicate anything important.
+        What about processor directives?
+
+   - Knows how to calculate some things if they are missing
+
+SCUBA::ODFs
+
+   - Collection of SCUBA::ODF objects.
+
+   - has "writeodf" method that will write all constituent odfs
+     and macro file

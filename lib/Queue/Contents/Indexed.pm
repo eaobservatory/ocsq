@@ -614,6 +614,35 @@ sub insertq {
   return;
 }
 
+=item B<get_for_observation>
+
+Retrieve the queue entry that should be sent for observation.
+Returns the entry at the position of the highlight.
+
+=cut
+
+sub get_for_observation {
+  my $self = shift;
+  return $self->curentry;
+}
+
+=item B<post_obs_tidy>
+
+Runs code that should occur after the observation has been completed
+but before the next observation is requested.
+
+Increments the current index position by one to indicate that the next
+observation should be selected.
+
+=cut
+
+sub post_obs_tidy {
+  my $self = shift;
+  $self->incindex;
+  return;
+}
+
+
 =back
 
 =head1 SEE ALSO

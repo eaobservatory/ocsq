@@ -1,0 +1,583 @@
+#!/usr/local/bin/perl
+
+=head1 SCUQUEUE
+
+This is the DRAMA-based Queue. It is a layer on top of the 
+Queue::* perl modules (Queue, Queue::Contents, Queue::Entry
+and Queue::Backend). It is designed for use with the TODD.
+
+The SCUBA system (SCUCD) itself must be running before the queue can
+be started.  To start the queue simply run this program in the
+background.  The Queue registers itself as B<SCUQUEUE> in the DRAMA
+message system.  
+
+Queue clients (e.g. C<qmonitor> and C<qctrl>) can be started as required.
+
+=head1 ACTIONS
+
+The following DRAMA actions are supported:
+
+=over 4
+
+=item STARTQ
+
+Start the queue so that items will be sent to the Todd.
+
+=item STOPQ
+
+Stop the queue. No new items will be sent to the Todd.
+
+=item CLEARQ
+
+Clear all items from the queue.
+
+=item LOADQ
+
+Clear the queue and add the specified ODF group file onto the queue.
+
+Single argument: file name
+
+[this is to get something done quickly. In the future may revert
+to a system where the ODF is sent as an array of strings or something]
+
+=item CUTQ
+
+Cut entries from the queue. Two SDS arguments are supplied:
+
+  POSN - position in Queue to start cut (start at 1)
+  NCUT - Number of entries to cut from the queue.
+
+This may be reversed if followed by a PASTEQ before another
+call to CUTQ.
+
+=item POLL
+
+This action continually checks the backend to see whether new
+entries can be sent. This action reschedules itselfs on a regular 
+basis and does not need to be started by an external obey.
+
+=item EXIT
+
+Closedown the Queue.
+
+=back
+
+=head1 PARAMETERS
+
+The following DRAMA parameters are available:
+
+=over 4
+
+=item Queue
+
+This contains the information on the current contents of the
+queue. This is an SDS structure stored in the
+parameter containing a single array labelled "Contents".
+
+
+=item STATUS
+
+Whether the queue is running or not. (value is RUNNING or STOPPED).
+
+=back
+
+=head1 SEE ALSO
+
+=head1 AUTHOR
+
+Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) Particle Physics and Astronomy Research Council
+1999-2001. All Rights Reserved.
+
+=cut
+
+#use FindBin;
+#use lib "$FindBin::Bin/../site_perl";
+
+use Data::Dumper;
+use SCUBA::ODFGroup;
+
+use strict;
+
+# Load the DRAMA system
+use DRAMA;
+
+# Parameter system
+use Sdp;
+
+# Load the Queue system
+use Queue::SCUCD;
+
+# Declare global vars
+use vars qw/$QUEUE $VERBOSE /;
+
+# Define the number of entries stored in QUEUE and PASTE parameters
+use constant NENTRIES => 100;
+
+# Define size of string representation used in QUEUE/PASTE parameters
+use constant SZSTRING => 40;
+
+# The task name
+use constant TASKNAME => 'SCUQUEUE';
+
+# Declare subs (actions)
+use subs qw/ LOADQ STARTQ STOPQ CUTQ POLL EXIT
+  update_contents_param update_status_param update_current_param
+  /;
+
+# Read command line options
+use Getopt::Long;
+
+my $status = GetOptions("verbose" => \$VERBOSE,
+		       );
+
+
+# Drama Good status
+my $STATUS = new DRAMA::Status;
+
+# Start the DRAMA system
+DPerlInit(TASKNAME);
+
+# Set up the actions
+my $flag = 0;  # Not spawnable
+
+Dits::DperlPutActions("STARTQ",  \&STARTQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("STOPQ",   \&STOPQ,   undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("CUTQ",    \&CUTQ,    undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
+Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
+
+# Set up a delay structure for rescheduling the POLL
+my $RESCHED_TIME = 2;
+my $RESCHED = Dits::DeltaTime($RESCHED_TIME,0);
+
+# Create parameters
+my $sdp = new Sdp;
+$sdp->Create("STATUS","STRING",'Stopped');
+$sdp->Create("CURRENT","STRING",'None');
+
+my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$STATUS);
+$queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
+
+# Initialise the arrays
+{
+  my @array = ();
+  my $csds = $queue_sds->Find('Contents',$STATUS);
+  $csds->PutStringArrayExists(\@array, $STATUS);
+}
+
+# Store them in the parameter system
+$sdp->Create('','SDS',$queue_sds);
+
+
+# Create a Queue
+# This is a global, make sure that we only have one
+# queue running
+$QUEUE = new Queue::SCUCD;
+
+# Set the task name
+$QUEUE->backend->TASK( "SCUCD_PERL");
+
+# Start the polling
+obey TASKNAME,"POLL";
+
+# Start the DRAMA event loop
+Dits::MainLoop($STATUS);
+
+# Shut down - note that the automatic shut down does not use
+# the inherited status...
+exit;
+
+#################### A C T I O N S ##################################
+
+# EXIT action
+sub EXIT {
+  my $status = shift;  
+  Dits::PutRequest(Dits::REQ_EXIT,$status);
+  return $status;
+}
+
+
+
+sub ADDBACK {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the ODF entries associated with the args
+  my @entries = &Sds_to_Entry($argId);
+
+  if ($#entries > -1) {
+    # Add these entries to the back of the queue
+    $QUEUE->contents->addback(@entries);
+
+    # Update the DRAMA parameters
+    update_contents_param($status);
+  }
+  return $status;
+}
+
+sub LOADQ {
+  my $status = shift;
+
+  DRAMA::MsgOut( $status, "Running LOADQ" ) if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # tie the argId to a perl Hash
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
+  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
+
+  $QUEUE->contents->loadq( @entries );
+
+  print Dumper($grp);
+  print Dumper(\@entries);
+  print Dumper($QUEUE);
+
+  return $status;
+}
+
+sub ADDFRONT {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running ADDFRONT") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the ODF entries associated with the args
+  my @entries = &Sds_to_Entry($argId);
+
+  if ($#entries > -1) {
+    # Add these entries to the back of the queue
+    $QUEUE->contents->addfront(@entries);
+
+    # Update the DRAMA parameters
+    update_contents_param($status);
+  }
+  return $status;
+}
+
+sub STARTQ {
+  $QUEUE->startq;
+  DRAMA::MsgOut($_[0], "Queue is running");
+  update_status_param($_[0]);
+}
+
+sub STOPQ {
+  $QUEUE->stopq;
+  DRAMA::MsgOut($_[0], "Queue is stopped");
+  update_status_param($_[0]);
+}
+
+sub CLEARQ {
+  $QUEUE->contents->clearq;
+  $QUEUE->contents->pastebuffer->clearq;
+  DRAMA::MsgOut($_[0], "Queue cleared");
+  update_contents_param($_[0]);
+}
+
+sub CUTQ {
+  my $status = shift;
+
+  DRAMA::MsgOut($status, "Running CUTQ") if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # Retrieve the POSN and NCUT integers from the Args
+  my $posn = $argId->Geti('POSN', $status);
+  my $ncut = $argId->Geti('NCUT', $status);
+
+  DRAMA::MsgOut($status,"Position: $posn NCUT:$ncut");
+
+  # CUT
+  $posn--;  # correct for counting from 0
+  $QUEUE->contents->cutq($posn, $ncut);
+
+  # Update the DRAMA parameters
+  update_contents_param($status);
+
+  my @Cur_contents = $QUEUE->contents->stringified;
+  my @Cur_paste    = $QUEUE->contents->pastebuffer->stringified;
+
+  # print Dumper([\@Cur_contents,\@Cur_paste]);
+
+  return $status;
+}
+
+
+
+sub POLL {
+  my $status = shift;
+
+  DRAMA::MsgOut($status,"Polling backend")
+    if $VERBOSE;
+
+  # Poll the queue
+  my ($pstat, $todd_status, $message) = $QUEUE->backend->poll;
+
+  # If pstat is false, set status to bad
+  # If todd status is bad also set status to bad.
+  # Stop the queue in both cases, report the errors but then
+  # carry on using good status
+  if (!$pstat) {
+    my $lstat = new DRAMA::Status;
+    $lstat->SetStatus(Dits::APP_ERROR);
+    $lstat->ErsRep(0,"Error polling the backend - Queue stopped");
+    $lstat->Flush;
+    &STOPQ($lstat);
+  } elsif (defined $todd_status && $todd_status != 0) {
+    my $lstat = new DRAMA::Status;
+    $lstat->SetStatus(Dits::APP_ERROR);
+    $lstat->ErsRep(0,"Error from TODD: $message");
+    $lstat->ErsRep(0,"Error from TODD: Stopping the queue");
+    $lstat->Flush;
+    &STOPQ($lstat);
+  } elsif (defined $message) {
+    DRAMA::MsgOut($status,"From TODD: $message");
+  }
+
+  # Update the DRAMA parameters
+  update_contents_param($status);
+
+  # Need to reschedule $RESCHED seconds
+  Dits::PutDelay($RESCHED, $status);
+  Dits::PutRequest(Dits::REQ_WAIT, $status);
+
+#  print Dumper($status) . "\nSTATUS: ".$status->GetStatus . "\n";
+
+  return $status;
+}
+
+# This routine kicks the POLLing and forces it to stop rescheduling
+# itself
+
+sub KICK_POLL {
+  my $status = shift;
+  DRAMA::MsgOut($status, "Kicked poll - ending");
+  Dits::PutRequest(Dits::REQ_END, $status);
+  return $status;
+}
+
+
+#--------------------------------------------------------------
+# Utility routines (not ACTIONS)
+
+# This routine converts an Sds structure to 
+# a set of Queue::Entry::HashODF objects
+
+# Looking for Arguments of form
+#   ODFn => {
+#            Label => 'label',
+#            ODF   => { Actual key/values hash   }
+#           }
+# where n can be 0..$ncomp
+# The entries will be placed on the queue in the numbered order
+
+sub Sds_to_Entry {
+  my $argId = shift;
+
+  return unless defined $argId;
+
+  # Need to check that we have a structure
+  $argId->List(new DRAMA::Status);
+
+  # tie the argId to a perl Hash
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  # Sort keys into ODFn order (also extract ODF entries)
+  my @sorted = sort { substr($a,3) <=> substr($b,3) } grep {/^ODF\d/i} keys %sds;
+
+  # Loop over keys searching for ODF\d entries
+  my @entries;
+  foreach my $key (@sorted) {
+    # already know they match ODF\d from sort
+    if ($key =~ /^ODF\d/i) {
+      my $odf_entry = $sds{$key};
+      my $label = $odf_entry->{Label};
+      my %odf = %{$odf_entry->{ODF}};
+      my $entry = $QUEUE->entryClass->new($label, \%odf);
+      push(@entries, $entry) if defined $entry;
+    }
+  }
+
+  untie $argId;
+  return @entries;
+}
+
+
+# PARAMETER MANIPULATION
+
+# Update the CONTENTS parameter
+# Argument: inherited status
+
+sub update_contents_param {
+  return unless $_[0]->Ok;
+
+  # Read the QUEUE parameter
+  my $sds = $sdp->GetSds('Queue',$_[0]);
+  return undef unless defined $sds;
+
+  #$sds->List($_[0]);
+
+  # Read the current queue contents
+  # Note that the current contents will return an array containing
+  # however many entries there are rather than the number of Queue
+  # entries we have reserved
+  my @Cur_contents = $QUEUE->contents->stringified;
+
+  # Compare the current contents with the sds structure
+  my $upd_con = compare_sds_to_perl($sds, 'Contents', \@Cur_contents, $_[0]);
+
+  # If either of the update flags are true we should update
+  my $update = 0;
+  $update = 1 if $upd_con;
+
+  # print "There was a change: $update and $upd_con and $upd_pst\n" if $update;
+
+  # Notify the parameter system
+  $sdp->Update($sds,$_[0]) if $update;
+
+  # Check for the current value on the queue
+  update_current_param($_[0]);
+
+}
+
+# Update the Stopped/Running flag using the STATUS parameter
+# Argument: inherited status
+
+sub update_status_param {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the status parameter
+  my $state = $sdp->GetString('STATUS',$status);
+
+  # Read whether the Queue is running
+  my $running = $QUEUE->backend->qrunning;
+
+  # Only change the parameter if needed
+  if ($state eq 'Running' && !$running) {
+    $sdp->PutString('STATUS','Stopped',$status);
+  } elsif ($state eq 'Stopped' && $running) {
+    $sdp->PutString('STATUS','Running',$status);
+  }
+
+}
+
+# Update the Current string
+# Argument: inherited status
+
+sub update_current_param {
+  return unless $_[0]->Ok;
+
+  # Read the CURRENT parameter
+  my $curr = $sdp->GetString('CURRENT', $_[0]);
+
+  # Read the last_sent to the backend
+  my $last_sent = $QUEUE->backend->last_sent;
+
+  # If nothing on set now to 'None'
+  my $now;
+  if (defined $last_sent) {
+    $now = $last_sent->string;
+  } else {
+    $now = 'None';
+  }
+
+  # Compare
+  if ($now ne $curr) {
+    $sdp->PutString('CURRENT',$now,$_[0]);
+  }
+
+}
+
+
+# Sub to compare an SDS array with a perl array, updating
+# the SDS array if necessary
+# Arguments: Sds structure
+#            Name of structure
+#            Reference to comparison array
+#            Status
+
+# Returns true if they were different, otherwise returns false
+
+sub compare_sds_to_perl ($$$$) {
+  die 'Usage: compare_sds_to_perl($sds,$name,$arref,$status)'
+    unless (scalar(@_) == 4 && ref($_[2]) eq 'ARRAY'
+	    && UNIVERSAL::isa($_[0],'Sds'));
+
+  return unless $_[3]->Ok;
+
+  my $sds = shift;
+  my $name = shift;
+  my $arr = shift;
+
+  # Read the named item from the Sds component
+  my $csds = $sds->Find($name,$_[0]);
+  my @sds_contents = $csds->GetStringArray($_[0]);
+
+  # Process this array to remove trailing spaces (padding)
+  # and shorten the array to match the size of the first
+  # empty string - this will make the comparison more robust
+  for my $i (0..$#sds_contents) {
+    $sds_contents[$i] =~ s/\s+$//;
+    if ($sds_contents[$i] eq '') {
+      $#sds_contents = $i - 1;
+      last;
+    }
+  }
+
+  # This flag is used ro report a difference
+  # Start by assuming no difference
+  my $cur_diff = 0;
+
+  # Since we have tidied the original array we can compare number of entries
+  # directly
+  # Making sure we remember that it is possible for the array to have
+  # more than NENTRIES in it.
+  if (scalar(@$arr) <= NENTRIES && scalar(@sds_contents) != scalar(@$arr)) {
+    # Different number of elements
+    $cur_diff = 1;
+  } else {
+    # Step through the current contents and compare with the
+    # parameter contents
+    for my $i (0..$#sds_contents) {
+      # Need to retrieve the current value and trim
+      # it if it is longer than the size of the SDS array
+      my $current = $arr->[$i];
+      $current = substr($current,0,SZSTRING) if length($current) > SZSTRING;
+	
+      # Now compare the sds and current entries
+      if ($sds_contents[$i] ne $current) {
+	$cur_diff = 1;
+	last;
+      }
+    }
+  }
+
+  # Update the Contents array if they are different
+  $csds->PutStringArrayExists($arr, $_[0]) if $cur_diff;
+
+  # Return the cur_diff flag - true if we have updated
+  return $cur_diff;
+}

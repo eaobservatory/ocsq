@@ -1,0 +1,129 @@
+#!/local/perl-5.6/bin/perl
+
+=head1 NAME
+
+scucd - DRAMA task emulating the queue functionality of the SCUCD A-task
+
+=head1 SYNOPSIS
+
+ ditscmd "SCUCD_PERL" "test.odf"
+
+
+=head1 DESCRIPTION
+
+This is a "dummy" DRAMA task that emulates the interface provided by
+the SCUBA SCUCD A-task for loading ODFs from the queue into SCUBA.
+
+Only has a single action (OBSERVE) that takes a single argument
+(the ODF name). After a random amount of time (between 5 and 15 seconds)
+the action will complete with either good or bad status (randomly).
+
+Will return bad status if the file can not be opened.
+
+=head1 NOTES
+
+This can not be used to test the queue extensively because
+
+1. SCUCD uses ADAM (so we will be using ADITS).
+
+2. SCUCD reads vax files so there is a chance that the queue
+is writing files that can be read fine on unix but which will fail
+on the vax.
+
+=head1 AUTHOR
+
+Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
+Copyright (C) 2002 Particle Physics and Astronomy Research Council.
+All Rights Reserved.
+
+=cut
+
+
+use strict;
+use warnings;
+
+use DRAMA;
+use constant DTASK => 'SCUCD_PERL';
+use SCUBA::ODF;
+
+# Init drama
+DPerlInit(DTASK);
+
+# Initiate actions
+my $status = new DRAMA::Status;
+Dits::DperlPutActions("OBSERVE",\&observe,undef,0,undef,$status);
+
+# No parameters
+
+# Enter the main loop
+Dits::MainLoop( $status );
+
+
+# ACTIONS
+
+# OBSERVE - read the supplied ODF and reschedule a pseudo-random
+# time in the future.
+
+# Once resheduled, send a success
+
+sub observe {
+  my $status = shift;
+  my $seq = Dits::GetSeq();          # Get the sequence number
+
+  # If this is the first time in the action
+  if ($seq == 0) {
+
+    my $argID = Dits::GetArgument;
+
+    unless ($argID) {
+      # No argument specified, this is an error
+      seterr( $status, "Please supply an ODF name as Argument1");
+      return;
+
+    }
+
+
+    my $odfname = $argID->GetString( 'Argument1', $status);
+    DRAMA::MsgOut($status, "Reading ODF $odfname");
+    my $odf = new SCUBA::ODF( File => $odfname);
+
+    if (!$odf) {
+      # Failed to read the ODF
+      seterr( $status, "Error opening ODF $odfname");
+      return;
+    }
+
+    # Everything okay. Need to reschedule
+    # Now set up the rescheduling for all actions
+    # Using the code to set the delay
+    my $delay = Dits::DeltaTime(int(rand(5)+1), 0);
+    Dits::PutDelay($delay, $status);
+    Dits::PutRequest(Dits::REQ_WAIT, $status);
+
+  } else {
+    # This is a reschedule - just finish with a message
+    # good or bad
+    if (rand(10) > 4) {
+      DRAMA::MsgOut($status, "Observation complete");
+    } else {
+      seterr( $status, "Observation aborted due to error");
+      return;
+    }
+
+
+  }
+
+}
+
+
+# subroutine to set bad status and attach a message
+sub seterr {
+  my $status = shift;
+  my $msg = shift;
+
+  $status->SetStatus( 1 ) # random status value
+    if $status->StatusOk; # if status is good
+
+  $status->ErsRep(0, $msg);
+  return;
+}

@@ -370,6 +370,33 @@ sub insertq {
 }
 
 
+=item B<get_for_observation>
+
+Retrieve the queue entry that should be sent for observation.
+By default the top entry is shifted off the array.
+
+=cut
+
+sub get_for_observation {
+  my $self = shift;
+  return $self->shiftq
+}
+
+=item B<post_obs_tidy>
+
+Runs code that should occur after the observation has been completed
+but before the next observation is requested.
+
+In the base class this does nothing. In an indexed subclass this
+may increment the index.
+
+=cut
+
+sub post_obs_tidy {
+  my $self = shift;
+  return;
+}
+
 =back
 
 =head2 Display Methods
