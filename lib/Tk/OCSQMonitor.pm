@@ -14,7 +14,7 @@ Tk::OCSQMonitor - MegaWidget for monitoring an OCS Queue
                            -qheight => 10,
                            -msgwidth => 100,
                            -msbcompletecb => \&msbcomplete,
-                           -user => new OMP::User(),
+                           -user => \$userid,
                           );
 
 =head1 DESCRIPTION
@@ -55,6 +55,17 @@ detailing each MSB.
 
 A reference to the user ID is passed in so that it can be modified in
 the callback.
+
+=item B<-user>
+
+A reference to a scalar variable that should contain a valid OMP user
+ID. The content of this variable will be updated as the widget is used
+so that you can share this variable with other widgets that may need
+to know a user ID. The widget constructor will abort if a reference
+is not provided. If no user is specified, this configure option will
+be undefined until a point at which the user id is needed by the
+widget, in which case a reference to a scalar will be associated with
+this item.
 
 =back
 
@@ -97,6 +108,9 @@ sub Populate {
   croak "Must supply a queue name [qtask]"
     unless exists $args->{'-qtask'};
 
+  croak "If supplying a user ID string, it must be a reference"
+    if exists $args->{-user} && ref($args->{'-user'}) ne 'SCALAR';
+
   # Configure options
   $w->ConfigSpecs( -qtask => ['PASSIVE'],
 		   -qwidth => ['PASSIVE'],
@@ -110,12 +124,16 @@ sub Populate {
   $w->SUPER::Populate($args);
 
   # Copy args to configure options
+  # [although the widget constructor should do this itself and indeed
+  # seems to when I try to update the value of -user in the Populate
+  # routine - the value is overwritten with that provided on the command
+  # line]
   $w->configure('-qtask' => $args->{'-qtask'});
   $w->configure('-qwidth' => $args->{'-qwidth'});
   $w->configure('-qheight' => $args->{'-qheight'});
   $w->configure('-msgwidth' => $args->{'-msgwidth'});
-  $w->configure('-user' => $args->{'-user'});
   $w->configure('-msbcompletecb' => $args->{'-msbcompletecb'});
+  $w->configure('-user' => $args->{'-user'});
 
   # Get the internal hash data
   my $priv = $w->privateData();
@@ -583,14 +601,20 @@ sub cvtsub {
     # By default this will put up a GUI with tabs asking to accept
     # or reject the MSB.
     if ($w->cget("-msbcompletecb")) {
-      # Get current user id
+
+      # If the value was not supplied we need to store a reference
+      # to someother variable.
       my $userid = $w->cget('-user');
 
-      # Run callback
-      $w->cget("-msbcompletecb")->($w,\$userid,\%tie);
+      if (!defined $userid) {
+	my $null = '';
+	$w->configure('-user', \$null);
+	$userid = $w->cget('-user');
+      }
 
-      # Store modified value
-      $w->configure('-user',$userid);
+      # Run callback
+      $w->cget("-msbcompletecb")->($w,$userid,\%tie);
+
     } else {
       print "No registered callback for MSBCOMPLETED\n";
     }

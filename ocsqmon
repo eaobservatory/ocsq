@@ -96,7 +96,7 @@ $MW->Button( -text => 'EXIT', -command => sub { $MW->destroy;
 
 my $QM = $MW->OCSQMonitor(
                           -qtask => 'OCSQUEUE',
-			  -user => $OMP_User,
+			  -user => \$OMP_User,
                          )->pack;
 
 MainLoop;
