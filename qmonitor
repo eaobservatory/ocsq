@@ -188,13 +188,22 @@ $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-col=>0,-sticky=>'w');
 my $Qstatus = $Fr1->Label(-textvariable => \$MONITOR{STATUS},
 			)->grid(-row=>0,-col=>1,-sticky=>'w');
 
-$Fr1->Label(-text => 'Current entry:')->grid(-row => 1,-col=>0,-sticky=>'w');
-my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
+# Integrations status
+$Fr1->Label(-text => 'Integrations:')->grid(-row => 1,-col=>0,-sticky=>'w');
+my $IntStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{SCUCD_STAT},
 			)->grid(-row=>1,-col=>1,-sticky=>'w');
 
+
+# SCUCD status
 $Fr1->Label(-text => 'SCUCD status:')->grid(-row => 2,-col=>0,-sticky=>'w');
 my $ScucdStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{SCUCD_STAT},
 			)->grid(-row=>2,-col=>1,-sticky=>'w');
+
+
+$Fr1->Label(-text => 'Current entry:')->grid(-row => 3,-col=>0,-sticky=>'w');
+my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
+			)->grid(-row=>3,-col=>1,-sticky=>'w');
+
 
 update_status 'Creating listboxes',85;
 # Create listbox in frame 2
@@ -215,6 +224,8 @@ my $ContentsBox = $Fr2->Scrolled('Text',
 			       )->grid(-row=>1,-col=>1);
 
 $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
+
+
 
 # Setup a Text widget that will take all the output sent to MsgOut
 
@@ -921,7 +932,9 @@ sub gui_extend {
 sub init_nbs_monitors {
   return unless $NBSTASK;
   my $status = new DRAMA::Status;
-  my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT");
+  my %params = ("SCUCD_STAT" => "APB.SCUBA_SCUCD_STAT",
+		"INT_NUM" => "APB.SCUBA_INT_NUM"
+	       );
 
   for my $par (keys %params) {
     my $arg = Arg->Create;
@@ -961,7 +974,7 @@ sub start_nbs_monitors {
 sub nbs_cvtsub {
   my ($param, $value) = @_;
 
-  print "PARAMETER: $param - $value\n";
+  # print "PARAMETER: $param - $value\n";
 
   if ($param eq 'SCUCD_STAT') {
     # update value in monitor gui
