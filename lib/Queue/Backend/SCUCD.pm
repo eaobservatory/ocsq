@@ -209,6 +209,9 @@ Send the supplied ODF name to the SCUBA task (generally SCUCD).
 If we are in non-blocking mode, returns immediately, else will
 only return when the observation completes (or an error is triggered).
 
+The returned status is a Perl status - true if everything was okay.
+False otherwise.
+
 =cut
 
 sub _send {
@@ -231,27 +234,25 @@ sub _send {
   # callbacks (to stop it being destroyed) I get a SDS-E-BADID error
   # from Uface handler. This may well generate a descriptor leak.
   my $success = sub { 
-    print "SUCCESS\n";
+    # print "SUCCESS\n";
     $self->_pushmessage( 0, "CLIENT: Observation completed successfully");
     $self->accepting(1);
-    $arg; # keep alive
   };
 
   my $error   = sub {
     my ($lstat, $msg) = @_;
-    print "ERROR HANDLER: $msg\n";
+    # print "ERROR HANDLER: $msg\n";
     $self->_pushmessage( $lstat, "ERROR: $msg" );
   };
 
   my $complete = sub {
-    print "COMPLETE\n";
-#    Dits::PutRequest(Dits::REQ_EXIT,$status);
+    # print "COMPLETE\n";
     $self->post_obs_tidy;
   };
 
   my $info = sub {
     my $msg = shift;
-    print "MESSAGE: $msg\n";
+    # print "MESSAGE: $msg\n";
     $self->_pushmessage( 0, "REMOTE: $msg");
   };
 
@@ -259,7 +260,8 @@ sub _send {
   $self->accepting(0);
 
 
-  my $retstatus = 0;
+  my $retstatus = 1;
+  $self->_pushmessage( 0, "Sending ODF to SCUCD");
   if ($MODE eq 'NONBLOCK') {
 
     # do the obey and return immediately but make sure we set
@@ -268,27 +270,34 @@ sub _send {
     # on success we should probably store a message on the stack
     # on error put the message on the stack and error code
     obey $TASK, "OBSERVE", $arg, {
+				  -deletearg => 0,
 				  -success => $success,
-				  -complete => $complete,
 				  -error => $error,
+				  -complete => $complete,
 				  -info => $info,
 				 };
+
+
 
   } else {
     # blocked I/O
     obeyw $TASK, "OBSERVE", $arg, {
 				  -success => $success,
-				  -complete => $complete,
 				  -error => $error,
 				  -info => $info,
 				  };
 
-
+    # Run the completion handler ourselves
+    $complete->();
   }
 
   # Return status is only relevant for the obeyw
   # since the obey will usually return immediately even if the
-  # connection is not made
+  # connection is not made. Currently nothing in the obeyw changes
+  # this status. Relies on the error handler to trigger a backend
+  # error (since this status is meant to be a queue status and not
+  # a drama status but we cannot really distinguish between an
+  # error connecting to the backend and an error from the backend)
   return $retstatus;
 
 }
@@ -307,10 +316,11 @@ reset to the start.
 
 sub post_obs_tidy {
   my $self = shift;
-  my $status = $self->contents->incindex;
+  my $status = $self->qcontents->incindex;
   if (!$status) {
     $self->qrunning(0);
-    $self->contents->curindex(0);
+    $self->qcontents->curindex(0);
+    $self->_pushmessage( 0, "No more entries to process. Queue is stopped");
   }
   return;
 }
@@ -332,7 +342,17 @@ the message stack before assuming further action can be taken.
 
 sub messages {
   my $self = shift;
-  my ($status, $msg) = $self->_shiftmessage;
+#  my ($status, $msg) = $self->_shiftmessage;
+
+  # clear all the messages but keep non-zero status
+  my ($status, $msg);
+  my @msgs;
+  $status = 0;
+  while (@msgs = $self->_shiftmessage) {
+    $status = $msgs[0] if $msgs[0] != 0;
+    $msg .= $msgs[1] . "\n";
+  }
+
 
   if (defined $msg) {
     return ($status, $msg);
