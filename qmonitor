@@ -414,6 +414,9 @@ sub drama_error {
 			    -buttons => ["OK"],
 			    -bitmap => 'error',
 			  );
+
+  print "Received error in response to a drama action:- $msg\n";
+
   # play sound
   play_sound('alert.wav');
 
@@ -538,6 +541,7 @@ sub cvtsub {
       # to us directly because we did not initiate the action
       for (@{$tie{MESSAGE}}) {
 	if ($_ =~ /^ERROR/) {
+	  print "Triggering ERROR associated with message from the queue\n";
 	  play_sound('alert.wav');
 	  last;
 	}
