@@ -237,14 +237,21 @@ sub qtidy {
   # so dd not change the parameter
   if ($msbid && $projectid) {
 
-    DRAMA::MsgOut($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+    if ($projectid eq 'SCUBA' || $projectid eq 'JCMTCAL') {
+      DRAMA::MsgOut($status, "Completed JCMT 'calibration' observations. No doneMSB");
 
-    # Store it
-    $data{MSBID} = $msbid;
-    $data{PROJECTID} = $projectid;
+    } else {
 
-    %COMPLETE_DETAILS = %data;
-    set_qcomplete_parameter($status, %data);
+      DRAMA::MsgOut($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+
+      # Store it
+      $data{MSBID} = $msbid;
+      $data{PROJECTID} = $projectid;
+
+      %COMPLETE_DETAILS = %data;
+      set_qcomplete_parameter($status, %data);
+
+    }
 
   } else {
     DRAMA::MsgOut($status, "Queue contents fully observed but no MSBID or PROJECTID available.");
