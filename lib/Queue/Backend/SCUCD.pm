@@ -205,10 +205,13 @@ sub isconnected {
 
 Send the supplied ODF name to the SCUBA task (generally SCUCD).
 
-  $status = $be->_send( $odfname );
+  $status = $be->_send( $odfname, $entry );
 
 If we are in non-blocking mode, returns immediately, else will
 only return when the observation completes (or an error is triggered).
+
+The entry itself is an argument in case it needs to be modified
+during callbacks (eg to change its status on completion).
 
 The returned status is a Perl status - true if everything was okay.
 False otherwise.
@@ -218,6 +221,7 @@ False otherwise.
 sub _send {
   my $self = shift;
   my $odfname = shift;
+  my $entry = shift;
 
   my $MODE = $self->MODE;
   my $TASK = $self->TASK;
@@ -227,12 +231,18 @@ sub _send {
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1", $odfname, $status);
 
+  # change the status of the entry to SENT
+  $entry->status("SENT");
+
   # Create callbacks
 
   # First the success handler
   my $success = sub { 
     # print "SUCCESS\n";
     $self->_pushmessage( 0, "CLIENT: Observation completed successfully");
+
+    # change status
+    $entry->status("OBSERVED");
 
     # Do post-observation stuff. Includes incrementing the index.
     # Only want to do this if the observations was completed succesfully
@@ -242,6 +252,10 @@ sub _send {
 
   my $error   = sub {
     my ($lstat, $msg) = @_;
+
+    # change status to bad
+    $entry->status("ERROR");
+
     # print "ERROR HANDLER: $msg\n";
     $self->_pushmessage( $lstat, "ERROR: $msg" );
   };

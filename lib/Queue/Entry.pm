@@ -50,6 +50,7 @@ sub new {
   $frame->{Entity} = undef;
   $frame->{Label}  = undef;
   $frame->{BE}     = undef;
+  $frame->{Status} = "QUEUED";
 
   bless($frame, $class);
 
@@ -101,6 +102,33 @@ sub label {
   my $self = shift;
   $self->{Label} = shift() if @_;
   return $self->{Label};
+}
+
+=item status
+
+Sets or returns the status associated with this entry. Current 
+recognized values are:
+
+  QUEUED  - entry default state
+  SENT    - has been sent to the backend
+  OBSERVED- has been observed successfully
+  ERROR   - has been observed with error
+
+These values are currently free format and no attempt is made
+to verify that we know what they mean.
+
+  $status = $entry->status();
+  $entry->status('SENT');
+
+The status is also returned when the object is stringified. This
+can be used to color code the results.
+
+=cut
+
+sub status {
+  my $self = shift;
+  $self->{Status} = shift() if @_;
+  return $self->{Status};
 }
 
 =item be_object
@@ -241,13 +269,13 @@ returns the output from the label() method.
 
   $string = $entry->string;
 
-There are no arguments.
+There are no arguments. Includes the status.
 
 =cut
 
 sub string {
   my $self = shift;
-  return $self->label;
+  return sprintf("%-10s%s",$self->status,$self->label);
 }
 
 

@@ -248,7 +248,7 @@ Control how the entry is displayed in the queue summary.
 sub string {
   my $self = shift;
   my $odf = $self->entity;
-  return $odf->summary();
+  return sprintf("%-10s%s",$self->status,$odf->summary());
 }
 
 =back
