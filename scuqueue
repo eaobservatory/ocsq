@@ -164,6 +164,7 @@ my $flag = 0;  # Not spawnable
 Dits::DperlPutActions("STARTQ",  \&STARTQ,  undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("STOPQ",   \&STOPQ,   undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("LOADQ",  \&LOADQ,  undef,$flag,undef,$STATUS);
+Dits::DperlPutActions("INSERTQ",  \&INSERTQ,  undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("CLEARQ", \&CLEARQ,    undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
@@ -337,6 +338,57 @@ sub LOADQ {
   my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
   my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
   $QUEUE->contents->loadq( @entries );
+
+  # Always clear if we have tweaked something
+  clear_failure_parameter($status);
+  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+
+#  print Dumper($grp);
+#  print Dumper(\@entries);
+#  print Dumper($QUEUE);
+#  print "Found " . scalar(@entries) . " ODFs\n";
+
+  return $status;
+}
+
+
+# Insert ODFs at the current (or specified) index
+# Argument1: ODF file name
+# Argument2 [optional] Index
+
+sub INSERTQ {
+  my $status = shift;
+
+  DRAMA::MsgOut( $status, "Running INSERTQ" ) if $VERBOSE;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  return unless defined $argId;
+
+  # tie the argId to a perl Hash
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  # Needs to be a separate function
+  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
+  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
+
+  # Get the index. Can come from the SDS
+  my $newindex;
+  if (exists $sds{Argument2}) {
+    $newindex = $sds{Argument2};
+  } else {
+    # get the current index
+    my $cur = $QUEUE->contents->curindex;
+    if (defined $cur) {
+      $newindex = $cur + 1;
+    } else {
+      $newindex = 0;
+    }
+  }
+
+  $QUEUE->contents->insertq($newindex, @entries );
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
@@ -656,6 +708,9 @@ sub QCOMPLETE {
 
 # This routine converts an Sds structure to 
 # a set of Queue::Entry::HashODF objects
+
+# An ODF is assumed to either be a file name (assuming macro)
+# or an actual ODF in key ODF in the supplied structure
 
 # Looking for Arguments of form
 #   ODFn => {
