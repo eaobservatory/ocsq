@@ -303,6 +303,8 @@ sub ADDBACK {
 
   DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
 
+  DRAMA::MsgOut($status, "ADDBACK NOT SUPPORTED");
+  return;
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
