@@ -980,7 +980,7 @@ sub nbs_cvtsub {
     # update value in monitor gui
 
     # trim it
-    $value =~ s/\s+//;
+    $value =~ s/\s+$//;
 
     # check to see if we are paused
     if ($value =~ /paused/i) {
@@ -1001,7 +1001,7 @@ sub nbs_cvtsub {
 
   }
 
-  return $value if not ref($value);
+  return $value;
 
 }
 
