@@ -192,9 +192,9 @@ $Fr1->Label(-text => 'Current entry:')->grid(-row => 1,-col=>0,-sticky=>'w');
 my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
 			)->grid(-row=>1,-col=>1,-sticky=>'w');
 
-$Fr1->Label(-text => 'SCUCD status:')->grid(-row => 1,-col=>0,-sticky=>'w');
+$Fr1->Label(-text => 'SCUCD status:')->grid(-row => 2,-col=>0,-sticky=>'w');
 my $ScucdStatus = $Fr1->Label(-textvariable => \$NBS_MONITOR{SCUCD_STAT},
-			)->grid(-row=>1,-col=>1,-sticky=>'w');
+			)->grid(-row=>2,-col=>1,-sticky=>'w');
 
 update_status 'Creating listboxes',85;
 # Create listbox in frame 2
