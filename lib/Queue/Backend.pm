@@ -421,7 +421,7 @@ sub poll {
   # this will do nothing if the queue is not accepting
   if ($self->qrunning) {
     $status = $self->send_entry();
-    print "##### STATUS FROM send_entry: $status\n";
+    #print "##### STATUS FROM send_entry: $status\n";
   } else {
     # If the backend is accepting but the queue is not running
     # set last sent to undef
