@@ -819,8 +819,9 @@ sub DONEMSB {
 	$status->SetStatus( Dits::APP_ERROR );
 	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
 	addmessage($status, "Error marking msb $msbid as done: $E");
-	return $status;
+
       };
+      return $status unless $status->Ok;
 
     }
 
@@ -1085,7 +1086,6 @@ sub MSBCOMPLETE {
 	$status->SetStatus( Dits::APP_ERROR );
 	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
 	addmessage($status, "Error marking msb $msbid as done: $E");
-	return $status;
       };
 
     } else {
@@ -1104,10 +1104,12 @@ sub MSBCOMPLETE {
 	$status->SetStatus( Dits::APP_ERROR );
 	$status->ErsRep(0,"Error marking msb $msbid as rejected: $E");
 	addmessage($status, "Error marking msb $msbid as rejected: $E");
-	return $status;
       };
 
     }
+
+    # Return if we have bad status
+    return $status unless $status->Ok;
 
     # and clear the parameter
     clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
