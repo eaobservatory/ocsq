@@ -284,7 +284,7 @@ sub shutdown {
     monitor($QNAME, "CANCEL", $MONITOR{MONITOR_ID})
       unless $CANCELLED;
     if ($NBSTASK) {
-      if ($NBS_MONITOR(MONITOR_ID}) {
+      if ($NBS_MONITOR{MONITOR_ID}) {
 	monitor($NBSTASK, "CANCEL", $NBS_MONITOR{MONITOR_ID})
 	  unless $NBS_CANCELLED;
       }
