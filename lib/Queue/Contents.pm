@@ -369,6 +369,36 @@ sub insertq {
   return;
 }
 
+=item B<replaceq>
+
+Replace an entry with a new entry at the specified index position.
+
+  $q->replaceq(4,$entry);
+
+Returns true if successfull, else if the specified position is not in
+range or the entry is not of the correct type, returns false.
+
+=cut
+
+sub replaceq {
+  my $self = shift;
+
+  # Read the first arg
+  my $pos = shift;
+  my $entry = shift;
+
+  if ($self->indexwithin($pos)) {
+    return 0 unless $self->_test_type($entry);
+
+    $self->contents->[$pos] = $entry;
+
+  } else {
+    return 0;
+  }
+
+  return 1;
+}
+
 
 =item B<get_for_observation>
 
@@ -454,6 +484,7 @@ sub _test_type {
   if (UNIVERSAL::isa($ent, 'Queue::Entry')) {
     return 1;
   } else {
+    $ent = "undefined value" unless $ent; 
     warn "Argument supplied to queue [$ent] is not a Queue::Entry object - ignoring\n" if $^W;
     return 0;
   }
@@ -470,7 +501,7 @@ L<Queue>, L<Queue::Contents::Stack>, L<Queue::Entry>
 =head1 AUTHOR
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
-(C) 1999-2002 Particle Physics and Astronomy Research Council.
+Copyright (C) 1999-2002 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 =cut
