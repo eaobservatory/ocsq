@@ -154,7 +154,7 @@ Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED = Dits::DeltaTime(0,250);
+my $RESCHED = Dits::DeltaTime(1,250);
 
 # Create parameters
 my $sdp = new Sdp;
@@ -247,9 +247,10 @@ sub LOADQ {
 
   $QUEUE->contents->loadq( @entries );
 
-  print Dumper($grp);
-  print Dumper(\@entries);
-  print Dumper($QUEUE);
+#  print Dumper($grp);
+#  print Dumper(\@entries);
+#  print Dumper($QUEUE);
+  print "Found " . scalar(@entries) . " ODFs\n";
 
   return $status;
 }
@@ -332,8 +333,8 @@ sub CUTQ {
 sub POLL {
   my $status = shift;
 
-  DRAMA::MsgOut($status,"Polling backend")
-    if $VERBOSE;
+#  DRAMA::MsgOut($status,"Polling backend")
+#    if $VERBOSE;
 
   # First make sure that the index parameter has not been changed
   # from under us. If it has we need to synch up and possibly
@@ -462,7 +463,8 @@ sub update_contents_param {
   my $update = 0;
   $update = 1 if $upd_con;
 
-  # print "There was a change: $update and $upd_con and $upd_pst\n" if $update;
+  print "There was a change: $update and $upd_con \n" if $update;
+  print Dumper(\@Cur_contents) if $update;
 
   # Notify the parameter system
   $sdp->Update($sds,$_[0]) if $update;
