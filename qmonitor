@@ -412,6 +412,10 @@ sub drama_error {
 			    -buttons => ["OK"],
 			    -bitmap => 'error',
 			  );
+  # play sound
+  play_sound('alert.wav');
+
+  # And put up a dialog
   $dialog->Show;
 }
 
@@ -952,9 +956,10 @@ sub respond_to_failure {
 
 				      # and load the ODF back in
 				      &DRAMA::obey($QNAME, "REPLACEQ", $sds, { -deletearg => 0,
-									      -success => sub {
-										&DRAMA::obey($QNAME,"STARTQ");
-									      },
+									       -success => sub {
+										 &DRAMA::obey($QNAME,"STARTQ");
+									       },
+									       -error => \&drama_error,
 									    } );
 
 				    },
@@ -1140,7 +1145,7 @@ sub scuba_2cals {
 # at the currently highlighted position
 
 sub suspendmsb {
-  &DRAMA::obey($QNAME, "SUSPENDMSB");
+  &DRAMA::obey($QNAME, "SUSPENDMSB",{ -error => \&drama_error });
 }
 
 # Dispose of an MSB. This is functionally identical to cutmsb
@@ -1148,24 +1153,24 @@ sub suspendmsb {
 # rather than sending explicit DONEMSB and REJECTMSB actions
 # [or a single DONEMSB with argument indicating accept/reject]
 sub disposemsb {
-  &DRAMA::obey( $QNAME, "CUTMSB");
+  &DRAMA::obey( $QNAME, "CUTMSB",{ -error => \&drama_error});
 }
 
 # Send messages to SCUCD - these messages should be in  a class
 
 sub gui_abort {
-  &DRAMA::obey($SCUCD,"ABORT");
+  &DRAMA::obey($SCUCD,"ABORT", {-error => \&drama_error});
 }
 
 sub gui_term {
-  &DRAMA::obey($SCUCD,"TERMINATE");
+  &DRAMA::obey($SCUCD,"TERMINATE",{-error => \&drama_error});
 }
 
 sub gui_accept {
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1","CHOICE=YES",$status);
-  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0,-error =>\&drama_error});
 }
 
 # Also stops the q
@@ -1173,7 +1178,7 @@ sub gui_refuse {
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
   $arg->PutString("Argument1","CHOICE=NO",$status);
-  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+  &DRAMA::obey($SCUCD,"CONTINUE",$arg,{-deletearg=>0,-error=>\&drama_error});
   stopq;
 }
 
@@ -1200,7 +1205,7 @@ sub gui_extend {
     my $arg = Arg->Create;
     my $status = new DRAMA::Status;
     $arg->PutString("Argument1","$n_extend",$status);
-    &DRAMA::obey($SCUCD,"EXTEND",$arg,{-deletearg=>0});
+    &DRAMA::obey($SCUCD,"EXTEND",$arg,{-deletearg=>0,-error=>\&drama_error});
   }
 
 }
@@ -1305,7 +1310,7 @@ sub ContentsMenu {
 					 my $status = new DRAMA::Status;
 					 $arg->Puti("Argument1",$index,$status);
 					 DRAMA::obey($QNAME,"CLEARTARG",
-						     $arg,{-deletearg=>0});}
+						     $arg,{-deletearg=>0,-error=>\&drama_error});}
 				      ],
 				      ["command" => "Cut observation at index $index",
 				       -command => sub {
@@ -1313,7 +1318,7 @@ sub ContentsMenu {
 					 my $status = new DRAMA::Status;
 					 $arg->Puti("Argument1",$index,$status);
 					 DRAMA::obey($QNAME,"CUTQ",
-						     $arg,{-deletearg=>0});
+						     $arg,{-deletearg=>0,-error=>\&drama_error});
 				       }],
 				      ["command" => "Cut MSB containing index $index",
 				       -command => sub {
@@ -1321,7 +1326,7 @@ sub ContentsMenu {
 					 my $status = new DRAMA::Status;
 					 $arg->Puti("Argument1",$index,$status);
 					 DRAMA::obey($QNAME,"CUTMSB",
-						     $arg,{-deletearg=>0});
+						     $arg,{-deletearg=>0,-error=>\&drama_error});
 				       }],
 				     ],
 		      );
