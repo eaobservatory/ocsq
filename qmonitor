@@ -120,7 +120,7 @@ if ($@) {
 # DEfine some constants - these are the same as used in the DQueue itseld
 # KLUGE - should do this properly
 # This should really match the queue
-use constant SZSTRING => 80; # Size of strings in Queue parameters
+use constant SZSTRING => 100; # Size of strings in Queue parameters
 
 # This one actually governs the size of the Text widget
 use constant NENTRIES => 10; # Number of entries in Queue parameters
@@ -213,6 +213,11 @@ $Fr1->Label(-text => 'Current entry:')->grid(-row => 3,-col=>0,-sticky=>'w');
 my $CurrStatus = $Fr1->Label(-textvariable => \$MONITOR{CURRENT},
 			)->grid(-row=>3,-col=>1,-sticky=>'w');
 
+$Fr1->Label(-text => 'Time on Queue (minutes):')->grid(-row => 4,-col=>0,-sticky=>'w');
+my $TimeOnQueue = $Fr1->Label(-textvariable => \$MONITOR{TIMEONQUEUE},
+			)->grid(-row=>4,-col=>1,-sticky=>'w');
+
+
 
 update_status 'Creating listboxes',85;
 # Create listbox in frame 2
@@ -267,7 +272,7 @@ my $NBS_CANCELLED = 0; # for nbs monitor
 my $CANCELLED = 0;  # True if monitor is ended
 monitor($QNAME, "START", 
 	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
-	"MESSAGES",
+	"MESSAGES","TIMEONQUEUE",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,

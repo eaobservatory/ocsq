@@ -24,6 +24,7 @@ a Queue::Contents class.
 
 use strict;
 use Carp;
+use Time::Seconds;
 
 =head1 METHODS
 
@@ -362,6 +363,21 @@ sub msb_status {
   }
   return $string;
 
+}
+
+=item B<duration>
+
+Estimated time required for the entry to execute.
+
+  $duration = $e->duration();
+
+Returns a C<Time::Seconds> object. Base class reeturns 0.
+
+=cut
+
+sub duration {
+  my $self = shift;
+  return Time::Seconds->new(0);
 }
 
 =back

@@ -27,6 +27,7 @@ use 5.006;
 use strict;
 use Carp;
 use warnings;
+use Time::Seconds;
 
 =head1 METHODS
 
@@ -622,6 +623,31 @@ sub stringified {
     return \@strings;
   }
 
+}
+
+=item B<remaining_time>
+
+Total (estimated) time remaining on the queue.
+
+  $time = $q->remaining_time();
+
+Returns a Time::Seconds object. For the base class, simply adds
+up all the entries on the queue.
+
+=cut
+
+sub remaining_time {
+  my $self = shift;
+
+  my $time = new Time::Seconds(0);
+  for my $e ($self->contents) {
+
+    my $t = $e->duration;
+    $time += $t if defined $t;
+
+  }
+
+  return $time;
 }
 
 =back

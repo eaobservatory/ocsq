@@ -138,8 +138,8 @@ use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM %COMPLETE_DETAILS $TRANS_DIR/;
 # Define the number of entries stored in QUEUE and PASTE parameters
 use constant NENTRIES => 100;
 
-# Define size of string representation used in QUEUE/PASTE parameters
-use constant SZSTRING => 80;
+# Define size of string representation used in QUEUE contents
+use constant SZSTRING => 100;
 
 # The task name
 use constant TASKNAME => 'SCUQUEUE';
@@ -189,6 +189,7 @@ my $RESCHED = Dits::DeltaTime(1,0);
 my $sdp = new Sdp;
 $sdp->Create("STATUS","STRING",'Stopped');
 $sdp->Create("INDEX","INT",0);
+$sdp->Create("TIMEONQUEUE","INT",0);
 $LOCAL_INDEX = 0; # synchronize
 $sdp->Create("CURRENT","STRING",'None');
 
@@ -939,6 +940,9 @@ sub update_contents_param {
   # Check for the current value on the queue
   update_current_param($_[0]);
 
+  # Update the time remaining
+  update_time_remaining( $_[0] );
+
 }
 
 # Update the Stopped/Running flag using the STATUS parameter
@@ -970,7 +974,7 @@ sub update_index_param {
   my $status = shift;
   return unless $status->Ok;
 
-  # Read the status parameter
+  # Read the index parameter
   my $index = $sdp->Geti('INDEX',$status);
 
   # Get the queue value
@@ -988,10 +992,29 @@ sub update_index_param {
     # us know when the parameter was changed by external command
     $LOCAL_INDEX = $curindex;
 
+    # Update the time remaining
+    update_time_remaining( $_[0] );
+
   }
 
 }
 
+# Update the time remaining
+sub update_time_remaining {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the time parameter
+  my $time = $sdp->Geti('TIMEONQUEUE',$status);
+
+  # Get it from the queue
+  my $qtime = int($QUEUE->contents->remaining_time->minutes);
+
+  if ($qtime != $time) {
+    $sdp->Puti( 'TIMEONQUEUE', $qtime, $status);
+  }
+
+}
 
 # See if the queue index and parameter have changed independently
 # The LOCAL_INDEX variable helps us with this since we know it
@@ -1023,6 +1046,10 @@ sub check_index_param_sync {
     &STOPQ($status);
     # Always clear if we have tweaked something
     clear_failure_parameter($status);
+
+    # Update the time remaining
+    update_time_remaining( $status );
+
   }
 
 }

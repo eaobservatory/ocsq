@@ -616,6 +616,34 @@ sub get_for_observation {
   return $self->curentry;
 }
 
+=item B<remaining_time>
+
+Time remaining on the queue. Returns the sum of all the entries from
+the currently selected entry to the end of the queue.
+
+  $time = $q->remaining_time;
+
+Returns a Time::Seconds object.
+
+=cut
+
+sub remaining_time {
+  my $self = shift;
+
+  my $time = new Time::Seconds(0);
+  my $cur = $self->curindex;
+  return $time if !defined $cur;
+
+  for my $i ($cur .. $self->maxindex) {
+
+    my $e = $self->getentry( $i );
+    my $t = $e->duration;
+    $time += $t if defined $t;
+  }
+
+  return $time;
+}
+
 =back
 
 =head1 SEE ALSO

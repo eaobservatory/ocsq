@@ -240,6 +240,17 @@ sub clearTarget {
   $self->entity->clearTarget;
 }
 
+=item B<duration>
+
+Estimated duration of the ODF.
+
+=cut
+
+sub duration {
+  my $self = shift;
+  my $odf = $self->entity;
+  return $odf->duration;
+}
 
 =back
 
