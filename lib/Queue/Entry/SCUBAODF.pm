@@ -6,13 +6,14 @@ Queue::Entry::SCUBAODF - Queue entry for ODF files treated as a hash
 
 =head1 SYNOPSIS
 
-  use Queue::Entry;
+  use Queue::Entry::SCUBAODF;
 
-  $entry = new Queue::Entry::SCUBAODF('name',\%odf);
+  $entry = new Queue::Entry::SCUBAODF('name', $odf_object );
+  $entry = new Queue::Entry::SCUBAODF('name', $file );
 
   $entry->label($label);
-  $entry->configure('label',\%odf);
-  $entry->entity(\%odf);
+  $entry->configure('label',$odf_object);
+  $entry->entity($odf_object);
   $text = $entry->string;
   $entry->prepare;
 
@@ -20,11 +21,12 @@ Queue::Entry::SCUBAODF - Queue entry for ODF files treated as a hash
 
 This class describes entries that can be manipulated by a
 Queue::Contents class. The particular type of entry must be a
-C<SCUBA::ODF> object.  that is converted to a file. The string
-representation of the entry is obtained directly from the
-C<SCUBA::ODF> object.
+C<SCUBA::ODF> object.  This object is converted to a file on disk when
+the entry is sent to the backend (the JCMT instrument task or SCUCD
+itself). The string representation of the entry is obtained directly
+from the C<SCUBA::ODF> object.
 
-This class is a sub-class of Queue::Entry.
+This class is a sub-class of C<Queue::Entry>
 
 It is a thin layer on top of a C<SCUBA::ODF> object.
 
@@ -34,27 +36,66 @@ use 5.006;
 use warnings;
 use strict;
 use Carp;
+use Time::Seconds;
+use File::Basename;
+
+use SCUBA::ODF;
 use SCUBA::ODFError qw/ :try /;
 use Queue::Backend::FailureReason;
-use File::Basename;
 
 use base qw/Queue::Entry/;
 
-# output directory for ODFs so that scuba can see them
-# These should be read from a config file
-our $TRANS_DIR = "/observe/ompodf";
+# The VAX variant of the outputdir. Probably need to read it from
+# a config file.
 our $VAX_TRANS_DIR = "OBSERVE:[OMPODF]";
 
 =head1 METHODS
 
 The following sub-classed methods are provided:
 
+=head2 Constructor
+
+=over 4
+
+=item B<new>
+
+The sub-classed constructor is responsible for checking the second
+argument to see whether it is already a C<SCUBA::ODF> object or if one
+needs to be created from a file name (if unblessed).
+
+  $entry = new Queue::Entry::SCUBAODF( $label, $filename);
+  $entry = new Queue::Entry::SCUBAODF( $label, $odf_object);
+
+Once the filename has been converted into a C<SCUBA::ODF> object
+the constructor in the base class is called.
+
+=cut
+
+sub new {
+  my ($self, $label, $thing) = @_;
+
+  # Check to see if thing is an object
+  my $entity;
+  if (UNIVERSAL::isa($thing, 'SCUBA::ODF')) {
+    # looks okay
+    $entity = $thing;
+  } elsif (not ref($thing)) {
+    # treat it as a filename
+    $entity = new SCUBA::ODF( File => $thing );
+  } else {
+    croak "Argument to constructor is neither a SCUBA::ODF object nor a simple scalar filename";
+  }
+
+  return $self->SUPER::new($label, $entity);
+}
+
+=back
 
 =head2 Accessor methods
 
 =over 4
 
-=item entity
+=item B<entity>
 
 This method stores or retrieves the C<SCUBA::ODF> object associated with
 the entry.
@@ -76,13 +117,41 @@ sub entity {
   return $self->SUPER::entity;
 }
 
+=item B<instrument>
+
+String describing the instrument associated with this queue entry.
+
+  $inst = $e->instrument();
+
+Returns the string "SCUBA".
+
+=cut
+
+sub instrument {
+  return "SCUBA";
+}
+
+=item B<telescope>
+
+String describing the telescope associated with this queue entry.
+This is simply used for sanity checking the Queue Entry XML and
+returns "JCMT" in this case.
+
+ $tel = $e->telescope();
+
+=cut
+
+sub telescope {
+  return "JCMT";
+}
+
 =back
 
 =head2 Configuration
 
 =over 4
 
-=item configure
+=item B<configure>
 
 Configures the object. This mainly involves checking that the second
 argument is a C<SCUBA::ODF> object. The first argument is the entry
@@ -99,7 +168,57 @@ sub configure {
   $self->SUPER::configure(@_);
 }
 
-=item prepare
+=item B<write_entry>
+
+Write the entry to disk. In this case uses the C<writeodf> method
+from C<SCUBA::ODF>. Returns the names of all the files that were created.
+The first file in the returned list is the "primary" file that can
+be used to create a new C<Queue::Entry> object of this class.
+
+  @files = $e->write_entry();
+
+By default, uses the directory specified using the C<outputdir>
+class method. An optional argument can be used to specify a new
+output directory (useful when dumping the queue contents to a temporary
+location via XML (see L<Queue::EntryXMLIO/"writeXML">).
+
+ @files = $e->write_entry( $outputdir );
+
+An empty return list indicates an error occurred.
+
+No attempt is made to "fixup" or "verify" the entry prior to writing.
+
+=cut
+
+sub write_entry {
+  my $self = shift;
+  my $dir = shift;
+
+  # Get the ODF itself
+  my $odf = $self->entity;
+  return () unless defined $odf;
+
+  # Configure the output directory
+  my $out = $dir || $self->outputdir;
+  $odf->outputdir( $out );
+  $odf->vax_outputdir( $VAX_TRANS_DIR );
+  my $file = $odf->writeodf();
+
+  # kluge until I can get umask working
+  # Makes sure the files are readable by the vax
+  chmod 0666, $file;
+
+  # including things like WPLATE file
+  # and the related vax files
+  my %files = %{$odf->vaxfiles};
+  chmod 0666, values %files if values %files;
+
+  # Return the filenames
+  return ($file, values %files);
+
+}
+
+=item B<prepare>
 
 This method should be used to prepare the entry for sending to the
 backend (in this case the SCUCD task). It does two things:
@@ -109,8 +228,7 @@ backend (in this case the SCUCD task). It does two things:
 =item 1
 
 Writes the ODF to disk in the form of an ODF file. See the
-C<SCUBA::ODF> C<writeodf> for more information on how this
-works.
+C<write_entry> method.
 
 =item 2
 
@@ -174,26 +292,12 @@ sub prepare {
   return $r if $r;
 
   # Write the ODF
-  # Should really specify the output directory here!
-  # to make sure it goes to tthe correct place
-  $odf->outputdir( $TRANS_DIR );
-  $odf->vax_outputdir( $VAX_TRANS_DIR );
-  my $file = $odf->writeodf();
-
-  # kluge until I can get umask working
-  # Makes sure the files are readable by the vax
-  chmod 0666, $file;
-
-  # including things like WPLATE file
-  # and the related vax files
-  my %files = %{$odf->vaxfiles};
-  for my $key (keys %files) {
-    chmod 0666, $files{$key};
-  }
+  my @files = $self->write_entry();
+  return unless @files;
 
   # Store the filename in the be_object
   # SCUBA must get  a full path to the file using vax syntax
-  $self->be_object($VAX_TRANS_DIR . basename($file));
+  $self->be_object($VAX_TRANS_DIR . basename($files[0]));
 
   return;
 }
@@ -240,7 +344,7 @@ sub clearTarget {
   $self->entity->clearTarget;
 }
 
-=item projectid
+=item B<projectid>
 
 Returns the project ID associated with this entry.
 
@@ -255,7 +359,7 @@ sub projectid {
   return $self->entity->getProjectid;
 }
 
-=item msbid
+=item B<msbid>
 
 Returns the MSB ID associated with this entry.
 
@@ -266,19 +370,6 @@ Returns the MSB ID associated with this entry.
 sub msbid {
   my $self = shift;
   return $self->entity->getMSBID;
-}
-
-
-=item B<duration>
-
-Estimated duration of the ODF.
-
-=cut
-
-sub duration {
-  my $self = shift;
-  my $odf = $self->entity;
-  return $odf->duration;
 }
 
 =back
@@ -315,6 +406,11 @@ prepare() method (and stored in be_object()). The assumption
 is that the file is no longer needed once it has been sent 
 to the backend (the TODD).
 
+Note that if C<write_entry> creates more than one output file
+only the primary file will be deleted by the desctructor. This
+is probably a bug and the system should be storing the file
+names independently of the C<be_object> method.
+
 =cut
 
 sub DESTROY {
@@ -339,7 +435,20 @@ L<Queue::Entry>, L<Queue::Contents>, L<SCUBA::ODF>
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 
-Copyright (C) Particle Physics and Astronomy Research Council.
+Copyright (C) 1999-2004 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
