@@ -654,6 +654,8 @@ sub check_index_param_sync {
     $LOCAL_INDEX = $index;
     $QUEUE->contents->curindex( $index );
     &STOPQ($status);
+    # Always clear if we have tweaked something
+    clear_failure_parameter($status);
   }
 
 }
