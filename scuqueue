@@ -114,7 +114,7 @@ use Sdp;
 use Queue::SCUCD;
 
 # Declare global vars
-use vars qw/$QUEUE $VERBOSE /;
+use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX/;
 
 # Define the number of entries stored in QUEUE and PASTE parameters
 use constant NENTRIES => 100;
@@ -154,12 +154,13 @@ Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED = Dits::DeltaTime(1,250);
+my $RESCHED = Dits::DeltaTime(0,250);
 
 # Create parameters
 my $sdp = new Sdp;
 $sdp->Create("STATUS","STRING",'Stopped');
 $sdp->Create("INDEX","INT",0);
+$LOCAL_INDEX = 0; # synchronize
 $sdp->Create("CURRENT","STRING",'None');
 
 my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$STATUS);
@@ -250,7 +251,7 @@ sub LOADQ {
 #  print Dumper($grp);
 #  print Dumper(\@entries);
 #  print Dumper($QUEUE);
-  print "Found " . scalar(@entries) . " ODFs\n";
+#  print "Found " . scalar(@entries) . " ODFs\n";
 
   return $status;
 }
@@ -333,12 +334,13 @@ sub CUTQ {
 sub POLL {
   my $status = shift;
 
-#  DRAMA::MsgOut($status,"Polling backend")
-#    if $VERBOSE;
+  DRAMA::MsgOut($status,"Polling backend")
+    if $VERBOSE;
 
   # First make sure that the index parameter has not been changed
   # from under us. If it has we need to synch up and possibly
-  # stop the queue.
+  # stop the queue. Only want to do this if the parameter
+  # was changed not if the internal index has changed.
   check_index_param_sync( $status );
 
   # Poll the queue
@@ -368,6 +370,7 @@ sub POLL {
   # Update the DRAMA parameters
   update_contents_param($status);
   update_index_param($status);
+  update_status_param($status);
 
   # Need to reschedule $RESCHED seconds
   Dits::PutDelay($RESCHED, $status);
@@ -463,9 +466,6 @@ sub update_contents_param {
   my $update = 0;
   $update = 1 if $upd_con;
 
-  print "There was a change: $update and $upd_con \n" if $update;
-  print Dumper(\@Cur_contents) if $update;
-
   # Notify the parameter system
   $sdp->Update($sds,$_[0]) if $update;
 
@@ -511,13 +511,21 @@ sub update_index_param {
 
   # Only change the parameter if needed
   if ($index != $curindex) {
+    #print "::--+-+-+-+ SYNC index [$index/$curindex]\n";
     $sdp->Puti('INDEX', $curindex, $status);
+
+    # Remember to change the local perl version. This lets
+    # us know when the parameter was changed by external command
+    $LOCAL_INDEX = $curindex;
+
   }
 
 }
 
 
 # See if the queue index and parameter have changed independently
+# The LOCAL_INDEX variable helps us with this since we know it
+# can not be changed by an external prompt.
 # Argument: inherited status
 
 sub check_index_param_sync {
@@ -531,7 +539,12 @@ sub check_index_param_sync {
   my $curindex = $QUEUE->contents->curindex;
 
   # This means we should change the queue value if they are different
-  if ($index != $curindex) {
+  # and if the parameter is not equal to the local cache
+  # it is possible for the current index to be different to the 
+  # parameter since the queue is updated asynchronously
+  if ($index != $curindex && $index != $LOCAL_INDEX) {
+    #print "+_+_+_+_+ Stopping queue due to index change [$index/$curindex]\n";
+    $LOCAL_INDEX = $index;
     $QUEUE->contents->curindex( $index );
     &STOPQ($status);
   }
