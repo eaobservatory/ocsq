@@ -171,7 +171,7 @@ die "Must supply a telescope" unless defined $tel;
 
 
 # Start the DRAMA system and associate callbacks with actions
-my $DQUEUE = new Queue::Server::DRAMA( name => TASKNAME,
+my $DQUEUE = new Queue::Server::DRAMA( taskname => TASKNAME,
 				       nentries => NENTRIES,
 				       maxwidth => MAXWIDTH,
 				       simdb => $sim,
