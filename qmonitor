@@ -1051,7 +1051,7 @@ sub msbcompletion {
 
   # Attempt to get a user id but non fatal if we do not
   # get it
-  if (!defined $OMP_User || $OMP_User =~ /\w/) {
+  if (!defined $OMP_User || $OMP_User !~ /\w/) {
     my $OMP_User_Obj = OMP::General->determine_user( $MW );
     $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
   }
