@@ -287,6 +287,7 @@ Cause the task to shutdown and exit. No arguments.
 # EXIT action
 sub EXIT {
   my $status = shift;
+  return $status unless $status->Ok;
   # pre-emptive tidy
   $QUEUE->contents->clearq;
   Dits::PutRequest(Dits::REQ_EXIT,$status);
@@ -300,6 +301,7 @@ Start the queue.
 =cut
 
 sub STARTQ {
+  return $_[0] unless $_[0]->Ok;
   unless ($QUEUE->backend->qrunning) {
     $QUEUE->startq;
     DRAMA::MsgOut($_[0], "Queue is running");
@@ -316,6 +318,7 @@ Stop the queue from sending any more entries to the backend.
 =cut
 
 sub STOPQ {
+  return $_[0] unless $_[0]->Ok;
   if ($QUEUE->backend->qrunning) {
     $QUEUE->stopq;
     DRAMA::MsgOut($_[0], "Queue is stopped");
@@ -331,6 +334,7 @@ Remove all entries from the queue.
 =cut
 
 sub CLEARQ {
+  return $_[0] unless $_[0]->Ok;
   $QUEUE->contents->clearq;
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
@@ -348,6 +352,7 @@ name of the ODF macro name. See C<Sds_to_Entry>.
 
 sub LOADQ {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut( $status, "Running LOADQ" ) if $VERBOSE;
 
@@ -379,17 +384,26 @@ sub LOADQ {
 Add the supplied ODFs to the back of the queue.
 Accepts the same arguments as C<LOADQ>.
 
+If the time remaining on the queue exceeds a threshold
+the action will fail and return with bad status.
+
 =cut
 
 sub ADDBACK {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status, "Running ADDBACK") if $VERBOSE;
 
+  # Verify time remaining on queue
+  verify_time_remaining( $status );
+  return $status unless $status->Ok;
+
+  # Read the arguments
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  return $status unless defined $argId;
 
   # Retrieve the ODF entries associated with the args
   my @entries = &Sds_to_Entry($argId);
@@ -410,17 +424,26 @@ sub ADDBACK {
 Add the supplied ODFs to the front of the queue.
 Accepts the same arguments as C<LOADQ>.
 
+If the time remaining on the queue exceeds a threshold
+the action will fail and return with bad status.
+
 =cut
 
 sub ADDFRONT {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status, "Running ADDFRONT") if $VERBOSE;
 
+  # Verify time remaining on queue
+  verify_time_remaining( $status );
+  return $status unless $status->Ok;
+
+  # Read the arguments
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  return $status unless defined $argId;
 
   # Retrieve the ODF entries associated with the args
   my @entries = &Sds_to_Entry($argId);
@@ -451,6 +474,7 @@ The optional index can be specified as "Argument2".
 
 sub INSERTQ {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut( $status, "Running INSERTQ" ) if $VERBOSE;
 
@@ -514,6 +538,7 @@ associated with the MSB of the entry it is replacing.
 
 sub REPLACEQ {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut( $status, "Running REPLACEQ" ) if $VERBOSE;
 
@@ -575,6 +600,7 @@ Clear the target information associated with the specified index.
 
 sub CLEARTARG {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut( $status, "Clearing target information" ) if $VERBOSE;
 
@@ -610,6 +636,7 @@ parameter can be used to specify the number of entries to remove
 
 sub CUTQ {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status, "Running CUTQ") if $VERBOSE;
 
@@ -658,6 +685,7 @@ or the supplied index. The optional index can be specified as either
 
 sub CUTMSB {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status, "Running CUTMSB") if $VERBOSE;
 
@@ -696,6 +724,7 @@ Suspend the MSB at the currently highlighted position.
 
 sub SUSPENDMSB {
   my $status = shift;
+  return $status unless $status->Ok;
 
   # first get the current entry
   my $entry = $QUEUE->contents->curentry;
@@ -743,6 +772,7 @@ needs to be reviewed.
 
 sub DONEMSB {
   my $status = shift;
+  return $status unless $status->Ok;
 
   # first get the current entry
   my $entry = $QUEUE->contents->curentry;
@@ -792,6 +822,7 @@ be kicked to disable the rescheduling.
 # continuously rescheduling action
 sub POLL {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status,"Polling backend")
     if $VERBOSE;
@@ -868,6 +899,7 @@ sub POLL {
 
 sub KICK_POLL {
   my $status = shift;
+  return $status unless $status->Ok;
   DRAMA::MsgOut($status, "Kicked poll - ending");
   Dits::PutRequest(Dits::REQ_END, $status);
   return $status;
@@ -891,6 +923,8 @@ Note that there is no C<SETTARG> action.
 
 sub GETODF {
   my $status = shift;
+  return $status unless $status->Ok;
+
   my $arg = Dits::GetArgument( $status );
   my $index = $arg->Geti( "Argument1", $status );
   print "Request for index $index\n";
@@ -938,6 +972,7 @@ Argument4=reason
 
 sub MSBCOMPLETE {
   my $status = shift;
+  return $status unless $status->Ok;
 
   DRAMA::MsgOut($status,"MSB COMPLETE")
     if $VERBOSE;
@@ -1272,6 +1307,34 @@ sub update_time_remaining {
   }
 
 }
+
+=item B<verify_time_remaining>
+
+Check whether the time remaining on the queue exceeds a
+set threshold. Returns bad status if the threshold is exceeded.
+
+  verify_time_remaining( $status );
+
+The threshold is set to 40 minutes.
+
+=cut
+
+sub verify_time_remaining {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Set the threshold
+  my $TIME_THRESHOLD = 40.0;
+
+  my $qtime = int($QUEUE->contents->remaining_time->minutes);
+
+  if ($qtime > $TIME_THRESHOLD) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep(0, "The time remaining on the queue ($qtime minutes) exceeds the allowed threshold of $TIME_THRESHOLD. Please try again when the queue is smaller.");
+  }
+
+}
+
 
 =item B<check_index_param_sync>
 
