@@ -1356,18 +1356,29 @@ sub update_time_remaining {
 
 =item B<verify_time_remaining>
 
-Check whether the time remaining on the queue exceeds a
-set threshold. Returns bad status if the threshold is exceeded.
+Check whether the time remaining on the queue exceeds a set
+threshold. Sets bad status (in place) if the threshold is exceeded.
 
   verify_time_remaining( $status );
 
 The threshold is set to 40 minutes.
+
+If the current observation is the last observation in the queue
+the time remaining is not checked. This is to allow MSBs to be stacked
+before the long observation completes.
 
 =cut
 
 sub verify_time_remaining {
   my $status = shift;
   return unless $status->Ok;
+
+  # Check to see if we are the last observation
+  my $curindex = $QUEUE->contents->curindex;
+  my $maxindex = $QUEUE->contents->maxindex;
+
+  return if defined $curindex && defined $maxindex
+	    && $curindex == $maxindex;
 
   # Set the threshold
   my $TIME_THRESHOLD = 40.0;
