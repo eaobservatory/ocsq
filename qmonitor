@@ -16,7 +16,8 @@ use Time::Piece qw/ :override /;
 
 # Work out where local software is
 use FindBin;
-use lib "$FindBin::Bin/../site_perl";
+use lib "$FindBin::RealBin/lib";
+
 
 # Start up Tk early and put up a status bar
 
@@ -83,14 +84,16 @@ if ($@) {
 # DEfine some constants - these are the same as used in the DQueue itseld
 use constant NENTRIES => 10; # Number of entries in Queue parameters
 use constant SZSTRING => 40; # Size of strings in Queue parameters
-use constant QNAME    => 'SCUQUEUE'; # Name of Queue task
+use constant QNAME    => 'SCUQUEUE@kolea'; # Name of Queue task
 use constant TASKNAME => "QTK_$$"; # Name of this task
+use constant NBSTASK  => 'NBS2DRAMA@MWTTEL';
+use constant SCUCD    => 'SCUCD@SCUVAX';
 
 # Monitor variable
 # %MONITOR contains the monitored variables
 # $TOGGLE is used to determine the state of the START/STOPQ button
 # $MORE_INFO is true if we are displaying the MsgOut text window
-use vars qw/%MONITOR $TOGGLE $MORE_INFO/;
+use vars qw/%MONITOR %NBS_MONITOR $TOGGLE $MORE_INFO/;
 
 $TOGGLE = '---';
 
@@ -104,21 +107,21 @@ DPerlTkInit(TASKNAME);
 # Set the parameters for the Queue::Control::DRAMA class
 # May want to import this parameter list from an external list
 
-$Queue::Control::DRAMA::DEFAULTS = {
-                OBSMODE => undef,
-                CENTRE_OFFSET_X => 0,
-                CENTRE_OFFSET_Y =>  0,
-                CELL_X => 0,
-                CELL_Y => 0,
-                REFERENCE_X => 0,
-                REFERENCE_Y => 0,
-                CELL_COORDS => undef,
-                SOURCE => undef,
-                AZ_RANGE=> undef,
-                CENTRE_TYPE => undef,
-                CAROUSEL_TRACK=> undef,
-                CATALOG => undef,
-               };
+# $Queue::Control::DRAMA::DEFAULTS = {
+#                 OBSMODE => undef,
+#                 CENTRE_OFFSET_X => 0,
+#                 CENTRE_OFFSET_Y =>  0,
+#                 CELL_X => 0,
+#                 CELL_Y => 0,
+#                 REFERENCE_X => 0,
+#                 REFERENCE_Y => 0,
+#                 CELL_COORDS => undef,
+#                 SOURCE => undef,
+#                 AZ_RANGE=> undef,
+#                 CENTRE_TYPE => undef,
+#                 CAROUSEL_TRACK=> undef,
+#                 CATALOG => undef,
+#                };
 
 $Queue::Control::DRAMA::QUEUE = QNAME;
 
@@ -143,8 +146,10 @@ $Fr3->Button( -textvariable => \$TOGGLE,  -width => 10,-command => \&toggleq
 		      )->pack(-side => 'left');
 $Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
 $Fr3->Button( -text => 'CLEAR',  -command => \&clearq)->pack(-side => 'left');
-$Fr3->Button( -text => 'CUT',  -command => \&gui_cutq)->pack(-side => 'left');
-$Fr3->Button( -text => 'PASTE',-command =>\&gui_pasteq)->pack(-side => 'left');
+$Fr3->Button( -text => 'ABORT',  -command => \&gui_abort)->pack(-side => 'left');
+$Fr3->Button( -text => 'TERMINATE',-command =>\&gui_term)->pack(-side => 'left');
+$Fr3->Button( -text => 'ACCEPT',-command =>\&gui_accept)->pack(-side => 'left');
+$Fr3->Button( -text => 'REFUSE',-command =>\&gui_refuse)->pack(-side => 'left');
 
 # Create a label for Queue status
 $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-col=>0,-sticky=>'w');
@@ -227,6 +232,8 @@ monitor(QNAME, "START",
 	  -cvtsub     => \&cvtsub,
 	  -error      => \&monerror,
 	});
+
+&init_nbs_monitors();
 
 # Destroy the progress bar
 destroy $TKSTATUS if Exists($TKSTATUS);
@@ -449,9 +456,8 @@ sub toggleq {
 # This subroutine updates the display widget on startup
 
 sub update_status {
- 
     my($status_text, $something) = @_;
- 
+
     $TKSTATUS->configure(-text => "$status_text ...");
     $BAR->value($something);
     $MW->update;
@@ -552,6 +558,9 @@ sub respond_to_failure {
       # pointing catalog if not a Calibrator
       $cat = new SrcCatalog::JCMT( 'default' );
     }
+
+    # Make sure we only generate observable sources
+    $cat->canObserve( 1 );
 
 
     # in both cases we want to add the planets
@@ -700,3 +709,92 @@ sub scuba_2cals {
   foreach (@c) { $_->telescope($tel); }
   return @c;
 }
+
+# Send messages to SCUCD - these messages should be in  a class
+
+sub gui_abort {
+  &DRAMA::obey(SCUCD,"ABORT");
+}
+
+sub gui_term {
+  &DRAMA::obey(SCUCD,"TERMINATE");
+}
+
+sub gui_accept {
+  my $arg = Arg->Create;
+  my $status = new DRAMA::Status;
+  $arg->PutString("Argument1","CHOICE=YES",$status);
+  &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+}
+
+sub gui_refuse {
+  my $arg = Arg->Create;
+  my $status = new DRAMA::Status;
+  $arg->PutString("Argument1","CHOICE=NO",$status);
+  &DRAMA::obey(SCUCD,"CONTINUE",$arg,{-deletearg=>0});
+}
+
+sub gui_extend {
+  # First need to put up an entry widget in a window
+  my $n_extend;
+
+  # then read that and do the following in the callback
+  my $arg = Arg->Create;
+  my $status = new DRAMA::Status;
+  $arg->PutString("Argument1","$n_extend",$status);
+  &DRAMA::obey(SCUCD,"EXTEND",$arg,{-deletearg=>0});
+
+}
+
+
+# Setup monitors of SCUBA parametera
+my $NBS_CANCELLED = 0;
+sub init_nbs_monitors {
+  my $status = new DRAMA::Status;
+  my $arg = Arg->Create;
+  $arg->PutString("SDP_PARAM","SCUCD_STAT",$status);
+  $arg->PutString("NBS_PARAM","APB.SCUBA_SCUCD_STAT
+",$status);
+  &DRAMA::obeyw(NBSTASK,"ADD",$arg);
+
+#  my $arg2 = Arg->Create;
+#  $arg2->PutString("SDP_PARAM","SCUCD_STAT",$status);
+#  $arg2->PutString("NBS_PARAM","APB.SCUBA_SCUCD_STAT",$status);
+#  &DRAMA::obeyw(NBSTASK,"ADD",$arg2);
+#  sleep 1;
+
+  monitor(NBSTASK, "START", 
+	  "SCUCD_STAT", # "SCUCD_STAT",
+	{ -monitorvar => \%NBS_MONITOR,
+	  -sendcur    => 1,
+	  -repmonloss => 1,
+	  -complete   => sub { $NBS_CANCELLED=1 },
+	  -info       => sub { print "INFO callback\n"},
+	  -cvtsub     => \&nbs_cvtsub,
+	  -error      => \&monerror,
+	});
+
+}
+
+sub nbs_cvtsub {
+  my ($param, $value) = @_;
+
+  print "PARAMETER: $param - $value\n";
+
+  if ($param eq 'SCUCD_STAT') {
+    # update value in monitor gui
+
+    # check to see if we are paused
+    if ($value =~ /paused/i) {
+      # Must put up ACCEPT/REFUSE request
+
+    } else {
+      # do nothing unless we have an open widget
+    }
+
+  }
+
+}
+
+
+
