@@ -1668,7 +1668,10 @@ sub MSBCOMPLETE {
     }
 
     # Return if we have bad status
-    return $status unless $status->Ok;
+    if (!$status->Ok) {
+      Jit::ActionExit( $status );
+      return $status;
+    }
 
     # and clear the parameter
     clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
@@ -2401,8 +2404,8 @@ sub msbtidy {
   # so do not change the parameter
   if ($msbid && $projectid) {
 
-    if ($projectid eq 'SCUBA' || $projectid =~ /JCMTCAL/ ) {
-      $Q->addmessage($status, "Completed JCMT 'calibration' observations. No doneMSB");
+    if ($projectid eq 'SCUBA' || $projectid =~ /CAL$/ ) {
+      $Q->addmessage($status, "Completed 'calibration' observations. No doneMSB");
       $Q->addmessage($status, "Project ID was $projectid");
 
     } elsif ($projectid eq 'UNKNOWN') {
