@@ -1,0 +1,256 @@
+#!/usr/local/bin/perl
+
+=head1 NAME
+
+OCSQUEUE - DRAMA-based queue for controlling observing
+
+=head1 SYNOPSIS
+
+  ocsqueue -tel jcmt &
+  ocsqueue -tel ukirt -sim -transdir /tmp
+
+=head1 DESCRIPTION
+
+This is the DRAMA-based Queue used to simplify the sequencing of
+observations (ODFs, instrument sequences, XML configures).
+It is a layer on top of the Queue::* perl modules (Queue,
+Queue::Contents, Queue::Entry and Queue::Backend) and the  shared
+DRAMA infrastructure (Queue::DRAMA).
+
+The instrument tasks must be running before the queue can be started.
+To start the queue simply run this program in the background.  The
+Queue registers itself as B<OCSQUEUE> in the DRAMA message system.
+
+Queue clients (e.g. C<qmonitor>) can be started as required.
+
+=head1 OPTIONS
+
+The following command-line options are supported:
+
+=over 4
+
+=item B<-tel>
+
+Configure the queue for use at a specific telescope. This option
+is mandatory. Can be one of "JCMT" or "UKIRT".
+
+=item B<-sim>
+
+Run the task in simulate mode. When running in this mode no commands
+are sent to the OMP database (MSBs are not marked as complete) and the
+task does not attempt to talk to the real instrument task. The task
+will attempt to talk to the demo scucd program on the same machine
+(see L<scucd>).
+
+=item B<-transdir>
+
+The directory in which translated ODFs will appear. It is also
+the directory  used to write rewritten ODFs prior to sending
+them to SCUBA. Default is to use C</observe/ompodf>.
+
+=item B<-help>
+
+Print a small help message.
+
+=item B<-man>
+
+Print the full manual page.
+
+=back
+
+=head1 PARAMETERS
+
+The following DRAMA parameters are available:
+
+=over 4
+
+=item Queue
+
+This contains the information on the current contents of the
+queue. This is an SDS structure stored in the parameter containing a
+single array labelled "Contents".
+
+
+=item STATUS
+
+A string indicating whether the queue is running or not. (value is
+RUNNING or STOPPED).
+
+
+=item INDEX
+
+Current position in the queue [INTEGER].
+
+=item CURRENT
+
+As string describing the entry that is currently being observed.
+
+=item TIMEONQUEUE
+
+The time (in minutes) remaining on the queue. [INTEGER]
+
+=item FAILURE
+
+An SDS structure containing details on why the queue was stopped.
+Usually used to trigger a target request. Usually contains a single
+structure (named "DETAILS") containing the reason type and the entry
+number that triggered this reason.
+
+=item MSBCOMPLETED
+
+A SDS structure containing details on MSBs that have been completed
+by the queue but are awaiting confirmation of status from the
+observer. (see the MSBCOMPLETED action).
+
+=item MESSAGES
+
+SDS structure indicating the messages that can be displayed on a GUI.
+Contains a MESSAGE string and STATUS integer.
+
+=back
+
+=cut
+
+# Send all STDOUT immediately
+$| = 1;
+
+use 5.006;
+use strict;
+use warnings;
+
+# Required because the queue talks to Sybase directly when accepting
+# an MSB
+BEGIN { $ENV{SYBASE} = "/local/progs/sybase" unless exists $ENV{SYBASE}; }
+
+use Data::Dumper;
+use SCUBA::ODFGroup;
+
+# Work out where local software is
+use FindBin;
+use lib "$FindBin::RealBin/lib";
+
+# Need OMP class for done msb
+use lib "/jac_sw/omp/msbserver";
+
+# Load the DRAMA system
+use Queue::Server::DRAMA;
+
+# Load the Queue system
+use Queue::SCUCD;
+
+# Declare global vars
+use vars qw/ $TRANS_DIR /;
+
+# The task name
+use constant TASKNAME => 'OCSQUEUE';
+
+# Size of monitored queue entry
+use constant MAXWIDTH => 110;
+use constant NENTRIES => 200;
+
+# Read command line options
+use Getopt::Long;
+use Pod::Usage;
+
+my ($man,$help, $verbose, $sim, $tel);
+my $status = GetOptions("verbose" => \$verbose,
+			"sim"     => \$sim,
+			"transdir=s"=> \$TRANS_DIR, # override translator dir
+			"help"    => \$help,
+			"man"     => \$man,
+			"telescope=s" => \$tel,
+		       );
+
+pod2usage(1)  if ($help);
+pod2usage(-verbose => 2)  if ($man);
+
+die "Must supply a telescope" unless defined $tel;
+
+
+
+# Start the DRAMA system and associate callbacks with actions
+my $DQUEUE = new Queue::Server::DRAMA( name => TASKNAME,
+				       nentries => NENTRIES,
+				       maxwidth => MAXWIDTH,
+				       simdb => $sim,
+				       verbose => $verbose,
+				     );
+
+$DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
+
+# THIS SHOULD BE USING THE OMP::Config class for setting up clever
+# defaults.
+
+# Create a Queue
+# This is a global, make sure that we only have one
+# queue running
+# Depending on the tel switch
+my $QUEUE;
+if (defined $tel) {
+  # case-insensitive match
+  $tel = uc($tel);
+  if ($tel eq 'JCMT') {
+    $QUEUE = new Queue::SCUCD;
+  } elsif ($tel eq 'UKIRT') {
+    $QUEUE = new Queue::UKIRT;
+  } else {
+    die "Do not recognize telescope $tel";
+  }
+} else {
+  die "Telescope not specified.";
+}
+
+
+# Set the task name
+if ($sim) {
+  $QUEUE->backend->TASK( "SCUCD_PERL" );
+} else {
+  $QUEUE->backend->TASK( 'SCUCD@SCUVAX' );
+}
+
+# override translator directory
+# This should really be a global independent of SCUBAODFs.
+# Maybe a config parameter using a shared config object
+if ($TRANS_DIR) {
+  print "Overriding translation directory: $TRANS_DIR\n";
+  $Queue::Entry::SCUBAODF::TRANS_DIR = $TRANS_DIR;
+}
+
+# Register this routine with the backend class
+$QUEUE->backend->msbcomplete( \&Queue::Server::DRAMA::msbtidy );
+
+# Store the queue information
+$DQUEUE->queue( $QUEUE );
+
+# Start running
+$DQUEUE->mainloop;
+
+# Shut down - note that the automatic shut down does not use
+# the inherited status...
+exit;
+
+=head1 SEE ALSO
+
+L<Queue::Server::DRAMA>, L<Queue::Contents>, L<qmonitor>
+
+=head1 AUTHOR
+
+Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
+
+Copyright (C) Particle Physics and Astronomy Research Council
+1999-2003. All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful,but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place,Suite 330, Boston, MA  02111-1307, USA
+
+=cut
