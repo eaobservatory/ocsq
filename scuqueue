@@ -116,7 +116,7 @@ use Sdp;
 use Queue::SCUCD;
 
 # Declare global vars
-use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX/;
+use vars qw/$QUEUE $VERBOSE $LOCAL_INDEX $SIM/;
 
 # Define the number of entries stored in QUEUE and PASTE parameters
 use constant NENTRIES => 100;
@@ -136,6 +136,7 @@ use subs qw/ LOADQ STARTQ STOPQ CUTQ POLL EXIT GETODF
 use Getopt::Long;
 
 my $status = GetOptions("verbose" => \$VERBOSE,
+			"sim"     => \$SIM,
 		       );
 
 
@@ -190,7 +191,12 @@ $sdp->Create('','SDS',$failure_sds);
 $QUEUE = new Queue::SCUCD;
 
 # Set the task name
-$QUEUE->backend->TASK( "SCUCD_PERL");
+if ($SIM) {
+  $QUEUE->backend->TASK( "SCUCD_PERL");
+} else {
+  $QUEUE->backend->TASK('SCUCD@SCUVAX');
+}
+
 
 # Start the polling
 obey TASKNAME,"POLL";
