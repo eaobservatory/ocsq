@@ -40,11 +40,11 @@ at this time.
 use strict;
 use warnings;
 use Carp;
-#use Jit;
+use Jit;
 use DRAMA;
 
-use Queue::Entry::SCUBAODF;
 use Queue::MSB;
+use Queue::EntryXMLIO qw/ readXML /;
 
 use OMP::MSBServer;
 use OMP::Info::Comment;
@@ -194,11 +194,12 @@ sub init_msgsys {
   croak "init_msgsys: Must supply a task name" unless defined $taskname;
 
   # Start the DRAMA system
-  DPerlInit($taskname);
-  #Jit::Init( $taskname );
-
+  #DPerlInit($taskname);
+  Jit::Init( $taskname );
+  print "--- JIT Initialised\n";
   # Set up the actions
   my $flag = 0;  # Not spawnable
+  DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
   Dits::DperlPutActions("STARTQ",     \&STARTQ,  undef,$flag,undef,$status);
@@ -211,7 +212,7 @@ sub init_msgsys {
   Dits::DperlPutActions("POLL",       \&POLL,\&KICK_POLL,$flag,undef,$status);
   Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$status);
   Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$status);
-  Dits::DperlPutActions("GETODF",     \&GETODF,    undef,0,undef,$status);
+  Dits::DperlPutActions("GETENTRY",   \&GETENTRY,    undef,0,undef,$status);
   Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$status);
   Dits::DperlPutActions("MSBCOMPLETE",\&MSBCOMPLETE,    undef,0,undef,$status);
   Dits::DperlPutActions("CUTQ",       \&CUTQ,    undef,0,undef,$status);
@@ -220,8 +221,13 @@ sub init_msgsys {
   Dits::DperlPutActions("DONEMSB",    \&DONEMSB, undef,0,undef,$status);
 
   # Check status
-  croak "Error initialising actions: " . $status->MessGetMsg(0)
-    unless $status->Ok;
+  if (!$status->Ok) {
+    my $txt = $status->ErrorText;
+    $status->Annul();
+    DRAMA::ErsPop();
+    croak "Error initialising actions: $txt";
+  }
+  DRAMA::ErsPop();
 
   return;
 }
@@ -298,6 +304,7 @@ sub init_pars {
   croak "init_pars: Width of entry must be defined"
     unless defined $maxwidth;
 
+  DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
 #  my $sdp = new Sdp;
@@ -351,9 +358,14 @@ sub init_pars {
   $self->_params( $sdp );
 
   # Check status
-  croak "Error initialising parameters: " . $status->ErrorText
-    unless $status->Ok;
-
+  if (!$status->Ok) {
+    my $txt = $status->ErrorText;
+    $status->Annul();
+    DRAMA::ErsPop();
+    croak "Error initialising parameters: $txt";
+  }
+  DRAMA::ErsPop();
+  return;
 }
 
 =back
@@ -483,7 +495,7 @@ sub queue {
 
 =item B<polltime>
 
-Time (in integer seconds) to sleep between polls of the queue backend.
+Time (in seconds) to sleep between polls of the queue backend.
 
   $Q->polltime( 1 );
 
@@ -495,10 +507,6 @@ sub polltime {
   my $self = shift;
   if (@_) {
     $self->{POLLTIME} = shift;
-
-    # Clear cached DRAMA version
-    $self->_drama_resched( undef );
-
   }
   return 1 unless defined $self->{POLLTIME};
   return $self->{POLLTIME};
@@ -554,32 +562,6 @@ sub _param_sds_cache {
     $self->{_PARAM_SDS_CACHE} = [ @_ ];
   }
   return $self->{_PARAM_SDS_CACHE};
-}
-
-=item B<_drama_resched>
-
-C<polltime> represented as a DRAMA DeltaTime object suitable for DRAMA
-itself. Can only be retrieved or  cleared (via C<undef), not set. Cleared
-whenever C<polltime> is updated. If the value is not defined it is
-calculated automatically from C<polltime>.
-
-=cut
-
-sub _drama_resched {
-  my $self = shift;
-  if (@_) {
-    my $new = shift;
-    if (!defined $new) {
-      $self->{RESCHED} = undef;
-    } else {
-      carp "Can not specify actual value for _drama_resched";
-      return;
-    }
-  }
-  if (!defined $self->{RESCHED}) {
-    $self->{RESCHED} = Dits::DeltaTime( $self->polltime, 0 );
-  }
-  return $self->{RESCHED};
 }
 
 =item B<_local_index>
@@ -652,9 +634,12 @@ it using MsgOut. This method is useful for monitor
 tasks that did not initiate the action that generates
 the message.
 
-  $status = $Q->addmessage( $msgstatus, $text );
+  $Q->addmessage( $msgstatus, $text );
 
-Returns DRAMA Status.
+Message status can be a blessed DRAMA status object or a simple
+integer (where '0' is good status aka STATUS__OK).
+
+Returns true if the message could be propagated, and false otherwise.
 
 =cut
 
@@ -668,34 +653,95 @@ sub addmessage {
     $msgstatus = $msgstatus->GetStatus;
   }
 
-  my $status = new DRAMA::Status;
-
   # split messages on new lines
   my @lines = split(/\n/,$msg);
 
-  # print them using MsgOut
-  DRAMA::MsgOut($status, $msg);
+  # Create a new error context
+  DRAMA::ErsPush();
+  my $status = new DRAMA::Status;
 
   # Retrieve the parameter system
   my $sdp = $self->_params;
 
-  # Get the MESSAGES parameter so that we can fill it
-  my $sds = $sdp->GetSds('MESSAGES',$status);
-  return $status unless defined $sds;
+  if (!defined $msgstatus) {
+    Carp::cluck("msgstatus not defined");
+  }
 
-  my $msgsds = $sds->Find('MESSAGE',$status);
-  return $status unless defined $msgsds;
-  my $stsds = $sds->Find('STATUS',$status);
-  return $status unless defined $stsds;
+ # print "Status Y: ". $status->GetStatus ."\n";
 
-  use PDL::Lite;
-  $msgsds->PutStringArrayExists(\@lines,$status);
-  $stsds->PutPdl(PDL::Core::pdl([$msgstatus]));
-  $sdp->Update($sds,$status);
+  # We really want to use the JIT parameters for monitoring
+  # so that we integrate properly into the OCS. The problem
+  # is that the Jit_ErsOut routines are only called when we
+  # are in user interface context.
+  if ($msgstatus == DRAMA::STATUS__OK) { # STATUS__OK
+    # Send back through normal channels
+    # problem here is that we do not want to do this if this
+    # is a user interface context because then Jit will also
+    # intercept this and attach it to a parameter!
+    # Would be nice to send it to STDOUT if we are in user interface
+    # context so that we can log if everything is acting up.
+    DRAMA::MsgOut($status, $msg);
+    # Simple "good" messages go in a simple parameter
+    $sdp->PutString( 'JIT_MSG_OUT', $msg, $status);
+  } else {
+    # bad status so we have to populate JIT_ERS_OUT
+    # with values of MESSAGE, FLAGS and STATUS
+    my $sds = $sdp->GetSds('JIT_ERS_OUT', $status);
+    if ($status->Ok) {
+      my $msgsds = $sds->Find('MESSAGE',$status);
+      if ($status->Ok) {
+	my $stsds = $sds->Find('STATUS',$status);
+	my $fsds = $sds->Find('FLAGS',$status);
+	use PDL::Lite;
+	$msgsds->PutStringArrayExists(\@lines,$status);
 
-  return $status;
+	if ($status->Ok) {
+	  # need a status and flag per line of message
+	  my @flags = map { 0 } @lines;
+	  my @msgstati = map { $msgstatus } @lines;
+	  $stsds->PutPdl(PDL::Core::pdl(\@msgstati));
+	  $fsds->PutPdl(PDL::Core::pdl(\@flags));
+
+	  # Trigger update in parameter system
+	  print "------- TRIGGERING UPDATE with @lines\n";
+	  $sdp->Update($sds,$status);
+	}
+      }
+    }
+  }
+
+  unless ($status->Ok) {
+    warn "Error populating message parameters:". $status->ErrorText;
+    $status->Annul;
+    DRAMA::ErsPop();
+    return 0;
+  }
+
+  return 1;
 }
 
+=item B<ersRep>
+
+Associate an error with a status object and configure the parameter
+monitoring. Functionally equivalent to
+
+  $status->SetStatus( statusvalue );
+  $status->ErsRep(0, "Error message");
+  $Q->addmessage( $status, "Error Message");
+
+ie makes sure that the error is associated with a status object and
+also propagated through the parameter monitoring system. Note that this
+causes a message to appear in the monitor even though the message itself
+may never be sent through the Ers system via ErsOut. Only use this method
+if you want an immediate error message now and the possibility of an
+explicit error message later.
+
+=cut
+
+sub ersRep {
+  my $self = shift;
+  croak "Q->ersRep Not trustworthy yet!\n";
+}
 
 
 =back
@@ -724,10 +770,12 @@ Cause the task to shutdown and exit. No arguments.
 # EXIT action
 sub EXIT {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
   # pre-emptive tidy
   $Q->queue->contents->clearq;
   Dits::PutRequest(Dits::REQ_EXIT,$status);
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -738,6 +786,7 @@ Start the queue.
 =cut
 
 sub STARTQ {
+  Jit::ActionEntry( $_[0] );
   return $_[0] unless $_[0]->Ok;
   unless ($Q->queue->backend->qrunning) {
     $Q->queue->startq;
@@ -746,6 +795,8 @@ sub STARTQ {
   # still sync parameters even if we do not print the message
   update_status_param($_[0]);
   clear_failure_parameter($_[0]);
+  Jit::ActionExit( $_[0] );
+  return $_[0];
 }
 
 =item B<STOPQ>
@@ -755,6 +806,7 @@ Stop the queue from sending any more entries to the backend.
 =cut
 
 sub STOPQ {
+  Jit::ActionEntry( $_[0] );
   return $_[0] unless $_[0]->Ok;
   if ($Q->queue->backend->qrunning) {
     $Q->queue->stopq;
@@ -762,6 +814,8 @@ sub STOPQ {
   }
   # still sync the parameter
   update_status_param($_[0]);
+  Jit::ActionExit( $_[0] );
+  return $_[0];
 }
 
 =item B<CLEARQ>
@@ -771,11 +825,14 @@ Remove all entries from the queue.
 =cut
 
 sub CLEARQ {
+  Jit::ActionEntry( $_[0] );
   return $_[0] unless $_[0]->Ok;
   $Q->queue->contents->clearq;
   $Q->addmessage($_[0], "Queue cleared");
   update_contents_param($_[0]);
   update_index_param($_[0]);
+  Jit::ActionExit( $_[0] );
+  return $_[0];
 }
 
 
@@ -789,9 +846,10 @@ name of the ODF macro name. See C<Sds_to_Entry>.
 
 sub LOADQ {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  $Q->addmessage( $status, "Running LOADQ" ) if $Q->verbose;
+  $Q->addmessage( $status, "Running LOADQ") if $Q->verbose;
 
   my $argId = Dits::GetArgument;
 
@@ -812,6 +870,7 @@ sub LOADQ {
 #  print Dumper($Q->queue);
 #  print "Found " . scalar(@entries) . " ODFs\n";
 
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -828,6 +887,7 @@ the action will fail and return with bad status.
 
 sub ADDBACK {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status, "Running ADDBACK") if $Q->verbose;
@@ -853,6 +913,7 @@ sub ADDBACK {
     update_contents_param($status);
 
   }
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -868,6 +929,7 @@ the action will fail and return with bad status.
 
 sub ADDFRONT {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status, "Running ADDFRONT") if $Q->verbose;
@@ -893,6 +955,7 @@ sub ADDFRONT {
     update_contents_param($status);
 
   }
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -911,9 +974,10 @@ The optional index can be specified as "Argument2".
 
 sub INSERTQ {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  $Q->addmessage( $status, "Running INSERTQ" ) if $Q->verbose;
+  $Q->addmessage( $status, "Running INSERTQ") if $Q->verbose;
 
   my $argId = Dits::GetArgument;
 
@@ -952,6 +1016,7 @@ sub INSERTQ {
 #  print Dumper($Q->queue);
 #  print "Found " . scalar(@entries) . " ODFs\n";
 
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -975,9 +1040,12 @@ associated with the MSB of the entry it is replacing.
 
 sub REPLACEQ {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  $Q->addmessage( $status, "Running REPLACEQ" ) if $Q->verbose;
+  croak "Not implemented in generic manner\n";
+
+  $Q->addmessage( $status, "Running REPLACEQ") if $Q->verbose;
 
   my $argId = Dits::GetArgument;
 
@@ -1013,8 +1081,8 @@ sub REPLACEQ {
 
   # should set bad status on error
   # Create a new entry
-  my $entry = new Queue::Entry::SCUBAODF("X", $odf);
-
+  #my $entry = new Queue::Entry::SCUBAODF("X", $odf);
+  my $entry;
   # Replace the old entry
   $Q->queue->contents->replaceq( $index, $entry );
 
@@ -1024,7 +1092,7 @@ sub REPLACEQ {
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1037,27 +1105,36 @@ Clear the target information associated with the specified index.
 
 sub CLEARTARG {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  $Q->addmessage( $status, "Clearing target information" ) if $Q->verbose;
+  $Q->addmessage( $status, "Clearing target information")
+    if $Q->verbose;
 
   my $argId = Dits::GetArgument;
 
+  $status->SetStatus( Dits::APP_ERROR );
+#  $status->ErsRep(0,"Test error");
+#  $Q->addmessage($status, "Test error message");
+  $status->ErsRep(0,"Test error");
+
   # If no argument simply return
-  return unless defined $argId;
+  return $status unless defined $argId;
 
   # tie the argId to a perl Hash
   $argId->List($status);
-  my %sds;
-  tie %sds, 'Sds::Tie', $argId;
 
-  my $index = $sds{Argument1};
-
-  $Q->queue->contents->clear_target( $index );
-
+#  if ($status->Ok) {
+  DRAMA::ErsPush();
+    my %sds;
+    tie %sds, 'Sds::Tie', $argId;
+    my $index = $sds{Argument1};
+    $Q->queue->contents->clear_target( $index );
+  DRAMA::ErsPop();
+#  }
   # update contents string
   update_contents_param($status);
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1073,6 +1150,7 @@ parameter can be used to specify the number of entries to remove
 
 sub CUTQ {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status, "Running CUTQ") if $Q->verbose;
@@ -1080,7 +1158,10 @@ sub CUTQ {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  if (!defined $argId) {
+    $Q->addmessage($status, "No action - must supply a position to cut");
+    return $status;
+  }
 
   # Retrieve the INDEX and NCUT integers from the Args
   my %sds;
@@ -1097,7 +1178,7 @@ sub CUTQ {
     $ncut = $sds{Argument2};
   } else {
     $Q->addmessage($status,"Unable to determine cut position");
-    return;
+    return $status;
   }
   $ncut = 1 unless defined $ncut;
 
@@ -1108,7 +1189,7 @@ sub CUTQ {
 
   # Update the DRAMA parameters
   update_contents_param($status);
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1122,6 +1203,7 @@ or the supplied index. The optional index can be specified as either
 
 sub CUTMSB {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status, "Running CUTMSB") if $Q->verbose;
@@ -1149,7 +1231,7 @@ sub CUTMSB {
   return $status unless defined $Q->queue->contents->countq;
 
   $Q->queue->contents->cutmsb($index);
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1162,6 +1244,7 @@ removed from the queue. This method takes no arguments.
 
 sub SUSPENDMSB {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   # first get the current entry
@@ -1197,7 +1280,7 @@ sub SUSPENDMSB {
   } else {
     $Q->addmessage($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
   }
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1219,6 +1302,7 @@ needs to be reviewed.
 
 sub DONEMSB {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   # first get the current entry
@@ -1263,7 +1347,7 @@ sub DONEMSB {
   } else {
     $Q->addmessage($status, "Attempted to mark an MSB as complete but was unable to determine either the projectid or MSBID from the current entry");
   }
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1280,6 +1364,7 @@ be kicked to disable the rescheduling.
 # continuously rescheduling action
 sub POLL {
   my $status = shift;
+  #Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status,"Polling backend")
@@ -1292,7 +1377,7 @@ sub POLL {
   check_index_param_sync( $status );
 
   # Poll the queue
-  my ($pstat, $scuba_status, $message) = $Q->queue->backend->poll;
+  my ($pstat, $be_status, $message) = $Q->queue->backend->poll;
 
   # Update the DRAMA parameters
   # Do this before checking the status because we want to make
@@ -1303,10 +1388,11 @@ sub POLL {
   update_status_param($status);
 
   # If pstat is false, set status to bad
-  # If scuba status is bad also set status to bad.
+  # If be_status is bad also set status to bad.
   # Stop the queue in both cases, report the errors but then
   # carry on using good status
   if (!$pstat) {
+    DRAMA::ErsPush();
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);
     $lstat->ErsRep(0,"Error polling the backend [$pstat] - Queue stopped");
@@ -1330,28 +1416,31 @@ sub POLL {
       $Q->queue->backend->failure_reason(undef);
     }
 
-    # error so we must stop the queue
+    # error so we must stop the queue. Note that since lstat has
+    # been flushed this now corresponds to a good status.
     &STOPQ($lstat);
-
-  } elsif (defined $scuba_status && $scuba_status != 0) {
+    DRAMA::ErsPop();
+  } elsif (defined $be_status && $be_status != 0) {
+    DRAMA::ErsPush();
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);
     $lstat->ErsRep(0,"Error from Inst: $message");
     $lstat->ErsRep(0,"Error from Inst: Stopping the queue");
     $lstat->Flush;
-    $Q->addmessage($scuba_status, $message);
-    $Q->addmessage($scuba_status, "Stopping the queue");
+    $Q->addmessage($be_status, $message);
+    $Q->addmessage($be_status, "Stopping the queue");
     &STOPQ($lstat);
+    DRAMA::ErsPop();
   } elsif ($message) {
-    $Q->addmessage($scuba_status, $message);
+    $Q->addmessage($be_status, $message);
   }
 
   # Need to reschedule polltime seconds
-  Dits::PutDelay($Q->_drama_resched, $status);
-  Dits::PutRequest(Dits::REQ_WAIT, $status);
+  Jit::DelayRequest( $Q->polltime, $status);
 
 #  print Dumper($status) . "\nSTATUS: ".$status->GetStatus . "\n";
 
+#  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1367,44 +1456,56 @@ sub KICK_POLL {
 }
 
 
-=item B<GETODF>
+=item B<GETENTRY>
 
-Retrieves the contents of an ODF from the queue using the specified
+Retrieves a specific entry from the queue using the specified
 index position. The index is specified as "Argument1".
 
-The Sds structure returned by this action has a key "ODF"
-containing the keyword/value pairs that form the ODF itself.
+The Sds structure returned by this action has a key "ENTRY"
+containing the hash form of the entry. For a SCUBA ODF this
+is simply keyword/value pairs that form the ODF itself.
 
-Usually used to force a new target into an ODF in conjunction
+Usually used to force a new target into an entry in conjunction
 with REPLACEQ.
 
 Note that there is no C<SETTARG> action.
 
 =cut
 
-sub GETODF {
+sub GETENTRY {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   my $arg = Dits::GetArgument( $status );
   my $index = $arg->Geti( "Argument1", $status );
-  print "Request for index $index\n";
 
-  my $entry = $Q->queue->contents->getentry($index);
+  if ($status->Ok) {
+    print "Request for index $index\n";
 
-  if ($entry) {
-    my %odf = $entry->entity->odf;
+    my $entry = $Q->queue->contents->getentry($index);
 
-    # Add entries as strings
-    my $sds = Sds->PutHash( \%odf, "ODF", $status);
-    print Dumper($sds);
-    Dits::PutArgument($sds, Dits::ARG_COPY,$status);
+    if ($entry) {
+      # Need to change the interface so we have a "asHash" method.
+      my %odf = $entry->entity->odf;
 
+      # Add entries as strings
+      my $sds = Sds->PutHash( \%odf, "ENTRY", $status);
+      print Dumper($sds);
+      Dits::PutArgument($sds, Dits::ARG_COPY,$status);
+      Jit::ActionExit($sds, $status);
+      return $status;
+    } else {
+      # set status to bad
+      $status->SetStatus( Dits::APP_ERROR);
+      $status->ErsRep(0, "Specified index [$index] not present in queue");
+    }
   } else {
-    # set status to bad
-    die "Error retrieving ODF $index\n";
+    # Did not even get an argument
+    $status->ErsRep(0, "Must supply a queue position to GETENTRY");
   }
-
+  Jit::ActionExit( $status );
+  return $status;
 }
 
 =item B<MSBCOMPLETE>
@@ -1426,13 +1527,15 @@ multiple MSBs at once (this will be the case if we have been
 running the queue without a monitor GUI).
 
 Alternatively, for ease of use at the command line we also support
-Argument1=timestamp Argument2=complete Argument3=userid
-Argument4=reason
+
+  Argument1=timestamp Argument2=complete 
+  Argument3=userid Argument4=reason
 
 =cut
 
 sub MSBCOMPLETE {
   my $status = shift;
+  Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
   $Q->addmessage($status,"MSB COMPLETE")
@@ -1567,7 +1670,7 @@ sub MSBCOMPLETE {
     }
 
   }
-
+  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1616,9 +1719,8 @@ sub Sds_to_Entry {
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
 
-  # This needs to be modified to accept the Queue XML
-  my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
-  my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
+  # Need to parse the XML
+  my (@entries) = readXML( $sds{Argument1} );
 
   # Associate them with an MSB object
   # Note that this constructor associates itself with each
