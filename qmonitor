@@ -360,7 +360,7 @@ sub cvtsub {
 
     }
 
-  } elsif ($param eq 'QCOMPLETE') {
+  } elsif ($param eq 'QCOMPLETED') {
 
     use Data::Dumper;
     print Dumper(\%tie);
@@ -376,7 +376,7 @@ sub cvtsub {
     if ($tie{REQUEST}) {
 
       # Trigger a callback
-      $MW->after(1, sub { respond_to_qcomplete(%tie)});
+      $MW->after(1, sub { respond_to_qcomplete($tie{DETAILS})});
 
     }
 

@@ -99,6 +99,8 @@ Copyright (C) Particle Physics and Astronomy Research Council
 #use FindBin;
 #use lib "$FindBin::Bin/../site_perl";
 
+$| = 1;
+
 use 5.006;
 use strict;
 use warnings;
@@ -184,7 +186,7 @@ $queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
 my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
 
 # This contains queue completion triggers
-my $qcomplete_sds = Sds->Create("QCOMPLETE",undef, Sds::STRUCT,0,$STATUS);
+my $qcomplete_sds = Sds->Create("QCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
 
 
 # Initialise the arrays
@@ -413,7 +415,7 @@ sub CLEARQ {
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
   update_index_param($_[0]);
-  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+  set_qcomplete_parameter( $_[0], REQUEST => 0, MSBID => '',PROJECTID=>'' );
 }
 
 sub CUTQ {
@@ -850,18 +852,19 @@ sub set_qcomplete_parameter {
   return unless $status->Ok;
 
   # Read the FAILURE parameter
-  my $sds = $sdp->GetSds('QCOMPLETE',$status);
+  my $sds = $sdp->GetSds('QCOMPLETED',$status);
   return undef unless defined $sds;
 
   # Read the arguments
   my %details = @_;
 
-  # put in the inormation
-  $sds->PutString('MSBID',$details{MSBID}, $status);
-  $sds->PutString('PROJECTID',$details{PROJECTID}, $status);
-  $sds->Puti('REQUEST', $details{REQUEST}, $status);
+  # standard kluge
+  bless $sds, "Sds";
 
-  $sds->List($status);
+  # put in the inormation
+  $sds->PutHash( \%details, "DETAILS", $status);
+
+  #$sds->List($status);
 
   # Notify the parameter system
   $sdp->Update($sds,$status);
