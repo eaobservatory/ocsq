@@ -418,9 +418,14 @@ sub update_listboxes {
   # Clear the contents listbox
   $ContentsBox->configure( -state => 'normal');
   $ContentsBox->delete('0.0','end');
+
+  # Remove blank lines from the end of the array
+  # Assume that all blank lines are bad
+  my @contents = grep { /\w/ } @{$href->{Contents}};
+
   # Fill it
   my $counter = 0;
-  for my $line (@{$href->{Contents}}) {
+  for my $line (@contents) {
 
     # Take local copy of index for callbacks
     my $index = $counter;
