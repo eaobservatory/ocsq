@@ -498,7 +498,7 @@ sub addFailureContext {
 Retrieves messages (one at a time) that have been cached by the
 DRAMA interaction.
 
- ($msgstatus, $mdf) = $be->messages;
+ ($msgstatus, $msg) = $be->messages;
 
 Empty list is returned if we have no pending messages.
 
