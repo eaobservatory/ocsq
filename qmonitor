@@ -416,6 +416,8 @@ sub drama_error {
 			  );
 
   print "Received error in response to a drama action:- $msg\n";
+  write_info_message( $ErsText, 
+		      "Received error in response to a drama action:-\n$msg\n" );
 
   # play sound
   play_sound('alert.wav');
