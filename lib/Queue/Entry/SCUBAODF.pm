@@ -177,9 +177,13 @@ sub prepare {
   $odf->vax_outputdir( $VAX_TRANS_DIR );
   my $file = $odf->writeodf();
 
+  # kluge until I can get umask working
+  # Makes sure the files are readable by the vax
+  chmod 0666 $file;
+
   # Store the filename in the be_object
-  # SCUBA can not handle a full path to the file
-  $self->be_object(basename($file));
+  # SCUBA must get  a full path to the file using vax syntax
+  $self->be_object($VAX_TRANS_DIR . basename($file));
 
   return;
 }
