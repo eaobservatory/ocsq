@@ -26,7 +26,7 @@ BEGIN {
   $VERSION = '0.11';
   use Tk;
   use Tk::ProgressBar;
-  use Tk::TextANSIColor;
+  use Tk::Text;
 
   # Create a new main window
   $MW = MainWindow->new;
@@ -85,6 +85,7 @@ eval "use DRAMA::Tk; use DRAMA";
 if ($@) {
   die "Error loading DRAMA:\n$@";
 }
+$DRAMA::MAXREPLIES = 20;
 
 update_status 'Loading Qcontrol class',50;
 eval "use Queue::Control::DRAMA";
@@ -201,7 +202,7 @@ $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
 #			     -selectmode => 'single',
 #			       )->grid(-row=>1,-col=>1);
 
-my $ContentsBox = $Fr2->Scrolled('TextANSIColor',
+my $ContentsBox = $Fr2->Scrolled('Text',
 				 -scrollbars => 'e',
 				 -wrap => 'none',
 				 -height => NENTRIES, 
@@ -424,6 +425,7 @@ sub update_listboxes {
 
     # Generate the tag name based on the index
     my $dtag = "d" . $index;
+    my $ctag = "c" . $index;
 
     # Get the reference position
     my $start = $ContentsBox->index('insert');
@@ -436,8 +438,39 @@ sub update_listboxes {
         $ContentsBox->tag('remove', $tag, $start, 'insert');
     }
 
-    # Create a new tag
+    # Create a new tag for the highlighter
     $ContentsBox->tag('add', $dtag, $start, 'insert');
+
+    # and configure it 
+    $ContentsBox->tag('configure', $dtag, 
+		      -foreground => 'white',
+		      -background => 'black',);
+
+    # Now create a new base color tag at higher priority
+    # to control the general color. When a highlighter is added the
+    # priorities will be raised and the highlighter will dominate
+    $ContentsBox->tag('add',$ctag, $start, 'insert');
+
+    # default foreground is black
+    my $fgcol = 'black';
+    if ($line =~ /SENT/) {
+      $fgcol = '#33ffff';
+      $fgcol = 'yellow';
+    } elsif ($line =~ /OBSERVED/) {
+      $fgcol = '#333333';
+      $fgcol = 'grey';
+    } elsif ($line =~ /ERROR/) {
+      $fgcol = '#ff3333';
+      $fgcol = 'red';
+    }
+
+    # and configure it 
+    $ContentsBox->tag('configure', $ctag, 
+		      -foreground => $fgcol,
+		      -background => 'white',);
+
+    # raise it
+    $ContentsBox->tagRaise($ctag);
 
     # bind the tag to button click
     $ContentsBox->tag('bind', $dtag, '<ButtonRelease-1>' =>
@@ -447,6 +480,10 @@ sub update_listboxes {
   }
 
   $ContentsBox->configure( -state => 'disabled');
+
+  # and finally insert the index
+  update_index( $MONITOR{INDEX} );
+
 }
 
 # Routine to update the position of the index.
@@ -458,30 +495,29 @@ sub update_listboxes {
 sub update_index {
   my $index = shift;
 
-  my $tag = "d" . $index;
-
   # First need to configure all the existing tags so that they
   # are not highlighted
   foreach my $tag ($ContentsBox->tag('names')) {
-    next unless $tag =~ /^d\d/;
-    $ContentsBox->tag('configure', $tag, 
-		      -foreground => 'black',
-		      -background => 'white',
-		     );
+    if ($tag =~ /^d\d/) {
+      $ContentsBox->tagLower($tag);
+    } elsif ($tag =~ /^c\d/) {
+      $ContentsBox->tagRaise($tag);
+    }
   }
 
-  # Now set the highlight
-  $ContentsBox->tag('configure', $tag, 
-		    -foreground => 'white',
-		    -background => 'black',
-		   );
+  # only do something if we have a value
+  if ($index) {
+    my $dtag = "d" . $index;
 
-  # and make it visible (index needs to be incremented by 1
-  # here to make sure the line is visible rather than just its
-  # top
-  $index++;
-  $ContentsBox->see("$index.0");
+    # Now set the highlight
+    $ContentsBox->tagRaise($dtag);
 
+    # and make it visible (index needs to be incremented by 1
+    # here to make sure the line is visible rather than just its
+    # top
+    $index++;
+    $ContentsBox->see("$index.0");
+  }
 }
 
 
