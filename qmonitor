@@ -875,9 +875,15 @@ sub respond_to_failure {
       $cat->addSources( @planets, &scuba_2cals() );
 
     } else {
-      # pointing catalog if not a Calibrator
+      # continuum pointing catalog if not a Calibrator
+      my $pcat = "/local/progs/etc/point_c.cat";
+
+      # If that catalogue does not exist fall back to the
+      # full catalogue
+      $pcat = 'default' unless -e $pcat;
+
       # This will add the planets automatically
-      $cat = new SrcCatalog::JCMT( 'default' );
+      $cat = new SrcCatalog::JCMT( $pcat );
     }
 
     # Make sure we only generate observable sources
