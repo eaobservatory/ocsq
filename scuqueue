@@ -180,6 +180,7 @@ Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("MSBCOMPLETE",  \&MSBCOMPLETE,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("CUTQ",  \&CUTQ,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("SUSPENDMSB",\&SUSPENDMSB, undef,0,undef,$STATUS);
+Dits::DperlPutActions("DONEMSB",\&DONEMSB, undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
 my $RESCHED = Dits::DeltaTime(1,0);
@@ -249,13 +250,16 @@ sub msbtidy {
   my %data;
   $data{REQUEST} = 1;
 
+  addmessage($status, "Queue contents fully observed");
+
+  use Data::Dumper;
+  print "Completed Entry: ",Dumper($entry);
+
   # Get the MSBID
-  my $odf = $entry->entity->odf;
+  my $odf = $entry->entity;
   my $msbid = $odf->getMSBID;
 
   my $projectid = $odf->getProjectid;
-
-  addmessage($status, "Queue contents fully observed");
 
   # if we do not have an MSBID and project then we cant do anything else
   # so dd not change the parameter
@@ -649,6 +653,42 @@ sub SUSPENDMSB {
 
   } else {
     DRAMA::MsgOut($status, "Attempted to suspend MSB but was unable to determine either the label, projectid or MSBID from the current entry");
+  }
+
+  return $status;
+}
+
+# SUSPENDMSB
+# Mark the MSB as done [relies on the MSB entry being active]
+# the currently highlighted position
+sub DONEMSB {
+  my $status = shift;
+
+  # first get the current entry
+  my $entry = $QUEUE->contents->curentry;
+  unless ($entry) {
+    DRAMA::MsgOut($status, "Done MSB attempted but no entries in queue");
+    return $status;
+  }
+
+  # then ask the entry for the MSBID and projectID
+  # these should be methods of the entry but for now
+  # we assume the "entity" has them
+  my $proj = $entry->entity->getProjectid;
+  my $msbid = $entry->entity->getMSBID;
+
+  if ($proj && $msbid) {
+
+    if ($proj =~ /SCUBA|JCMTCAL/) {
+      DRAMA::MsgOut($status, "Can not mark a standard calibration as complete");
+    } else {
+      OMP::MSBServer->doneMSB($proj, $msbid);
+
+      DRAMA::MsgOut($status, "MSB for project $proj has been marked as completed");
+    }
+
+  } else {
+    DRAMA::MsgOut($status, "Attempted to mark an MSB as complete but was unable to determine either the projectid or MSBID from the current entry");
   }
 
   return $status;
