@@ -173,11 +173,16 @@ Note that this does require that the Entry class has to know what the
 Backend class is expecting to send to the Queue backend. For example,
 using ODFs will probably only work with a TODD backend.
 
+Returns undef if everything worked okay. Returns a
+C<Queue::Backend::FailureReason> object if there was a problem that
+could not be fixed.
+
 =cut
 
 sub prepare {
   my $self = shift;
   $self->be_object($self->label);
+  return;
 }
 
 

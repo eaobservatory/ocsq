@@ -108,6 +108,12 @@ Stores the name of this temporary file in the C<be_object()>.
 
 =back
 
+  $status = $entry->prepare;
+
+Returns undef if everything was okay. Returns a
+C<Queue::Backend::FailureReason> object if there was a problem that
+could not be fixed.
+
 =cut
 
 sub prepare {
@@ -115,7 +121,16 @@ sub prepare {
 
   my $odf = $self->entity;
 
+  # Should return a reason here
   return unless defined $odf;
+
+  # Now verify that the ODF is okay.
+
+  # if we need to do a local fixup we should do that on a copy
+  
+
+  # if we can not fix the problem need to create the failure object
+  # and pass it back up to someone who can deal with it
 
   # Write the ODF
   # Should really specify the output directory here!
@@ -124,6 +139,7 @@ sub prepare {
   # Store the filename in the be_object
   $self->be_object($file);
 
+  return;
 }
 
 
@@ -143,7 +159,8 @@ Control how the entry is displayed in the queue summary.
 
 sub string {
   my $self = shift;
-  return "UNDEFINED";
+  my $odf = $self->entity;
+  return $odf->summary();
 }
 
 =back

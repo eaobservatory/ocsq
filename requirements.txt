@@ -259,7 +259,7 @@ Data flow:
     pointing targets or calibrators (depending on mode), allow the observer
     to select a source and then insert the ODF back into the queue.
 
-      Requires: OVERWRITE action
+      Requires: OVERWRITE or REPLACE action
 
       Must protect against two people trying to overwrite at the same
       time. Suggests that the over writable index has a state that
@@ -283,3 +283,25 @@ Data flow:
     point. This is fine for SCUBA but what happens if we are queueing
     ACSIS as well?
 
+
+Who does the verification?
+
+  If the verification is part of the prepare method then the prepare
+  method will need to return true/false.
+
+  It should properly return undef if everything is okay and an object
+  with all the details if it didn't work. This object can be augmented
+  by the thing that called prepare (send_entry in Queue::Backend) with
+  details of the next object that has a target. (must be done in
+  Backend rather than Entry since Entry does not know the context.
+  This object is stored in the Backend as an attribute for retrieval
+  by the queue.
+
+  send_entry is called by the poll() method in Queue::Backend.
+  The send_entry method will return bad q status to poll which will
+  return bad status to POLL (DRAMA). Add code to POLL to check
+  if there is a reason for the failure stored in the Backend object.
+  Can then translate this reason to an SDS structure and publish it
+  as a parameter.
+
+  Class will be Queue::Backend::FailureReason

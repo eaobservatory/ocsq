@@ -245,7 +245,6 @@ sub LOADQ {
 
   my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
   my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
-
   $QUEUE->contents->loadq( @entries );
 
 #  print Dumper($grp);
@@ -356,6 +355,17 @@ sub POLL {
     $lstat->ErsRep(0,"Error polling the backend [$pstat] - Queue stopped");
     $lstat->Flush;
     &STOPQ($lstat);
+
+    # Did we get a reason
+    my $r = $QUEUE->backend->failure_reason;
+    if ($r) {
+      # Did get a reason. Does it help?
+      
+
+      # dealt with it so clear the reason
+      $self->failure_reason(undef);
+    }
+
   } elsif (defined $scuba_status && $scuba_status != 0) {
     my $lstat = new DRAMA::Status;
     $lstat->SetStatus(Dits::APP_ERROR);

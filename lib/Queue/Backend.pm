@@ -65,6 +65,7 @@ sub new {
   $be->{QRunning} = 0;
   $be->{QContents} = undef;
   $be->{LastSent} = undef;
+  $be->{FailReason} = undef;
 
   bless($be, $class);
 
@@ -140,6 +141,33 @@ sub last_sent {
   return $self->{LastSent};
 }
 
+=item B<failure_reason>
+
+The object describing why the backend has failed. If no reason
+is known set to undef.
+
+  $reason = $be->failure_reason();
+  $be->failure_reason( $reason );
+
+Argument must be of class C<Queue::Backend::FaulureReason>
+
+=cut
+
+sub failure_reason {
+  my $self = shift;
+  if (@_) {
+    my $e = shift;
+    if (!defined $e) {
+      # If we are not defined - that is okay too
+      $self->{LastSent} = undef;
+    } elsif (UNIVERSAL::isa($e, 'Queue::Backend::FailureReason')) {
+      $self->{LastSent} = $e;
+    } else {
+      die "Argument supplied to Queue::Backend::failure_reason [$e] is not a Queue::Backend::FailureReason object";
+    }
+  }
+  return $self->{FailReason};
+}
 
 =item qcontents
 
@@ -321,7 +349,14 @@ sub send_entry {
   return 1 unless defined $entry;
 
   # Prepare for transmission
-  $entry->prepare;
+  my $pstat = $entry->prepare;
+
+  # if we got a reason object back then we failed
+  # so store it and set bad status.
+  if ($pstat) {
+    $self->failure_reason($pstat);
+    return 0;
+  }
 
   # Get the thing that is to be sent
   my $entity = $entry->be_object;
