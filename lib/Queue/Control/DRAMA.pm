@@ -185,6 +185,7 @@ sub clearq {
   obeyw $self->qtask, 'CLEARQ';
 }
 
+
 =item B<suspendmsb>
 
 Suspend the currently highlighted MSB.
@@ -200,23 +201,35 @@ sub suspendmsb {
 
 =item B<cutmsb>
 
-Dispose the MSB that i
+Remove the MSB associated with the specified index. If no index is
+supplied the "current" MSB (default index position) is removed.
 
  $Q->cutmsb;
+ $Q->cutmsb( $index );
 
 =cut
 
 sub cutmsb {
-  croak "not finished - need to worry about cutmsb vs disposemsb";
   my $self = shift;
+  my $posn = shift;
   my %args;
+
+  my $arg = Arg->Create;
+  my $status = new DRAMA::Status;
+
+  if (defined $arg) {
+    # Put the arg into 
+    $arg->Puti('INDEX',$posn,$status);
+  }
+
   $args{-error} = $self->error if defined $self->error;
-  obeyw $self->qtask, 'CUTMSB', \%args;
+  $args{-deletearg} = 0;
+  obeyw $self->qtask, 'CUTMSB', $arg, \%args;
 }
 
 
 
-=item cutq(position, number)
+=item B<cutq>
 
 Cut entries from the queue and copy them to the paste buffer.
 Two arguments are required:
@@ -243,11 +256,16 @@ sub cutq {
 
   my $arg = Arg->Create;
   my $status = new DRAMA::Status;
-  $arg->Puti('POSN',$posn,$status);
+  $arg->Puti('INDEX',$posn,$status);
   $arg->Puti('NCUT',$ncut,$status);
 
+  # Additional arguments
+  my %args;
+  $args{-error} = $self->error if defined $self->error;
+  $args{-deletearg} = 0;
+
   # Send the obey
-  obeyw($self->qtask,"CUTQ",$arg);
+  obeyw($self->qtask,"CUTQ",$arg,\%args);
 }
 
 =item B<msbcomplete>

@@ -1329,15 +1329,18 @@ sub CUTQ {
 
   # If no argument simply return
   if (!defined $argId) {
-    $Q->addmessage($status, "No action - must supply a position to cut");
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
     return $status;
   }
 
   # Retrieve the INDEX and NCUT integers from the Args
+  # Easier if I tie to a hash
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
 
-  print Dumper(\%sds);
+  print "Argument to CUT:".Dumper(\%sds);
 
   my ($index, $ncut);
   if (exists $sds{INDEX}) {
@@ -1347,12 +1350,17 @@ sub CUTQ {
     $index = $sds{Argument1};
     $ncut = $sds{Argument2};
   } else {
-    $Q->addmessage($status,"Unable to determine cut position");
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Unable to determine cut position.");
+    Jit::ActionExit( $status );
     return $status;
   }
+
+  # default to only a single entry
   $ncut = 1 unless defined $ncut;
 
-  $Q->addmessage($status,"Removing $ncut observation[s] starting from index $index");
+  $Q->addmessage($status,
+		 "Removing $ncut observation[s] starting from index $index");
 
   # CUT
   $Q->queue->contents->cutq($index, $ncut);
@@ -1381,7 +1389,12 @@ sub CUTMSB {
   my $argId = Dits::GetArgument;
 
   # If no argument simply return
-  return unless defined $argId;
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
   # Retrieve the INDEX integer from the Args
   my %sds;
@@ -1389,6 +1402,7 @@ sub CUTMSB {
 
   print Dumper(\%sds);
 
+  # index can be undefined
   my $index;
   if (exists $sds{INDEX}) {
     $index = $sds{INDEX};
@@ -1396,11 +1410,22 @@ sub CUTMSB {
     $index = $sds{Argument1};
   }
 
+  if (defined $index) {
+    $Q->addmessage( $status, "Cutting MSB around index $index");
+  } else {
+    $Q->addmessage( $status, "Cutting current MSB");
+  }
 
   # Make sure there are entries in the queue
-  return $status unless defined $Q->queue->contents->countq;
+  if (! $Q->queue->contents->countq) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "No entries in queue. Unable to cut MSB");
+    Jit::ActionExit( $status );
+    return $status;
+  }
 
   $Q->queue->contents->cutmsb($index);
+  update_contents_param($status);
   Jit::ActionExit( $status );
   return $status;
 }
@@ -1454,72 +1479,6 @@ sub SUSPENDMSB {
   return $status;
 }
 
-=item B<DONEMSB>
-
-Mark the MSB as done [relies on the MSB entry being active] that is
-associated with the currently highlighted position.
-
-Not clear that this has any additional functionality over CUTMSB since
-we do not want to mark it done if it has not been observed at all and
-we would probably like to be asked about it.
-
-This action should be used with caution since it will always mark the
-MSB as complete if it can obtain the project ID and MSBID from the
-entry, regardless of whether it has been observed. This action
-needs to be reviewed.
-
-=cut
-
-sub DONEMSB {
-  my $status = shift;
-  Jit::ActionEntry( $status );
-  return $status unless $status->Ok;
-
-  # first get the current entry
-  my $entry = $Q->queue->contents->curentry;
-  unless ($entry) {
-    $Q->addmessage($status, "Explicit 'done MSB' attempted but no entries in queue");
-    return $status;
-  }
-
-  $Q->addmessage($status, "doneMSB currently not supported. Pending review");
-  return $status;
-
-  # then ask the entry for the MSBID and projectID
-  # these should be methods of the entry but for now
-  # we assume the "entity" has them
-  my $proj = $entry->projectid;
-  my $msbid = $entry->msbid;
-
-  if ($proj && $msbid) {
-
-    if ($proj =~ /SCUBA|JCMTCAL|UKIRTCAL/) {
-      $Q->addmessage($status, "Can not mark a standard calibration as complete");
-    } else {
-      # Only mark as done if we are in live mode
-      try {
-	OMP::MSBServer->doneMSB($proj, $msbid)
-	    unless $Q->simdb;
-
-	$Q->addmessage($status, "MSB for project $proj has been marked as completed");
-      } otherwise {
-	# Big problem with OMP system
-	my $E = shift;
-	$status->SetStatus( Dits::APP_ERROR );
-	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
-	$Q->addmessage($status, "Error marking msb $msbid as done: $E");
-
-      };
-      return $status unless $status->Ok;
-
-    }
-
-  } else {
-    $Q->addmessage($status, "Attempted to mark an MSB as complete but was unable to determine either the projectid or MSBID from the current entry");
-  }
-  Jit::ActionExit( $status );
-  return $status;
-}
 
 =item B<POLL>
 
@@ -1815,12 +1774,17 @@ sub MSBCOMPLETE {
     if ($mark > 0) {
 
       try {
+	my $msg;
 	# Need to mark it as done [unless we are in simulate mode]
-	OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
-			      $donemsb->{reason})
-	    unless $Q->simdb;
-
-	my $msg = ( $Q->simdb ? '[without modifying DB]' : "");
+	if ($Q->simdb) {
+	  # Simulation so do nothing
+	  $msg = "[in simulation without modifying the DB]";
+	} else {
+	  # Reality - blank message and update DB
+	  $msg = '';
+	  OMP::MSBServer->doneMSB($projectid, $msbid, $donemsb->{userid},
+				$donemsb->{reason});
+	}
 	$Q->addmessage($status,
 		       "MSB marked as done for project $projectid $msg");
       } otherwise {
@@ -1837,11 +1801,14 @@ sub MSBCOMPLETE {
       try {
 	# file a comment to indicate that the MSB was rejected
 	# unless we are in simulation mode
-	OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
-				   $donemsb->{reason})
-	    unless $Q->simdb;
-
-	my $msg = ( $Q->simdb ? '[without modifying DB]' : "");
+	my $msg;
+	if ($Q->simdb) {
+	  $msg = "[in simulation without modifying the DB]";
+	} else {
+	  $msg = '';
+	  OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
+				     $donemsb->{reason});
+	}
 	$Q->addmessage($status,"MSB rejected for project $projectid $msg");
 
       } otherwise {
@@ -1854,7 +1821,7 @@ sub MSBCOMPLETE {
 
     } else {
       $Q->addmessage($status,
-		     "Removing MSB without notifying OMP database [noactivity]");
+		     "Removing MSB without notifying OMP database [took no data]");
     }
 
     # Return if we have bad status

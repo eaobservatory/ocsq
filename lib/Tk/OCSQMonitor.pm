@@ -148,11 +148,13 @@ sub Populate {
 		-width => 10,
 		-command => sub { $w->_toggleq(); },
 	      )->pack(-side => 'left');
-  #$Fr3->Button( -text => 'ADD', -command => \&launchFS)->pack(-side => 'left');
-
-  $Fr3->Button( -text => 'CLEAR',  -command => sub { $priv->{QCONTROL}->clearq }
+  $Fr3->Button( -text => 'CLEAR',
+		-command => sub { $priv->{QCONTROL}->clearq }
 	      )->pack(-side => 'left');
-#  $Fr3->Button( -text => 'DISPOSE MSB',  -command => \&disposemsb)->pack(-side => 'left');
+  $Fr3->Button( -text => 'DISPOSE MSB',
+		-command => sub { $priv->{QCONTROL}->cutmsb }
+	      )->pack(-side => 'left');
+
 #  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 
   # Create a label for Queue status
@@ -267,11 +269,6 @@ sub Populate {
 sub _shutdown {
   my $w = shift;
   my $priv = $w->privateData;
-
-  print "***********************************\n";
-
-  use Data::Dumper;
-  print Dumper($priv);
 
   # Need to release the monitor (unless that has been done already)
   if (exists $priv->{MONITOR}->{MONITOR_ID} ) {
@@ -516,12 +513,11 @@ sub cvtsub {
 
   }
   return $value if not ref($value);
-    $value->List(new DRAMA::Status);
 
   # Assume we have a Sds
   my %tie;
   tie %tie, "Sds::Tie", $value;
-    $value->List(new DRAMA::Status);
+  #$value->List(new DRAMA::Status);
   if ($param eq 'Queue') {
 
     my %queue = %tie;
@@ -602,15 +598,8 @@ sub cvtsub {
     $value->List(new DRAMA::Status);
     $w->write_text_messages( 'errors', $tie{MESSAGE});
 
-    print "+++++++++++++ JIT_ERS_OUT -----------\n";
-    $value->List(new DRAMA::Status);
-    use Data::Dumper;
-    print Dumper(\%tie);
-
-    print "++++++++++++++++++++------------------\n";
-
-      # look for errors from the queue/scucd that are not coming
-      # to us directly because we did not initiate the action
+    # look for errors from the queue/scucd that are not coming
+    # to us directly because we did not initiate the action
 #      for (@{$tie{MESSAGE}}) {
 #	if ($_ =~ /^ERROR/) {
 #	  print "Triggering ERROR associated with message from the queue\n";
@@ -620,6 +609,9 @@ sub cvtsub {
 #      }
 
 
+  } else {
+    print "Unrecognized parameter $param\n";
+    print Dumper(\%tie);
   }
   #print "*********** Completed Monitor conversion [$param]\n";
   return $value;
@@ -739,7 +731,7 @@ sub update_listboxes {
 
     # and to the right mouse button
     $ContentsBox->tag('bind', $dtag, '<Button-2>' =>
-		      [ \&ContentsMenu, $index, Ev('X'), Ev('Y')] ,
+		      [ \&ContentsMenu, $w, $index, Ev('X'), Ev('Y')] ,
 		     );
 
     # show the user where there mouse is
@@ -808,6 +800,53 @@ sub update_index {
     }
   }
 }
+
+# This handles the middle mouse button click on the
+# contents window
+# Takes arguments of: widget, index number, Xpos, Ypos
+# X and Y are usually calculated with
+sub ContentsMenu {
+  my $wid = shift;
+  my $megawid = shift;
+  my $index = shift;
+  my $X = shift;
+  my $Y = shift;
+
+  my $priv = $megawid->privateData;
+  my $Q = $priv->{QCONTROL};
+
+  my $menu = $wid->Menu(-tearoff => 0,
+			-menuitems => [
+                                      [
+                                       "command" => "Modify observation $index",
+                                       -command => sub {# do nothing
+                                       },
+                                       -state => 'disabled',
+                                      ],
+                                      "separator",
+#                                      ["command" => "Clear target index $index",
+#                                       -command => sub {
+#                                         my $arg = Arg->Create;
+#                                         my $status = new DRAMA::Status;
+#                                         $arg->Puti("Argument1",$index,$status);
+#                                         DRAMA::obey($QNAME,"CLEARTARG",
+#                                                     $arg,{-deletearg=>0});}
+#                                      ],
+                                      ["command" => "Cut observation at index $index",
+                                       -command => sub {
+					 $Q->cutq( $index, 1 );
+                                       }],
+                                      ["command" => "Cut MSB containing index $index",
+                                       -command => sub {
+					 $Q->cutmsb( $index );
+                                       }],
+                                     ],
+                      );
+#  $menu->Popup(-popover => "cursor");
+  $menu->Post($X,$Y);
+}
+
+
 
 # GUI dealing with responding to a failure of an ODF to load
 # because it is missing information
