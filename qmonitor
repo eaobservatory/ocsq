@@ -1,7 +1,9 @@
 #!/usr/local/bin/perl
 
 # Simple GUI to display queue status
+use 5.006;
 use strict;
+use warnings;
 
 use subs qw/update_status obeyw DoDramaEvents/;
 use subs qw/cutq pasteq startq clearq stopq addback addfront/;
@@ -197,7 +199,7 @@ update_status 'Setting up monitor',95;
 
 my $CANCELLED = 0;  # True if monitor is ended
 monitor(QNAME, "START", 
-	"STATUS", "Queue", "CURRENT", "INDEX",
+	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,
@@ -277,18 +279,26 @@ sub cvtsub {
   my %tie;
   tie %tie, "Sds::Tie", $value;
 
-  my %queue = %tie;
+  if ($param eq 'Queue') {
 
-  # Strip trailing space and reduce array size
-  foreach (@{$queue{'Contents'}}) {
-    s/\s+$//;
+    my %queue = %tie;
+
+    # Strip trailing space and reduce array size
+    foreach (@{$queue{'Contents'}}) {
+      s/\s+$//;
+    }
+
+
+    # Update the Contents in the listbox
+    &update_listboxes(\%queue);
+
+    return \%queue;
+
+  } elsif ($param eq 'FAILURE') {
+    use Data::Dumper;
+    print Dumper(\%tie);
   }
 
-
-  # Update the Contents in the listbox
-  &update_listboxes(\%queue);
-
-  return \%queue;
 }
 
 

@@ -185,6 +185,19 @@ sub prepare {
   return;
 }
 
+=item B<getTarget>
+
+Retrieve any target information associated with the entry. Returns
+C<undef> if no target is specified else returns an C<Astro::Coords> object.
+
+  $coords = $e->getTarget;
+
+=cut
+
+sub getTarget {
+  my $self = shift;
+  return undef;
+}
 
 =back
 

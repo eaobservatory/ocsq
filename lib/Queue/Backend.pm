@@ -35,6 +35,8 @@ the thread completes before sending a new item.
 
 =cut
 
+use 5.006;
+use warnings;
 use strict;
 use Carp;
 
@@ -159,9 +161,9 @@ sub failure_reason {
     my $e = shift;
     if (!defined $e) {
       # If we are not defined - that is okay too
-      $self->{LastSent} = undef;
+      $self->{FailReason} = undef;
     } elsif (UNIVERSAL::isa($e, 'Queue::Backend::FailureReason')) {
-      $self->{LastSent} = $e;
+      $self->{FailReason} = $e;
     } else {
       die "Argument supplied to Queue::Backend::failure_reason [$e] is not a Queue::Backend::FailureReason object";
     }
@@ -254,7 +256,7 @@ for the next queue entry (see accepting() method)
 
 sub isconnected {
   my $self = shift;
-  
+
   # Check to see if we have a connection object
   my $con = $self->connection;
 
@@ -352,9 +354,10 @@ sub send_entry {
   my $pstat = $entry->prepare;
 
   # if we got a reason object back then we failed
-  # so store it and set bad status.
+  # so store it, augment it  and set bad status.
   if ($pstat) {
     $self->failure_reason($pstat);
+    $self->addFailureContext();
     return 0;
   }
 
@@ -418,6 +421,7 @@ sub poll {
   # this will do nothing if the queue is not accepting
   if ($self->qrunning) {
     $status = $self->send_entry();
+    print "##### STATUS FROM send_entry: $status\n";
   } else {
     # If the backend is accepting but the queue is not running
     # set last sent to undef
@@ -449,6 +453,22 @@ index to be incremented.
 
 sub post_obs_tidy {
   my $self = shift;
+  return;
+}
+
+=item B<addFailureContext>
+
+Extract information from the queue that may help the caller work
+out how to fix the problem associated with the backend failure.
+
+  $be->addFailureContext;
+
+No effect in base class.
+
+
+=cut
+
+sub addFailureContext {
   return;
 }
 

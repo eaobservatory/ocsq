@@ -30,8 +30,12 @@ It is a thin layer on top of a C<SCUBA::ODF> object.
 
 =cut
 
+use 5.006;
+use warnings;
 use strict;
 use Carp;
+use SCUBA::ODFError qw/ :try /;
+use Queue::Backend::FailureReason;
 
 use base qw/Queue::Entry/;
 
@@ -110,9 +114,13 @@ Stores the name of this temporary file in the C<be_object()>.
 
   $status = $entry->prepare;
 
-Returns undef if everything was okay. Returns a
+Returns undef if everything is okay. Returns a
 C<Queue::Backend::FailureReason> object if there was a problem that
 could not be fixed.
+
+The alternative is for the method to return false on error,
+store the failure object in the Entry and then expect the
+backend object to retrieve it when it notices there was a problem.
 
 =cut
 
@@ -124,13 +132,37 @@ sub prepare {
   # Should return a reason here
   return unless defined $odf;
 
-  # Now verify that the ODF is okay.
+  # Now verify that the ODF is okay and catch the exception
+  my $r;
+  try {
+    $odf->verify;
+  } catch SCUBA::ODFError::MissingTarget with {
+    # if the target is missing we cannot send this ODF
+    # so we need to package up the relevant information
+    # and pass it higher up
+    # The information we need from the ODF is just
+    #    MODE
+    #    FILTER
+    $r = new Queue::Backend::FailureReason( 'MissingTarget',
+					       MODE => $odf->odf->{OBSERVING_MODE},
+					       FILTER => $odf->odf->{FILTER},
+					     );
+  } catch SCUBA::ODFError with {
+    # all other SCUBA errors can be dealt with via a
+    # fixup
+    $odf->fixup;
 
-  # if we need to do a local fixup we should do that on a copy
-  
+    # Just in case that did not work
+    $odf->verify;
 
-  # if we can not fix the problem need to create the failure object
-  # and pass it back up to someone who can deal with it
+  } otherwise {
+    # strange other error that we need to forward
+    my $E = shift;
+    $E->throw;
+  };
+
+  # if we ended up with a failure object we need to return it here
+  return $r if $r;
 
   # Write the ODF
   # Should really specify the output directory here!
@@ -142,6 +174,19 @@ sub prepare {
   return;
 }
 
+=item B<getTarget>
+
+Retrieve target information from the entry in the form of an C<Astro::Coords>
+object. Returns C<undef> if no target information is found.
+
+ $c = $e->getTarget;
+
+=cut
+
+sub getTarget {
+  my $self = shift;
+  return $self->entity->getTarget;
+}
 
 =back
 

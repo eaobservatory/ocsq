@@ -334,6 +334,61 @@ sub post_obs_tidy {
   return;
 }
 
+=item B<addFailureContext>
+
+Extract information from the queue that may help the caller work
+out how to fix the problem associated with the backend failure.
+
+  $be->addFailureContext;
+
+Returns immediately if no C<failure_reason> is stored in the object.
+
+=cut
+
+sub addFailureContext {
+  my $self = shift;
+
+  # Get the failure object and the queue contents
+  my $r = $self->failure_reason;
+  return unless $r;
+
+  # Get the queue contents
+  my $q = $self->qcontents;
+
+  # Set the index of the entry
+  $r->index( $q->curindex );
+
+  if ($r->type eq 'MissingTarget') {
+    # Need to go through the queue starting at the current index
+    # looking for target information
+    my $index = $q->curindex;
+    $index++; # skip the current index when looking for target
+    my $target;
+    while (defined( my $entry = $q->getentry($index) ) ) {
+      # retrieve the target
+      $target = $entry->getTarget;
+      last if $target;
+      $index++;
+    }
+
+    # We now either have a valid target or nothing at all
+    # if nothing we can not help at all
+    if ($target) {
+      # get the current az and el
+      my $un = $target->usenow;
+      $target->usenow(1);
+      $r->details->{AZ} = $target->az;
+      $r->details->{EL} = $target->el;
+      $target->usenow( $un );
+    }
+
+  } else {
+    croak "Do not understand how to process this Failure object [".
+      $r->type."]\n";
+  }
+}
+
+
 =item B<messages>
 
 Retrieves messages (one at a time) that have been cached by the

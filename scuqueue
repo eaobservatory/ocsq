@@ -99,10 +99,12 @@ Copyright (C) Particle Physics and Astronomy Research Council
 #use FindBin;
 #use lib "$FindBin::Bin/../site_perl";
 
+use 5.006;
+use strict;
+use warnings;
+
 use Data::Dumper;
 use SCUBA::ODFGroup;
-
-use strict;
 
 # Load the DRAMA system
 use DRAMA;
@@ -154,7 +156,7 @@ Dits::DperlPutActions("POLL",    \&POLL,\&KICK_POLL,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED = Dits::DeltaTime(0,250);
+my $RESCHED = Dits::DeltaTime(1,250);
 
 # Create parameters
 my $sdp = new Sdp;
@@ -166,6 +168,9 @@ $sdp->Create("CURRENT","STRING",'None');
 my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$STATUS);
 $queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
 
+# This contains any information on ODFs that need more information
+my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
+
 # Initialise the arrays
 {
   my @array = ();
@@ -175,7 +180,7 @@ $queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
 
 # Store them in the parameter system
 $sdp->Create('','SDS',$queue_sds);
-
+$sdp->Create('','SDS',$failure_sds);
 
 # Create a Queue
 # This is a global, make sure that we only have one
@@ -282,6 +287,7 @@ sub STARTQ {
   $QUEUE->startq;
   DRAMA::MsgOut($_[0], "Queue is running");
   update_status_param($_[0]);
+  clear_failure_parameter($_[0]);
 }
 
 sub STOPQ {
@@ -360,10 +366,15 @@ sub POLL {
     my $r = $QUEUE->backend->failure_reason;
     if ($r) {
       # Did get a reason. Does it help?
-      
+      # Need to convert the details to a SDS object
+      my %details = $r->details;
+      $details{INDEX} = $r->index;
+      $details{REASON} = $r->type;
+
+      set_failure_parameter( $lstat, %details );
 
       # dealt with it so clear the reason
-      $self->failure_reason(undef);
+      $QUEUE->backend->failure_reason(undef);
     }
 
   } elsif (defined $scuba_status && $scuba_status != 0) {
@@ -519,6 +530,9 @@ sub update_index_param {
   # Get the queue value
   my $curindex = $QUEUE->contents->curindex;
 
+  # Currently the parameter defaults to 0 if there are no entries
+  $curindex = 0 unless defined $curindex;
+
   # Only change the parameter if needed
   if ($index != $curindex) {
     #print "::--+-+-+-+ SYNC index [$index/$curindex]\n";
@@ -547,6 +561,10 @@ sub check_index_param_sync {
 
   # Get the queue value
   my $curindex = $QUEUE->contents->curindex;
+
+  # Currently undef is not supported as a parameter value
+  # so we change it to 0
+  $curindex = 0 unless defined $curindex;
 
   # This means we should change the queue value if they are different
   # and if the parameter is not equal to the local cache
@@ -588,6 +606,71 @@ sub update_current_param {
 
 }
 
+# Clear the contents of the failure parameter
+# Arguments: inherited status
+sub clear_failure_parameter {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the FAILURE parameter
+  my $sds = $sdp->GetSds('FAILURE',$status);
+  return undef unless defined $sds;
+
+  # Now need to look for the DETAILS object
+  # (use a private status)
+  my $lstat = new DRAMA::Status;
+
+  # it seems we have to trigger the update after the Sds structure
+  # has been freed
+  my $updated;
+  {
+    my $detsds = $sds->Find("DETAILS", $lstat);
+
+    if ($detsds) {
+      # if we have a DETAILS object we need to
+      # configure it so that it is deleted when it goes out of scope
+      $detsds->flags(1,1,1);
+
+      $updated = 1;
+    }
+  }
+
+  # and update the parameter
+  $sdp->Update($sds,$status) if $updated;
+
+  return;
+}
+
+# Set the contents of the failure parameter
+# Arguments: Inherited status, information hash
+sub set_failure_parameter {
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the FAILURE parameter
+  my $sds = $sdp->GetSds('FAILURE',$status);
+  return undef unless defined $sds;
+
+  # Read the arguments
+  my %details = @_;
+
+  # KLUGE - currently GetSds blesses the Sds into Arg class
+  # This breaks PutHash since it *must* work on Sds objects
+  # in order for the correct Create to be called. I think this
+  # means that at the very leasy Sds.pm needs to use SUPER::Create
+  # rather than just the Arg Create method. For now we rebless
+  bless $sds, "Sds";
+
+  # Add entries as strings
+  $sds->PutHash( \%details, "DETAILS", $status);
+
+  #$sds->List($status);
+
+  # Notify the parameter system
+  $sdp->Update($sds,$status);
+
+  return;
+}
 
 # Sub to compare an SDS array with a perl array, updating
 # the SDS array if necessary
@@ -643,6 +726,9 @@ sub compare_sds_to_perl ($$$$) {
       # it if it is longer than the size of the SDS array
       my $current = $arr->[$i];
       $current = substr($current,0,SZSTRING) if length($current) > SZSTRING;
+
+      # Also need to trim trailing space
+      $current =~ s/\s+$//;
 	
       # Now compare the sds and current entries
       if ($sds_contents[$i] ne $current) {
