@@ -240,6 +240,35 @@ sub clearTarget {
   $self->entity->clearTarget;
 }
 
+=item projectid
+
+Returns the project ID associated with this entry.
+
+  $proj = $entry->projectid;
+
+The base class always returns undef.
+
+=cut
+
+sub projectid {
+  my $self = shift;
+  return $self->entity->getProjectid;
+}
+
+=item msbid
+
+Returns the MSB ID associated with this entry.
+
+  $msbid = $entry->msbid;
+
+=cut
+
+sub msbid {
+  my $self = shift;
+  return $self->entity->getMSBID;
+}
+
+
 =item B<duration>
 
 Estimated duration of the ODF.
