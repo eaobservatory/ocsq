@@ -75,6 +75,7 @@ use Carp;
 use base qw/ Queue::Backend /;
 
 use DRAMA;
+use Time::Piece qw/ :override /;
 
 # Init the drama system
 # Not required if we are already running drama
@@ -361,28 +362,75 @@ sub addFailureContext {
   # Add general details from the entry
   $r->details->{ENTRY} = $q->curentry->entity->odf;
 
+  # Get current time
+  my $time = gmtime();
+  $r->details->{TIME} = $time->datetime;
+
   if ($r->type eq 'MissingTarget') {
     # Need to go through the queue starting at the current index
-    # looking for target information
+    # looking for target information OR an indication that we are
+    # interested in a calibrator (in which case we stop since we know
+    # the list of calibrators)
     my $index = $q->curindex;
-    $index++; # skip the current index when looking for target
-    my $target;
+    my ($target,$iscal);
     while (defined( my $entry = $q->getentry($index) ) ) {
-      # retrieve the target
+
+      # retrieve the target - presence of a target takes
+      # precedence over whether it is a calibrator since
+      # if it is a target we *know* the coordinates rather than
+      # simply guessing them
       $target = $entry->getTarget;
       last if $target;
+
+      # See if we have a calibrator
+      $iscal = $entry->entity->iscal;
+      last if $iscal;
+
       $index++;
     }
 
-    # We now either have a valid target or nothing at all
-    # if nothing we can not help at all
-    if ($target) {
+    $r->details->{FOLLOWING} = 1;
+
+    # if we did not find a target or a calibrator
+    # reverse the sense of the search and look behind us
+    # since it may be that we should be using the same
+    # target as the previous observation
+    if (!$target && !$iscal) {
+      $index = $q->curindex - 1;
+      while ($index > -1) {
+	my $entry = $q->getentry($index);
+		
+	# retrieve the target
+	$target = $entry->getTarget;
+	last if $target;
+
+	# See if we have a calibrator
+	$iscal = $entry->entity->iscal;
+	last if $iscal;
+
+	$index--;
+      }
+      $r->details->{FOLLOWING} = 0;
+    }
+
+    # We now either have a valid target or an indication of calness
+    # If we have nothing at all we can not help the observer
+    $r->details->{CAL} = 0;
+    if ($iscal) {
+      print "REQUEST FOR CALIBRATOR\n";
+      $r->details->{CAL} = 1;
+    } elsif ($target) {
       # get the current az and el
+      print "TARGET INFORMATION: ".$target->status ."\n";
       my $un = $target->usenow;
-      $target->usenow(1);
+      $target->usenow(0);
+      $target->datetime( $time );
+      print "EPOCH TIME: ".$target->datetime->epoch() ."\n";
       $r->details->{AZ} = $target->az;
       $r->details->{EL} = $target->el;
       $target->usenow( $un );
+    } else {
+      delete $r->details->{FOLLOWING};
     }
 
   } else {

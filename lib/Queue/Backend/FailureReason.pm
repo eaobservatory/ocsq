@@ -118,7 +118,13 @@ will hopefully include keys:
   EL - reference EL of related target
   MODE - observing mode
   FILTER - filter used for observations
+  TIME   - time of failure in ISO date format
   ENTRY - Additional information from the entry (optional)
+  FOLLOWING - whether the coordinate come from a following
+    observation or a previous observation
+  CAL - indicates that rather than knowing the coordinates
+    of a related observation we know that it is meant to be
+    a calibrator (this reduces the choices)
 
 Returns hash reference in scalar context, hash in list context.
 If a hash is provided as an argument, all content will be overwritten.
