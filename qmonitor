@@ -89,6 +89,7 @@ eval "use DRAMA::Tk; use DRAMA";
 if ($@) {
   die "Error loading DRAMA:\n$@";
 }
+$DRAMA::MAXREPLIES = 40; # -w
 $DRAMA::MAXREPLIES = 40;
 
 update_status 'Loading Qcontrol class',50;
@@ -331,7 +332,7 @@ sub shutdown {
 sub cvtsub {
   my ($param, $value) = @_;
 
-  print "PARAMETER: $param\n";
+  #print "PARAMETER: $param\n";
 
   if ($param eq 'STATUS') {
     if ($value =~ /Stop/i) {
@@ -981,7 +982,7 @@ sub start_nbs_monitors {
 sub nbs_cvtsub {
   my ($param, $value) = @_;
 
-  # print "PARAMETER: $param - $value\n";
+  #print "PARAMETER: $param - $value\n";
 
   if ($param eq 'SCUCD_STAT') {
     # update value in monitor gui
