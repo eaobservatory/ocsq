@@ -139,16 +139,20 @@ update_status 'Creating listboxes',85;
 $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-col=>1);
 
 
-my $ContentsBox = $Fr2->ScrlListbox(-height => NENTRIES, 
-				-width  => SZSTRING,
-				-selectmode => 'single',
+#my $ContentsBox = $Fr2->ScrlListbox(-height => NENTRIES, 
+#			     -width  => SZSTRING,
+#			     -selectmode => 'single',
+#			       )->grid(-row=>1,-col=>1);
+
+my $ContentsBox = $Fr2->Scrolled('Text',
+				 -scrollbars => 'e',
+				 -wrap => 'none',
+				 -height => NENTRIES, 
+				 -width  => SZSTRING,
+		#		 -state  => 'disabled',
 			       )->grid(-row=>1,-col=>1);
 
-# Bind single click to a parameter set
-$ContentsBox->bind("<Button-1>" => sub { my $w = shift; 
-					 my ($index) = $w->curselection;
-					 pset(QNAME, "INDEX", $index);
-				       });
+$ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
 
 # A numbered listbox
 my $countBox = $Fr2->Listbox(-height => NENTRIES,
@@ -264,8 +268,7 @@ sub cvtsub {
     }
   } elsif ($param eq 'INDEX') {
     # Set the highlight position
-    $ContentsBox->selectionClear(0,"end");
-    $ContentsBox->selectionSet($value);
+    update_index( $value );
   }
 
   return $value if not ref($value);
@@ -297,9 +300,66 @@ sub update_listboxes {
   my $href = shift;
 
   # Clear the contents listbox
-  $ContentsBox->delete(0,'end');
+  $ContentsBox->configure( -state => 'normal');
+  $ContentsBox->delete('0.0','end');
   # Fill it
-  $ContentsBox->insert('end',@{$href->{Contents}});
+  my $counter = 0;
+  for my $line (@{$href->{Contents}}) {
+
+    # Take local copy of index for callbacks
+    my $index = $counter;
+
+    # Generate the tag name based on the index
+    my $dtag = "d" . $index;
+
+    # Get the reference position
+    my $start = $ContentsBox->index('insert');
+
+    # insert the line
+    $ContentsBox->insert('end', $line . "\n");
+
+    # Remove all the tags at this position
+    foreach my $tag ($ContentsBox->tag('names', $start)) {
+        $ContentsBox->tag('remove', $tag, $start, 'insert');
+    }
+
+    # Create a new tag
+    $ContentsBox->tag('add', $dtag, $start, 'insert');
+
+    # bind the tag to button click
+    $ContentsBox->tag('bind', $dtag, '<ButtonRelease-1>' =>
+		      sub {pset(QNAME,"INDEX", $index)});
+
+    $counter++;
+  }
+
+  $ContentsBox->configure( -state => 'disabled');
+}
+
+# Routine to update the position of the index.
+# If no argument is supplied the value is obtained from the drama task
+# via a pget
+#   update_index( $index );
+
+sub update_index {
+  my $index = shift;
+
+  my $tag = "d" . $index;
+
+  # First need to configure all the existing tags so that they
+  # are not
+  foreach my $tag ($ContentsBox->tag('names')) {
+    next unless $tag =~ /^d\d/;
+    $ContentsBox->tag('configure', $tag, 
+		      -foreground => 'black',
+		      -background => 'white',
+		     );
+  }
+
+    $ContentsBox->tag('configure', $tag, 
+		      -foreground => 'white',
+		      -background => 'black',
+		     );
 
 }
 
