@@ -85,7 +85,7 @@ eval "use DRAMA::Tk; use DRAMA";
 if ($@) {
   die "Error loading DRAMA:\n$@";
 }
-$DRAMA::MAXREPLIES = 20;
+$DRAMA::MAXREPLIES = 40;
 
 update_status 'Loading Qcontrol class',50;
 eval "use Queue::Control::DRAMA";
@@ -246,12 +246,12 @@ my $NBS_CANCELLED = 0; # for nbs monitor
 
 my $CANCELLED = 0;  # True if monitor is ended
 monitor($QNAME, "START", 
-	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","QCOMPLETED",
+	"STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
 	{ -monitorvar => \%MONITOR,
 	  -sendcur    => 1,
 	  -repmonloss => 1,
 	  -complete   => sub { $CANCELLED=1 },
-	  -info       => sub { print "INFO callback\n"},
+	  -info       => sub { print "INFO callback: $_[0]\n"},
 	  -cvtsub     => \&cvtsub,
 	  -error      => \&monerror,
 	});
@@ -329,7 +329,6 @@ sub cvtsub {
     # Set the highlight position
     update_index( $value );
   }
-
   return $value if not ref($value);
 
   # Assume we have a Sds
@@ -383,7 +382,7 @@ sub cvtsub {
 
     }
 
-  } elsif ($param eq 'QCOMPLETED') {
+  } elsif ($param eq 'MSBCOMPLETED') {
 
     use Data::Dumper;
     print Dumper(\%tie);
@@ -405,7 +404,7 @@ sub cvtsub {
       }
     }
   }
-
+  return $value;
 }
 
 
@@ -780,7 +779,7 @@ sub respond_to_qcomplete {
     my $status = new DRAMA::Status;
     $arg->PutString("Argument1",$val, $status);
 
-    obey($QNAME,"QCOMPLETE",$arg,{-deletearg=>0});
+    obey($QNAME,"MSBCOMPLETE",$arg,{-deletearg=>0});
   }
 
   # need to undefine the gui variable
@@ -952,7 +951,7 @@ sub start_nbs_monitors {
 	  -sendcur    => 1,
 	  -repmonloss => 1,
 	  -complete   => sub { $NBS_CANCELLED=1 },
-	  -info       => sub { print "INFO callback\n"},
+	  -info       => sub { print "INFO callback: $_[0]\n"},
 	  -cvtsub     => \&nbs_cvtsub,
 	  -error      => \&nbs_monerror,
 	});

@@ -69,6 +69,7 @@ sub new {
   $be->{LastSent} = undef;
   $be->{FailReason} = undef;
   $be->{QComplete} = undef;
+  $be->{MSBComplete} = undef;
 
   bless($be, $class);
 
@@ -205,7 +206,9 @@ when the last entry is completed).
   $handler = $be->qcomplete;
   $be->qcomplete(sub {print "Done"});
 
-Some queue backends do not support this.
+Some queue backends do not support this. This is distinct from
+and MSB completion (see msbcomplete()) which can be triggered even
+when more observations are on the queue.
 
 =cut
 
@@ -213,6 +216,25 @@ sub qcomplete {
   my $self = shift;
   $self->{QComplete} = shift if @_;
   return $self->{QComplete};
+}
+
+=item msbcomplete
+
+This is a callback invoked when the backend realises that the
+the current MSB has been fully observed (usually triggered
+when the last MSB entry is completed).
+
+  $handler = $be->msbcomplete;
+  $be->msbcomplete(sub {print "Done"});
+
+Some queue backends do not support this.
+
+=cut
+
+sub msbcomplete {
+  my $self = shift;
+  $self->{MSBComplete} = shift if @_;
+  return $self->{MSBComplete};
 }
 
 

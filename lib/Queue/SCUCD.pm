@@ -2,7 +2,7 @@ package Queue::SCUCD;
 
 =head1 NAME
 
-Queue::Todd - SCUBA/SCUCD version of the basic Queue
+Queue::SCUCD - SCUBA/SCUCD version of the basic Queue
 
 =head1 SYNOPSIS
 

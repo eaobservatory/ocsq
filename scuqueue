@@ -9,7 +9,7 @@ and Queue::Backend). It is designed for use with the TODD.
 The SCUBA system (SCUCD) itself must be running before the queue can
 be started.  To start the queue simply run this program in the
 background.  The Queue registers itself as B<SCUQUEUE> in the DRAMA
-message system.  
+message system.
 
 Queue clients (e.g. C<qmonitor> and C<qctrl>) can be started as required.
 
@@ -171,10 +171,10 @@ Dits::DperlPutActions("REPLACEQ", \&REPLACEQ,undef,$flag,undef,$STATUS);
 Dits::DperlPutActions("EXIT",    \&EXIT,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("GETODF",    \&GETODF,    undef,0,undef,$STATUS);
 Dits::DperlPutActions("CLEARTARG",    \&CLEARTARG,    undef,0,undef,$STATUS);
-Dits::DperlPutActions("QCOMPLETE",    \&QCOMPLETE,    undef,0,undef,$STATUS);
+Dits::DperlPutActions("MSBCOMPLETE",  \&MSBCOMPLETE,    undef,0,undef,$STATUS);
 
 # Set up a delay structure for rescheduling the POLL
-my $RESCHED = Dits::DeltaTime(0,250);
+my $RESCHED = Dits::DeltaTime(1,0);
 
 # Create parameters
 my $sdp = new Sdp;
@@ -190,7 +190,7 @@ $queue_sds->Create("Contents",undef,Sds::CHAR,[SZSTRING,NENTRIES],$STATUS);
 my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$STATUS);
 
 # This contains queue completion triggers
-my $qcomplete_sds = Sds->Create("QCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
+my $msbcomplete_sds = Sds->Create("MSBCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
 
 
 # Initialise the arrays
@@ -203,7 +203,7 @@ my $qcomplete_sds = Sds->Create("QCOMPLETED",undef, Sds::STRUCT,0,$STATUS);
 # Store them in the parameter system
 $sdp->Create('','SDS',$queue_sds);
 $sdp->Create('','SDS',$failure_sds);
-$sdp->Create('','SDS',$qcomplete_sds);
+$sdp->Create('','SDS',$msbcomplete_sds);
 
 
 # Create a Queue
@@ -224,9 +224,9 @@ if ($TRANS_DIR) {
   $Queue::Entry::SCUBAODF::TRANS_DIR = $TRANS_DIR;
 }
 
-# This is the callback when the queue finishes
+# This is the callback when the MSB queue finishes
 # all it needs to do is extract the MSBID and set the completion parameter
-sub qtidy {
+sub msbtidy {
   # KLUGE - assumes  SCUBAODF
   # would normally use a scuba sub class
   my $entry = shift;
@@ -249,6 +249,7 @@ sub qtidy {
 
     if ($projectid eq 'SCUBA' || $projectid =~ /CAL/ ) {
       DRAMA::MsgOut($status, "Completed JCMT 'calibration' observations. No doneMSB");
+      DRAMA::MsgOut($status, "Project ID was $projectid");
 
     } elsif ($projectid eq 'UNKNOWN') {
       DRAMA::MsgOut($status, "Unable to determine project ID. No doneMSB");
@@ -262,7 +263,7 @@ sub qtidy {
       $data{PROJECTID} = $projectid;
 
       %COMPLETE_DETAILS = %data;
-      set_qcomplete_parameter($status, %data);
+      set_msbcomplete_parameter($status, %data);
 
     }
 
@@ -271,7 +272,7 @@ sub qtidy {
   }
 }
 
-$QUEUE->backend->qcomplete( \&qtidy );
+$QUEUE->backend->msbcomplete( \&msbtidy );
 
 
 # Start the polling
@@ -316,7 +317,7 @@ sub ADDBACK {
 
     # Update the DRAMA parameters
     update_contents_param($status);
-    set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+    set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
   }
   return $status;
 }
@@ -337,11 +338,19 @@ sub LOADQ {
 
   my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
   my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
+
+  # configure the entries
+  $entries[0]->firstObs(1);
+  $entries[-1]->lastObs(1);
+  for (@entries) {
+    $_->isMSB(1);
+  }
+
   $QUEUE->contents->loadq( @entries );
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
-  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -374,6 +383,8 @@ sub INSERTQ {
   my $grp = new SCUBA::ODFGroup( File => $sds{Argument1});
   my @entries = map { new Queue::Entry::SCUBAODF("X", $_) } $grp->odfs;
 
+  # these entries are assumed to be calibrations
+
   # Get the index. Can come from the SDS
   my $newindex;
   if (exists $sds{Argument2}) {
@@ -392,7 +403,7 @@ sub INSERTQ {
 
   # Always clear if we have tweaked something
   clear_failure_parameter($status);
-  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 
 #  print Dumper($grp);
 #  print Dumper(\@entries);
@@ -410,6 +421,9 @@ sub INSERTQ {
 # ODF are propogated to later ODFs that are missing targets.
 # default is false. Parameter name is either Argument3 or 
 # PROPSRC in the ODF SDS structure
+
+# The status of the entry matches that of the one it replaces
+# ie whether it is the first or last obs in an MSB
 
 sub REPLACEQ {
   my $status = shift;
@@ -445,9 +459,17 @@ sub REPLACEQ {
     $propsrc = $sds{Argument3};
   }
 
+  # Get the old entry
+  my $old = $QUEUE->contents->getentry($index);
+
   # should set bad status on error
   my $entry = new Queue::Entry::SCUBAODF("X", $odf);
   $QUEUE->contents->replaceq( $index, $entry );
+
+  # configure it
+  $entry->isMSB( $old->isMSB );
+  $entry->lastObs( $old->lastObs );
+  $entry->firstObs( $old->firstObs );
 
   # if we are propogating source information we need to do it now
   $QUEUE->contents->propsrc($index, $odf->getTarget)
@@ -508,7 +530,7 @@ sub ADDFRONT {
 
     # Update the DRAMA parameters
     update_contents_param($status);
-    set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+    set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
   }
   return $status;
 }
@@ -537,7 +559,7 @@ sub CLEARQ {
   DRAMA::MsgOut($_[0], "Queue cleared");
   update_contents_param($_[0]);
   update_index_param($_[0]);
-  set_qcomplete_parameter( $_[0], REQUEST => 0, MSBID => '',PROJECTID=>'' );
+  set_msbcomplete_parameter( $_[0], REQUEST => 0, MSBID => '',PROJECTID=>'' );
 }
 
 sub CUTQ {
@@ -594,7 +616,6 @@ sub POLL {
     $lstat->SetStatus(Dits::APP_ERROR);
     $lstat->ErsRep(0,"Error polling the backend [$pstat] - Queue stopped");
     $lstat->Flush;
-    &STOPQ($lstat);
 
     # Did we get a reason
     my $r = $QUEUE->backend->failure_reason;
@@ -605,11 +626,17 @@ sub POLL {
       $details{INDEX} = $r->index;
       $details{REASON} = $r->type;
 
+      use Data::Dumper;
+      print "detected a failure: " . Dumper(\%details) ."\n";
+
       set_failure_parameter( $lstat, %details );
 
       # dealt with it so clear the reason
       $QUEUE->backend->failure_reason(undef);
     }
+
+    # error so we must stop the queue
+    &STOPQ($lstat);
 
   } elsif (defined $scuba_status && $scuba_status != 0) {
     my $lstat = new DRAMA::Status;
@@ -674,7 +701,7 @@ sub GETODF {
 }
 
 # This action triggers MSBDONE
-sub QCOMPLETE {
+sub MSBCOMPLETE {
   my $status = shift;
 
   # argument is a boolean governing whether or not we should
@@ -698,7 +725,7 @@ sub QCOMPLETE {
   }
 
   # reset the parameters regardless
-  set_qcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
+  set_msbcomplete_parameter( $status, REQUEST => 0, MSBID => '',PROJECTID=>'' );
 
 }
 
@@ -970,14 +997,14 @@ sub set_failure_parameter {
   return;
 }
 
-# Set the contents of the qcomplete parameter
+# Set the contents of the msb complete parameter
 # Arguments: Inherited status, information hash
-sub set_qcomplete_parameter {
+sub set_msbcomplete_parameter {
   my $status = shift;
   return unless $status->Ok;
 
   # Read the FAILURE parameter
-  my $sds = $sdp->GetSds('QCOMPLETED',$status);
+  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
 
   # Now need to look for the DETAILS object

@@ -131,6 +131,64 @@ sub status {
   return $self->{Status};
 }
 
+=item B<lastObs>
+
+This entry is associated with the last observation in an MSB.
+The state is set by the queue on upload. If an observation
+is the last observation in an MSB then special triggers may be
+invoked.
+
+  $e->lastObs(1);
+  $islast = $e->lastObs;
+
+=cut
+
+sub lastObs {
+  my $self = shift;
+  if (@_) {
+    $self->{lastObs} = shift;
+  }
+  return $self->{lastObs};
+}
+
+=item B<firstObs>
+
+This entry is associated with the first observation in an MSB.
+The state is set by the queue on upload.
+
+  $e->firstObs(1);
+  $isfirst = $e->firstObs;
+
+=cut
+
+sub firstObs {
+  my $self = shift;
+  if (@_) {
+    $self->{firstObs} = shift;
+  }
+  return $self->{firstObs};
+}
+
+=item B<isMSB>
+
+This entry is associated with an MSB rather than with an inserted
+calibration.
+
+  $e->isMSB(1);
+  $ismsb = $e->isMSB;
+
+=cut
+
+sub isMSB {
+  my $self = shift;
+  if (@_) {
+    $self->{isMSB} = shift;
+  }
+  return $self->{isMSB};
+}
+
+
+
 =item be_object
 
 This contains the information that is to be sent to the Queue
@@ -275,9 +333,36 @@ There are no arguments. Includes the status.
 
 sub string {
   my $self = shift;
-  return sprintf("%-10s%s",$self->status,$self->label);
+  my $posn = $self->msb_status;
+  return sprintf("%-10s%-14s%s",$self->status,$self->posn,$self->label);
 }
 
+=item B<msb_status>
+
+Return a string summary of the lastObs, firstObs and isMSB flags.
+
+  $stat = $e->msb_status;
+
+=cut
+
+sub msb_status {
+  my $self = shift;
+  my $string;
+  if ($self->isMSB) {
+    $string = "MSB";
+    if ($self->firstObs && $self->lastObs) {
+      $string = "MSB Start&End";
+    } elsif ($self->firstObs) {
+      $string = "MSB Start";
+    } elsif ($self->lastObs) {
+      $string = "MSB End";
+    }
+  } else {
+    $string = "CAL";
+  }
+  return $string;
+
+}
 
 =back
 
