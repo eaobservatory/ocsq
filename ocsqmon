@@ -95,7 +95,7 @@ $MW->Button( -text => 'EXIT', -command => sub { $MW->destroy;
            )->pack(-side => 'top');
 
 my $QM = $MW->OCSQMonitor(
-                          -qtask => 'OCSQUEUE',
+                          -qtask => 'OCSQUEUE@ohi',
 			  -user => \$OMP_User,
                          )->pack;
 
