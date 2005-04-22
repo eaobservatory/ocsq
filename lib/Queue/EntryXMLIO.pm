@@ -185,11 +185,16 @@ Write the supplied entries to disk, using the supplied options.
 The following keys are supported in the options hash:
 
   outputdir => Output directory for all entries and [if written]
-               the XML. Default is current directory.
+               the XML. Default is to use the output directory
+               as specified internally by each object, else
+               the current directory.
+  xmldir    => Directory to which the Queue XML file is written.
+               Defaults to "outputdir" if specified, else current
+               directory.
   noxmlfile => If true the entries will be written to disk but
                the XML will be returned as a string rather than
                writing to disk. Default is false.
-  fprefix   => Prefix string to use for the outpyt Queue entry
+  fprefix   => Prefix string to use for the output Queue entry
                XML file. Defautls to "qentries".
   chmod     => Permissions mode to write the output files
 
@@ -217,7 +222,6 @@ using only a lightweight wrapper.
 
 sub writeXML {
   my %options = (
-		 outputdir => File::Spec->curdir,
 		 noxmlfile => 0,
 		 fprefix => "qentries",
 		);
@@ -227,6 +231,20 @@ sub writeXML {
     my $href = shift;
     # merge options with defaults
     %options = (%options, %$href);
+  }
+
+  # override output directory
+  my $outputdir;
+  $outputdir = $options{outputdir} if exists $options{outputdir};
+
+  # XML output directory
+  my $xmldir;
+  if (exists $options{xmldir}) {
+    $xmldir = $options{xmldir};
+  } elsif (exists $options{outputdir}) {
+    $xmldir = $options{outputdir};
+  } else {
+    $xmldir = File::Spec->curdir;
   }
 
   # Read all the entries
@@ -264,19 +282,42 @@ sub writeXML {
   # Ask each entry to write itself to the output directory
   # returning the relevant file name.
   for my $e (@entries) {
+    # Directory to use for this particular entry. Depends on whether
+    # we had an override defined
+    my $thisdir;
+
+    # see if we have an output directory for this entry
+    if (defined $outputdir) {
+      # we must override
+      $thisdir = $outputdir;
+    } elsif ($e->can('outputdir')) {
+      # we have an output dir method and no specified override
+      if (defined $e->outputdir) {
+	$thisdir = $e->outputdir;
+      } else {
+	$thisdir = File::Spec->curdir;
+      }
+    } else {
+      # current direcotry
+      $thisdir = File::Spec->curdir;
+    }
+
     # Write
     my @files;
     if ($e->can("write_entry")) {
-      @files = $e->write_entry( $options{outputdir}, \%fileopt );
+      @files = $e->write_entry( $thisdir, \%fileopt );
     } elsif ($e->can("write_file")) {
-      @files = $e->write_file( $options{outputdir}, \%fileopt );
+      @files = $e->write_file( $thisdir, \%fileopt );
     } else {
       croak "Do not know how to write entry of class '".ref($e)."' to disk";
     }
     my $duration = $e->duration->seconds;
     my $inst = $e->instrument;
 
-    $xml .= "  <$EE $DA=\"$duration\" instrument=\"$inst\">$files[0]</$EE>\n";
+    # specify a full path to the file
+    my $abs = File::Spec->rel2abs( $files[0] );
+
+    $xml .= "  <$EE $DA=\"$duration\" instrument=\"$inst\">$abs</$EE>\n";
   }
 
   # Close the XML
@@ -298,7 +339,7 @@ sub writeXML {
     # so only need the first 3 digits
     my ($sec, $mic_sec) = gettimeofday();
     my $ms = substr($mic_sec,0,3);
-    my $filename = File::Spec->catfile($options{outputdir},
+    my $filename = File::Spec->catfile($xmldir,
 				       $options{fprefix}."_$sec"."_$ms.xml");
     print "Writing XML File: $filename\n" if $DEBUG;
 
