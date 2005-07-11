@@ -19,6 +19,12 @@ The following command-line options are supported:
 
 =over 4
 
+=item B<-tel>
+
+Telescope name. JCMT or UKIRT. Controls where the monitor believes
+the queue to be located. If no telescope is provided, the current
+host will be assumed.
+
 =item B<-help>
 
 Print a small help message.
@@ -49,9 +55,10 @@ use Tk;
 use Tk::OCSQMonitor;
 
 # Need an OMP class for user handling
-use lib qw| /jac_sw/omp/msbserver |;
+use constant OMPLIB => '/jac_sw/omp/msbserver';
+use lib OMPLIB;
 BEGIN {
-  $ENV{OMP_CFG_DIR} = "/jac_sw/omp/msbserver/cfg"
+  $ENV{OMP_CFG_DIR} = File::Spec->catdir(OMPLIB, "cfg")
     unless exists $ENV{OMP_CFG_DIR};
 }
 use OMP::General;
@@ -75,10 +82,11 @@ $MW->iconname($TASK_ROOT);
 # Get the options
 use Getopt::Long;
 use Pod::Usage;
-my ($man,$help);
+my ($man,$help,$tel);
 my $status = GetOptions(
 			"help"    => \$help,
 			"man"     => \$man,
+			"tel=s"   => \$tel,
 		       );
 
 if ($help || $man) {
@@ -87,7 +95,18 @@ if ($help || $man) {
   pod2usage(-verbose => 2)  if ($man);
 }
 
+# Queue host (could be config file driven)
+my $host = '';
+if (defined $tel) {
+  if ($tel =~ /jcmt/i) {
+    $host = '@palila';
+  } elsif ($tel =~ /ukirt/i) {
+    $host = '@ohi';
+  }
+}
+
 # Ask for the OMP user ID [but do not put up a popup]
+# The widget will ask for a user id when needed.
 my $OMP_User_Obj = OMP::General->determine_user();
 my $OMP_User;
 $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
@@ -99,7 +118,7 @@ $MW->Button( -text => 'EXIT', -command => sub { $MW->destroy;
            )->pack(-side => 'top');
 
 my $QM = $MW->OCSQMonitor(
-                          -qtask => 'OCSQUEUE@ohi',
+                          -qtask => 'OCSQUEUE'.$host,
 			  -user => \$OMP_User,
                          )->pack;
 
@@ -117,14 +136,14 @@ supplied then no reason will be accepted.
 
 =head1 SEE ALSO
 
-L<Queue::Contents>, L<scuqueue>
+L<Queue::Contents>, L<ocsqueue>
 
 =head1 AUTHOR
 
 Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
 
 Copyright (C) Particle Physics and Astronomy Research Council
-1999-2004. All Rights Reserved.
+1999-2005. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
