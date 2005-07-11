@@ -77,10 +77,21 @@ use Carp;
 use Tk;
 use File::Spec;
 
+use Astro::Catalog;
+use Astro::Coords;
+use Astro::Telescope;
+use Tk::AstroCatalog;
+use Astro::SourcePlot qw/ sourceplot /;
+use JAC::OCS::Config::TCS::BASE;
+
+
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use DRAMA;
 use Queue::Control::DRAMA;
 use FindBin;
+
+use Time::Piece qw/ gmtime /;
+use Time::Seconds qw/ ONE_HOUR /;
 
 $DRAMA::MAXREPLIES = 40;
 
@@ -587,7 +598,7 @@ sub cvtsub {
       # (unlike a DialogBox). You can not call a DRAMA obey
       # from a monitor trigger.
       # print "Creating a new FAIL_GUI\n";
-      respond_to_failure($tie{DETAILS});
+      $w->respond_to_failure($tie{DETAILS});
 
     }
 
@@ -848,14 +859,11 @@ sub ContentsMenu {
                                        -state => 'disabled',
                                       ],
                                       "separator",
-#                                      ["command" => "Clear target index $index",
-#                                       -command => sub {
-#                                         my $arg = Arg->Create;
-#                                         my $status = new DRAMA::Status;
-#                                         $arg->Puti("Argument1",$index,$status);
-#                                         DRAMA::obey($QNAME,"CLEARTARG",
-#                                                     $arg,{-deletearg=>0});}
-#                                      ],
+                                      ["command" => "Clear target index $index",
+                                       -command => sub {
+					 $Q->cleartarg( $index );
+				       }
+                                      ],
                                       ["command" => "Cut observation at index $index",
                                        -command => sub {
 					 $Q->cutq( $index, 1 );
@@ -880,11 +888,202 @@ sub respond_to_failure {
   my $w = shift;
   my $details = shift;
 
-  print Dumper($details);
-  print "Unable to deal with reason: " . $details->{REASON}. "\n";
-  use Devel::Peek;
-  my $var = $details->{REASON};
-  Dump($var);
+  # Get queue control object
+  my $priv = $w->privateData();
+  my $Q = $priv->{QCONTROL};
+
+  #print Dumper($details);
+
+  if ($details->{REASON} eq 'MissingTarget') {
+
+    # Create telescope object
+    my $tel = new Astro::Telescope( $details->{TELESCOPE} );
+
+
+    # First need to inform user of the request
+    # (hopefully part of a single window)
+
+    # Now create a catalog object
+
+    # The choice of catalogue depends on the telescope, instrument and whether
+    # we are a calibration observation or not.
+    my $cat;
+
+    if ($details->{TELESCOPE} eq 'JCMT') {
+
+      # if we are a POINTING or FOCUS then we need the pointing catalog
+      if ($details->{CAL}) {
+	# We want calibrators only
+	$cat = new Astro::Catalog;
+
+	# need to add the planets to this list
+	
+	my @planets = map { new Astro::Coords(planet => $_) }
+        qw/ mars uranus saturn jupiter venus neptune /;
+	for (@planets) {
+	  $_->telescope($tel);
+	}
+
+	# Now need to add either the SCUBA secondary calibrators or the
+	# heterodyne standards
+	$cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
+	
+      } else {
+	# continuum pointing catalog if not a Calibrator
+	my $pcat = "/local/progs/etc/poi.dat";
+
+	# If that catalogue does not exist fall back to the
+	# full catalogue
+	$pcat = 'default' unless -e $pcat;
+
+	# This will add the planets automatically
+	$cat = new Astro::Catalog( Format => 'JCMT',
+				   File => $pcat );
+
+      }
+
+    } elsif ($details->{TELESCOPE} eq 'UKIRT') {
+      die "UKIRT not yet supported\n";
+
+    } else {
+      die "Should not happen. Telescope was ". $details->{TELESCOPE} ."\n";
+    }
+
+    # Make sure we only generate observable sources
+    $cat->filter_by_observability;
+
+    # Create object based on AZEL
+    # can only do distance if we know where we are now. May require
+    # access to the TCS. If we do not have AZ just give everything
+    if (exists $details->{AZ}) {
+      # The name of the position is either "Ref" or the name supplied
+      # in the REFNAME field
+      my $refname = ( exists $details->{REFNAME} && defined $details->{REFNAME} ?
+                      $details->{REFNAME} ."[Ref]" : "Ref" );
+
+      # Add a reference position if we have one
+      my $refcoord = new Astro::Coords(az=> $details->{AZ},
+                                       el=> $details->{EL},
+                                       units=>'rad',
+                                       name => $refname,
+                                      );
+
+      $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
+
+      # convert ISO date to Time::Piece object
+      $refcoord->datetime( OMP::General->parse_date( $details->{TIME} ));
+
+      # register the reference position
+      $cat->reference( $refcoord );
+
+      # sort by distance
+      $cat->sort_catalog('distance');
+
+    } else {
+      # simply sort by azimuth
+      $cat->sort_catalog('az');
+    }
+
+    # play sound
+    _play_sound('chime.wav');
+    # and put up the GUI
+    $priv->{FAIL_GUI} = new Tk::AstroCatalog( $w,
+				      -onDestroy => sub { $priv->{FAIL_GUI} = undef;},
+				      -addCmd => sub {
+					# The actual coordinate (come in as an array)
+					my $arr = shift;
+					# Get the most recently selected item
+					my $c = $arr->[-1];
+
+					# if nothing has been selected
+					# must simply do nothing
+					return unless $c;
+
+					# now reset the gui object
+					undef $priv->{FAIL_GUI};
+
+					print "C is ". $c->status;
+
+					my %mods;
+
+					# Convert the target to XML using the OCS configure
+					# We may need to use a TCS rather than BASE if we
+					# also want to specify reference positions
+					my $base = new JAC::OCS::Config::TCS::BASE;
+					$base->coords( $c );
+					$base->tag( "SCIENCE" );
+					$mods{TARGET} = "$base";
+
+					# Add INDEX field
+					my $index = $details->{INDEX};
+
+					# add PROPSRC flag
+					my $propsrc = 1;
+
+					# Create the Arg structure
+#					my $status = new DRAMA::Status;
+#					my $arg = Arg->Create;
+#					for my $key (keys %hash) {
+#					  $arg->PutString($key, $hash{$key}, $status);
+#					}
+
+					# update the entry parameters
+					$Q->update_entry( $index, $propsrc, %mods );
+
+#					&DRAMA::obey($QNAME, "UPDATE", $arg,
+#						     { -deletearg => 0,
+#						       -success => sub {
+#							 $Q->starq;
+#						       },
+#						       -error => \&drama_error,
+#						     } );
+
+				      },
+				      # On update we trigger a source plot
+				      -upDate => sub {
+					my $w = shift;
+					my $cat = $w->Catalog;
+					return if not defined $cat;
+					my $curr = $cat->stars;
+					return if !defined $curr;
+					my @current = @$curr;
+
+					# plot no more than 10 tracks including ref posn
+					my $max = 9; # this is an index
+					my $n = ($#current <= $max ? $#current : $max);
+					return if $n == 0;
+
+					# convert "stars" to "coords" (and compensate for ref pos)
+					@current = map { $_->coords } @current[0..$n-1];
+
+					# Must include the reference coordinate if one exists
+					my $refc = $cat->reference;
+					unshift(@current, $refc) if defined $refc;
+
+					# Want to plot the current time and 1 hour in the future
+					my $start = gmtime;
+					my $end = $start + ONE_HOUR;
+
+					# plot on xwindow
+					sourceplot( coords => \@current,
+						    hdevice => '/xserve', output => '',
+						    format => 'AZEL',
+						    start => $start, end => $end,
+						    objlabel => 'list',
+						    annotrack => 0,
+						  );
+
+				      },
+				      -catalog => $cat,
+				      -transient => 1,
+				    );
+
+  } else {
+    print "Unable to deal with reason: " . $details->{REASON}. "\n";
+    use Devel::Peek;
+    my $var = $details->{REASON};
+    Dump($var);
+  }
 }
 
 # Respond to a qompletion request
@@ -910,7 +1109,7 @@ sub respond_to_qcomplete {
   # We will need the q control object
   # Get the internal hash data
   my $priv = $w->privateData();
-  my $qc = $priv->{QCONTROL};
+  my $Q = $priv->{QCONTROL};
 
   # Since we can have multiple MSB triggers at once we need
   # to create our onw top level rather than a dialog box
@@ -933,7 +1132,7 @@ sub respond_to_qcomplete {
                         -label => "MSB".$details->{$tstamp}->{QUEUEID});
 
     # create the tab contents
-    &create_msbcomplete_tab( $tab, $qc, $userid, $tstamp, 
+    &create_msbcomplete_tab( $tab, $Q, $userid, $tstamp, 
 			     %{$details->{$tstamp}});
   }
 
@@ -948,7 +1147,7 @@ sub respond_to_qcomplete {
 # Create the tab for each MSB in turn
 sub create_msbcomplete_tab {
   my $w = shift;
-  my $qc = shift;
+  my $Q = shift;
   my $userid = shift;
   my $tstamp = shift;
   my %details = @_;
@@ -965,15 +1164,15 @@ sub create_msbcomplete_tab {
   # Now add on the buttons on the bottom
   my $butframe = $w->Frame->pack;
   $butframe->Button(-text => "Accept",
-		    -command => [ \&msbcompletion, $w, $qc,
+		    -command => [ \&msbcompletion, $w, $Q,
 				  $userid, $tstamp, 1, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Reject",
-		    -command => [ \&msbcompletion, $w, $qc,
+		    -command => [ \&msbcompletion, $w, $Q,
 				  $userid, $tstamp, 0, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Took no Data",
-		    -command => [ \&msbcompletion, $w, $qc,
+		    -command => [ \&msbcompletion, $w, $Q,
 				  $userid, $tstamp, -1, $Reason]
                    )->pack(-side =>'left');
 }
@@ -985,7 +1184,7 @@ sub create_msbcomplete_tab {
 # obey will trigger an update of the parameter...
 sub msbcompletion {
   my $w = shift;
-  my $qc = shift;
+  my $Q = shift;
   my $userid = shift;
   my $tstamp = shift;
   my $accept = shift;
@@ -1009,7 +1208,7 @@ sub msbcompletion {
   print "*****************************\n";
 
   # Send completion message
-  $qc->msbcomplete( $$userid, $tstamp, $accept, $reason);
+  $Q->msbcomplete( $$userid, $tstamp, $accept, $reason);
 
   # need to undefine the gui variable
   # Note that this is strange when we have multiple MSBs
@@ -1017,6 +1216,62 @@ sub msbcompletion {
   undef $QCOMP_GUI;
 
 }
+
+# hack
+# Return all the SCUBA secondary calibrators
+# This really needs to be obtained from a separate class that knows
+# about scuba calibration since many systems would like to know
+# this information
+# Returns Astro::Coords objects as a list:
+# Should probably include the planets here!
+#    @calcoords = scuba_cals();
+sub scuba_2cals {
+  my @coords = (
+                {
+                 name => 'OH231.8',
+                 ra => '07 42 16.939',
+                 dec => '-14 42 49.05',
+                 type => 'J2000',
+                },
+                {
+                 name => 'IRC+10216',
+                 ra => '09 47 57.382',
+                 dec => '13 16 43.66',
+                 type => 'J2000',
+                },
+                {
+                 name => '16293-2422',
+                 type => 'J2000',
+                 ra => '16 32 22.909',
+                 dec => '-24 28 35.60',
+                },
+                {
+                 name => 'HLTau',
+                 ra => '04 31 38.4',
+                 dec => '18 13 59.0',
+                 type => 'J2000',
+                },
+                {
+                 name => 'CRL618',
+                 ra => '04 42 53.597',
+                 dec => '36 06 53.65',
+                 type => 'J2000',
+                },
+                {
+                 name => 'CRL2688',
+                 ra => '21 02 18.805',
+                 dec => '36 41 37.70',
+                 type => 'J2000',
+                },
+
+               );
+
+  my $tel = new Astro::Telescope( 'JCMT' );
+  my @c = map { new Astro::Coords( %$_ ) } @coords;
+  foreach (@c) { $_->telescope($tel); }
+  return @c;
+}
+
 
 =head1 ADVERTISED WIDGETS
 
