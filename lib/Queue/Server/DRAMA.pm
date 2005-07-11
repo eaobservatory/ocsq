@@ -49,6 +49,8 @@ use DRAMA;
 use Queue::MSB;
 use Queue::EntryXMLIO qw/ readXML /;
 
+use JAC::OCS::Config::TCS;
+
 use OMP::MSBServer;
 use OMP::Info::Comment;
 use OMP::Error qw/ :try /;
@@ -211,6 +213,7 @@ sub init_msgsys {
   Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$status);
   Dits::DperlPutActions("STARTQ",     \&STARTQ,  undef,$flag,undef,$status);
   Dits::DperlPutActions("STOPQ",      \&STOPQ,   undef,$flag,undef,$status);
+  Dits::DperlPutActions("SOAPTEST",   \&SOAPTEST,   undef,$flag,undef,$status);
 
   # Put stuff in the queue
   Dits::DperlPutActions("LOADQ",      \&LOADQ,  undef,$flag,undef,$status);
@@ -226,7 +229,8 @@ sub init_msgsys {
   Dits::DperlPutActions("SUSPENDMSB", \&SUSPENDMSB, undef,0,undef,$status);
 
   # Manipulation of individual entries
-  Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$status);
+  #Dits::DperlPutActions("REPLACEQ",   \&REPLACEQ,undef,$flag,undef,$status);
+  Dits::DperlPutActions("MODENTRY",\&MODENTRY,undef,$flag,undef,$status);
   Dits::DperlPutActions("GETENTRY",   \&GETENTRY,    undef,0,undef,$status);
   Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$status);
 
@@ -1220,17 +1224,29 @@ sub INSERTQ {
   return $status;
 }
 
-=item B<REPLACEQ>
+=item B<MODENTRY>
 
-Replace an entry on the queue with another. This action takes three
-arguments. An index specifying the location in the queue to place the
-new entry, the ODF specification itself (as a filename), and a logical
-indicating whether source information from this ODF should be
-propagated to following entries. The arguments can either be specified
-by number ("Argument1" for the index and "Argument2" for the file name
-and "Argument3" for the source propagation flag) or by name (INDEX and
-PROPSRC, all remaining SDS entries used to construct a single ODF
-directly).
+Modify the state of the specified entry. The arguments
+are:
+
+=over 8
+
+=item INDEX
+
+The index of the entry that is being modified. This argument is mandatory.
+
+=item PROPAGATE
+
+Propagate the modification specified in this action to subsequent
+entries in the queue. If not specified, assumes no propagation.
+
+=item TARGET
+
+The entry target information should be modified. This argument is
+a string consisting of TCS XML. All TAGS will be read and stored in the
+entry.
+
+=back
 
 The status of the entry matches that of the one it replaces
 ie whether it is the first or last obs in an MSB. It is automatically
@@ -1238,14 +1254,12 @@ associated with the MSB of the entry it is replacing.
 
 =cut
 
-sub REPLACEQ {
+sub MODENTRY {
   my $status = shift;
   Jit::ActionEntry( $status );
   return $status unless $status->Ok;
 
-  croak "Not implemented in generic manner\n";
-
-  $Q->addmessage( $status, "Running REPLACEQ") if $Q->verbose;
+  $Q->addmessage( $status, "Running MODENTRY") if $Q->verbose;
 
   my $argId = Dits::GetArgument;
 
@@ -1259,36 +1273,30 @@ sub REPLACEQ {
 
   print Dumper(\%sds);
 
-  my ($index, $odf, $propsrc);
-  if (exists $sds{INDEX}) {
-    $index = $sds{INDEX};
-    $propsrc = $sds{PROPSRC};
-    my %copy = %sds;
-    delete $copy{INDEX};
-    delete $copy{PROPSRC};
-    $odf = new SCUBA::ODF(Hash => \%copy );
-    print "Reading via ODF hash\n";
+  my $index = $sds{INDEX};
+  my $prop = $sds{PROPAGATE};
 
-  } elsif (exists $sds{Argument1}) {
-    $index = $sds{Argument1};
-    my $odffile = $sds{Argument2};
-    $odf = new SCUBA::ODF( File => $odffile );
-    $propsrc = $sds{Argument3};
+  my $tcs;
+  if ( exists $sds{TARGET} ) {
+    my $xml = $sds{TARGET};
+
+    # Create TCS object
+    $tcs = new JAC::OCS::Config::TCS( XML => $xml );
+
+  } else {
+    $Q->addmessage( $status, "Nothing to modify");
+    return $status;
   }
 
-  # Get the old entry
-  my $old = $Q->queue->contents->getentry($index);
+  # Get the current entry
+  my $curr = $Q->queue->contents->getentry($index);
 
-  # should set bad status on error
-  # Create a new entry
-  #my $entry = new Queue::Entry::SCUBAODF("X", $odf);
-  my $entry;
-  # Replace the old entry
-  $Q->queue->contents->replaceq( $index, $entry );
+  # Set the target
+  $old->setTarget( $tcs->getTarget->coords );
 
   # if we are propogating source information we need to do it now
-  $Q->queue->contents->propsrc($index, $odf->getTarget)
-    if $propsrc;
+  $Q->queue->contents->propsrc($index, $tcs->getTarget->coords);
+    if $prop;
 
   # Always clear if we have tweaked something
   update_contents_param($status);
@@ -1924,6 +1932,56 @@ sub MSBCOMPLETE {
 
   }
   Jit::ActionExit( $status );
+  return $status;
+}
+
+sub SOAPTEST {
+  my $status = shift;
+
+  my $projectid = "TEST";
+  my $msbid = "XXX";
+  my $userid = '';
+  my $reason = '';
+
+#  try {
+    my $msg;
+    # Need to mark it as done [unless we are in simulate mode]
+    if ($Q->simdb) {
+      # Simulation so do nothing
+      $msg = "[in simulation without modifying the DB]";
+    } else {
+      # Reality - blank message and update DB
+      # SOAP message
+      use SOAP::Lite;
+      my $msbserv =  new SOAP::Lite();
+
+      $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
+
+      $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
+
+      $msg = '';
+
+      local $SIG{ALRM} = 'IGNORE';
+      local $SIG{PIPE} = 'IGNORE';
+
+      my $reply = $msbserv->rejectMSB($projectid, $msbid, $userid,
+				      $reason);
+
+      if ($reply->fault) {
+	croak $reply->faultcode . ": ".$reply->faultstring;
+      }
+
+    }
+    $Q->addmessage($status,
+		   "MSB marked as done for project $projectid $msg");
+#  } otherwise {
+    # Big problem with OMP system
+#    my $E = shift;
+#    $status->SetStatus( Dits::APP_ERROR );
+#    $status->ErsRep(0,"Error marking msb $msbid as done: $E");
+#    $Q->addmessage($status, "Error marking msb $msbid as done: $E");
+#  };
+
   return $status;
 }
 
