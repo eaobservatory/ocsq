@@ -660,7 +660,7 @@ sub propsrc {
   # observation
   $index++;
   my $foundcal = 0;
-  $foundcal = 1 if $entry->entity->iscal;
+  $foundcal = 1 if $entry->iscal;
   #print "On entry: foundcal   = $foundcal\n";
   #print "Ref entry: " . $entry->string ."\n";
 
@@ -681,7 +681,7 @@ sub propsrc {
     # if we have a calibrator flag this fact
     # if we did have a calibrator and have now not got one
     # we abort
-    if ($thisentry->entity->iscal) {
+    if ($thisentry->iscal) {
       $foundcal = 1;
       # print "Found a calibrator: " . $thisentry->string."\n";
     } elsif ($foundcal) {
