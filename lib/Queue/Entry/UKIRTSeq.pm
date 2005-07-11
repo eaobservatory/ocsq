@@ -58,8 +58,8 @@ The sub-classed constructor is responsible for checking the second
 argument to see whether it is already a C<UKIRT::Sequence> object or
 if one needs to be created from a file name (if unblessed).
 
-  $entry = new Queue::Entry::SCUBAODF( $label, $filename);
-  $entry = new Queue::Entry::SCUBAODF( $label, $odf_object);
+  $entry = new Queue::Entry::UKIRTSeq( $label, $filename);
+  $entry = new Queue::Entry::UKIRTSeq( $label, $odf_object);
 
 Once the filename has been converted into a C<UKIRT::Sequence> object
 the constructor in the base class is called.
@@ -92,7 +92,7 @@ sub new {
 
 =item B<entity>
 
-This method stores or retrieves the C<SCUBA::ODF> object associated with
+This method stores or retrieves the C<UKIRT::Sequence> object associated with
 the entry.
 
   $odf = $entry->entity;
@@ -152,17 +152,18 @@ sub telescope {
 =item B<configure>
 
 Configures the object. This mainly involves checking that the second
-argument is a C<SCUBA::ODF> object. The first argument is the entry
+argument is a C<UKIRT::Sequence> object. The first argument is the entry
 label. This method must take two arguments.  There are no return
 arguments.
 
-  $entry->configure($label, $odf);
+  $entry->configure($label, $seq);
 
 =cut
 
 sub configure {
   my $self = shift;
   croak 'Usage: configure(label,UKIRT::Sequence)' if scalar(@_) != 2;
+  croak unless UNIVERSAL::isa($_[1], "UKIRT::Sequence");
   $self->SUPER::configure(@_);
 }
 
@@ -254,12 +255,16 @@ sub prepare {
     # if the target is missing we cannot send this ODF
     # so we need to package up the relevant information
     # and pass it higher up
-    # The information we need from the ODF is just
+    # The information we need from the sequence is just
     #    MODE
-    #    FILTER
+    #    WAVEBAND
     $r = new Queue::Backend::FailureReason( 'MissingTarget',
 					    MODE => 'Unknown',
-					    FILTER => $seq->getWaveBand,
+					    # this returns a string in scalar
+					    # context
+					    WAVEBAND => $seq->getWaveBand,
+					    INSTRUMENT => $self->instrument,
+					    TELESCOPE => $self->telescope,
 					  );
   } catch UKIRT::SequenceError with {
     # all other sequence errors can be dealt with via a fixup [maybe]
@@ -329,55 +334,6 @@ sub clearTarget {
   $self->entity->clearTarget;
 }
 
-=item B<iscal>
-
-Returns true if the sequence seems to be associated with a
-science calibration observation (e.g. a flux or wavelength
-calibration). Returns false otherwise.
-
-  $iscal = $seq->iscal();
-
-=cut
-
-sub iscal {
-  my $self = shift;
-  warn "iscal not implemented";
-  return 0;
-}
-
-=item B<isGenericCal>
-
-Returns true if the sequence seems to be associated with a
-generic calibration observation such as array tests.
-
- $isgencal = $seq->isGenericCal();
-
-Note that if the sequence includes both array tests and 
-science observations, it is possible for a single sequence
-to be a calibration and science observation.
-
-=cut
-
-sub isGenericCal {
-  my $self = shift;
-  warn "isGenericCal not implemented";
-  return 0;
-}
-
-=item B<isScienceObs>
-
-Return true if this sequence includes a science observation.
-
- $issci = $seq->isScienceObs;
-
-=cut
-
-sub isScienceObs {
-  my $self = shift;
-  warn "isScienceObs not implemented";
-  return 1;
-}
-
 =item B<projectid>
 
 Returns the project ID associated with this entry.
@@ -438,7 +394,6 @@ sub string {
     $minutes = "0.00";
   }
 
-
   return sprintf("%-10s%-".$projlen."s %-14s%s %4.1f min",$self->status,
 		 $project,$posn,$seq->summary, $minutes);
 }
@@ -475,13 +430,13 @@ files.
 
 =head1 SEE ALSO
 
-L<Queue::Entry>, L<Queue::Contents>, L<SCUBA::ODF>
+L<Queue::Entry>, L<Queue::Contents>, L<UKIRT::Sequence>
 
 =head1 AUTHOR
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 
-Copyright (C) 2003-2004 Particle Physics and Astronomy Research Council.
+Copyright (C) 2003-2005 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
