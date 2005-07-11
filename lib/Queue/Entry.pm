@@ -53,7 +53,8 @@ is C</tmp>.
 
 {
   my $OUTPUTDIR;
-  sub {
+  sub outputdir {
+    my $self = shift;
     if (@_) {
       $OUTPUTDIR = shift;
     }
@@ -416,6 +417,80 @@ sub clearTarget {
   my $self = shift;
   return undef;
 }
+
+=item B<iscal>
+
+Returns true if the entry seems to be associated with a
+science calibration observation (e.g. a flux or wavelength
+calibration). Returns false otherwise.
+
+  $iscal = $seq->iscal();
+
+The base class returns false unless the entity referenced by
+the entry implements this method.
+
+=cut
+
+sub iscal {
+  my $self = shift;
+  my $entity = $self->entity;
+  if (defined $entity && $entity->can("iscal")) {
+    return $entity->iscal;
+  } else {
+    warn "iscal is not implemented. Assuming false.";
+    return 0;
+  }
+}
+
+=item B<isGenericCal>
+
+Returns true if the entry seems to be associated with a
+generic calibration observation such as array tests or noise
+measurements.
+
+ $isgencal = $e->isGenericCal();
+
+In some cases it is possible for a single entry to refer to
+a generic calibration and a science observation.
+
+The base class returns false unless the entity referenced by
+the entry implements this method.
+
+=cut
+
+sub isGenericCal {
+  my $self = shift;
+  my $entity = $self->entity;
+  if (defined $entity && $entity->can("isGenericCal")) {
+    return $entity->isGenericCal;
+  } else {
+    warn "isGenericCal is not implemented. Assuming false.";
+    return 0;
+  }
+}
+
+=item B<isScienceObs>
+
+Return true if this entry includes a science observation.
+
+ $issci = $e->isScienceObs;
+
+The base class returns true unless the entity referenced by
+the entry implements this method.
+
+=cut
+
+sub isScienceObs {
+  my $self = shift;
+  my $entity = $self->entity;
+  if (defined $entity && $entity->can("isScienceObs")) {
+    return $entity->isScienceObs;
+  } else {
+    warn "isScienceObs is not implemented. Assuming true.";
+    return 1;
+  }
+}
+
 
 =item B<projectid>
 
