@@ -276,7 +276,9 @@ sub addFailureContext {
   $r->index( $q->curindex );
 
   # Add general details from the entry
-  $r->details->{ENTRY} = $q->curentry->entity->odf;
+  # Not clear how this is possible since we do not want to publish
+  # full ACSIS OCS details
+  #$r->details->{ENTRY} = $q->curentry->entity->odf;
 
   # Get current time
   my $time = gmtime();
@@ -308,7 +310,7 @@ sub addFailureContext {
       last if $target;
 
       # See if we have a calibrator
-      $iscal = $entry->entity->iscal;
+      $iscal = $entry->iscal;
       last if $iscal;
 
       $index++;
@@ -338,7 +340,7 @@ sub addFailureContext {
 	last if $target;
 
 	# See if we have a calibrator
-	$iscal = $entry->entity->iscal;
+	$iscal = $entry->iscal;
 	last if $iscal;
 
 	$index--;
@@ -359,8 +361,8 @@ sub addFailureContext {
       $target->usenow(0);
       $target->datetime( $time );
       print "EPOCH TIME: ".$target->datetime->epoch() ."\n";
-      $r->details->{AZ} = $target->az;
-      $r->details->{EL} = $target->el;
+      $r->details->{AZ} = $target->az->radians;
+      $r->details->{EL} = $target->el->radians;
       my $name = $target->name;
       $r->details->{REFNAME} = $name if defined $name;
       $target->usenow( $un );
