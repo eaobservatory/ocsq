@@ -142,7 +142,7 @@ sub readXML {
       if ($inst eq 'SCUBA') {
 	$class .= "::SCUBAODF";
       } else {
-	croak "ACSIS backend not yet working\n";
+	$class .= "::OCSCfgXML";
       }
     } else {
       croak "Unrecognized telescope $tel";
