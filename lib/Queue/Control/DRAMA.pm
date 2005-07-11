@@ -30,7 +30,11 @@ DRAMA queue.
 use strict;
 use warnings;
 use Carp;
+use Scalar::Util qw/ blessed /;
 use DRAMA;
+
+use JAC::OCS::Config::TCS;
+use Astro::Coords;
 
 use vars qw/ $VERSION /;
 
@@ -185,6 +189,34 @@ sub clearq {
   obeyw $self->qtask, 'CLEARQ';
 }
 
+=item B<cleartarg>
+
+Clear the target associated with the specified index position.
+
+  $Q->cleartarg( $index );
+
+=cut
+
+sub cleartarg {
+  my $self = shift;
+  my $index = shift;
+  my $arg = Arg->Create;
+  DRAMA::ErsPush();
+  my $status = new DRAMA::Status;
+  $arg->Puti("Argument1",$index,$status);
+  if ($status->Ok) {
+    my %obeyargs;
+    $obeyargs{-deletearg} = 0;
+    $obeyargs{-error} = $self->error if defined $self->error;
+    DRAMA::obey($self->qtask,"CLEARTARG",
+		$arg,\%obeyargs);
+  } else {
+    $status->Flush();
+    DRAMA::ErsPop;
+    croak "Error in CLEARTARG";
+  }
+  DRAMA::ErsPop();
+}
 
 =item B<suspendmsb>
 
@@ -232,6 +264,7 @@ sub cutmsb {
     DRAMA::ErsPop;
     croak "Error in cutmsb";
   }
+  DRAMA::ErsPop();
 }
 
 
@@ -335,6 +368,105 @@ sub msbcomplete {
 
 }
 
+=item B<modentry>
+
+Update the settings of an existing entry. This is used to populate
+target information and exposure time overrides.
+
+  $Q->modentry( $index, %mods );
+
+where $index is the index of the entry that is being updated. The new
+parameters are stored in %mods with the following keys:
+
+ PROPAGATE - If true, indicates that the modification should be propagated
+             to subsequent entries in the queue.
+
+ TARGET -  Astro::Coords or JAC::OCS::Config::TCS (or ::BASE) object
+           The tag name is assumed to be SCIENCE if an Astro::Coords
+           is supplied.
+
+=cut
+
+sub modentry {
+  my $self = shift;
+  my $index = shift;
+  my $propsrc = shift;
+  my %mods = @_;
+
+  # First look for a target
+  if (!exists $mods{TARGET}) {
+    print "No TARGET supplied for update\n";
+    return;
+  }
+
+  # see what type of target we have
+  my $targ = $mods{TARGET};
+  my $tcsxml;
+  if (blessed($targ)) {
+
+    my $base;
+    my $tcs;
+    if ($targ->isa("Astro::Coords")) {
+      # Create a BASE (code duplication is bad!)
+      $base = new JAC::OCS::Config::TCS::BASE;
+      $base->coords( $targ );
+      $base->tag( "SCIENCE" );
+    } elsif ($targ->isa("JAC::OCS::Config::TCS::BASE")) {
+      # This is the base we are looking for
+      $base = $targ;
+    } elsif ($targ->isa("JAC::OCS::Config::TCS")) {
+      # we actually have a TCS already
+      $tcs = $targ;
+    }
+
+    # now create a TCS if we only have a base
+    if (defined $base) {
+      # create a TCS object for the base
+      $tcs = new JAC::OCS::Config::TCS();
+      $tcs->tags( $base->tag => $base );
+
+      # need a telescope name
+      my $c = $base->coords;
+      my $tel = $c->telescope;
+      $tcs->telescope( $tel->name ) if defined $tel;
+
+    } elsif (!defined $tcs) {
+      print "Supplied TARGET was not of the correct class\n";
+      return;
+    }
+
+    # create the XML
+    $tcsxml = "$tcs";
+
+  } else {
+    # assume we are given a string
+    $tcsxml = "$targ";
+  }
+
+  # Now form the arguments
+  my %obeyargs;
+  $obeyargs{-deletearg} = 0;
+  $obeyargs{-error} = $self->error if defined $self->error;
+
+  DRAMA::ErsPush();
+  my $status = new DRAMA::Status;
+
+  my $arg = Arg->Create;
+  $arg->Puti("INDEX",$index, $status);
+  $arg->Puti("PROPAGATE", ($mods{PROPAGATE} ? 1 : 0), $status);
+  $arg->PutString("TARGET", $tcsxml, $status);
+
+  if ($status->Ok) {
+    obey( $self->qtask, "MODENTRY", $arg,
+	  \%obeyargs);
+  } else {
+     $status->Flush();
+     DRAMA::ErsPop;
+     croak "error in modentry\n";
+  }
+  DRAMA::ErsPop;
+
+}
 
 =back
 
@@ -351,7 +483,7 @@ L<DRAMA>, L<Queue>, L<Tk::OCSQMonitor>
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.edu)E<gt>
 
-Copyright (C) Particle Physics and Astronomy Research Council 1999, 2002-2003.
+Copyright (C) Particle Physics and Astronomy Research Council 1999, 2002-2005.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
