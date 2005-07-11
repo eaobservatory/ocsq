@@ -93,6 +93,7 @@ use Getopt::Long;
 use constant DTASK => 'JAC_INST_TEST';
 use SCUBA::ODF;
 use UKIRT::Sequence;
+use JAC::OCS::Config;
 use File::Basename;
 use File::Spec;
 
@@ -184,7 +185,23 @@ sub observe {
     my $thing;
     eval {
       if ($tel eq 'JCMT') {
-	$thing = new SCUBA::ODF( File => $fname);
+
+	# must switch behaviour on suffix
+	if ($fname =~ /\.xml$/) {
+	  # ACSIS
+	  $thing = new JAC::OCS::Config( File => $fname );
+	} else {
+	  # SCUBA
+
+	  # The odf name must be converted from VAX format
+	  fileparse_set_fstype("VMS");
+	  $fname = basename($fname);
+	  fileparse_set_fstype('');
+
+	  $thing = new SCUBA::ODF( File => $fname);
+
+	}
+
       } elsif ($tel eq 'UKIRT') {
 	$thing = new UKIRT::Sequence( File => $fname );
       } else {
@@ -197,7 +214,7 @@ sub observe {
       DRAMA::MsgOut($status, "File has been opened");
     } else {
       # Failed to read the ODF
-      seterr( $status, "Error opening file $fname");
+      seterr( $status, "Error opening file $fname : $@");
     }
 
     # Everything okay. Need to reschedule
