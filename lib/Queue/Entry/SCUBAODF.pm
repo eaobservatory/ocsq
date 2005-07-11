@@ -165,6 +165,7 @@ arguments.
 sub configure {
   my $self = shift;
   croak 'Usage: configure(label,SCUBA::ODF)' if scalar(@_) != 2;
+  croak unless UNIVERSAL::isa($_[1], "SCUBA::ODF");
   $self->SUPER::configure(@_);
 }
 
@@ -271,8 +272,10 @@ sub prepare {
     #    MODE
     #    FILTER
     $r = new Queue::Backend::FailureReason( 'MissingTarget',
-					       MODE => $odf->odf->{OBSERVING_MODE},
-					       FILTER => $odf->odf->{FILTER},
+					    MODE => $odf->odf->{OBSERVING_MODE},
+					    WAVEBAND => $odf->odf->{FILTER},
+					    INSTRUMENT => $self->instrument,
+					    TELESCOPE => $self->telescope,
 					     );
   } catch SCUBA::ODFError with {
     # all other SCUBA errors can be dealt with via a
