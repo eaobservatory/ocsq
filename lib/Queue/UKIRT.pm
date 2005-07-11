@@ -35,8 +35,8 @@ The following methods are available:
 
 =item new
 
-Constructor. Creates C<Queue::Backend::SCUCD> and C<Queue::Contents>
-objects when creating the C<Queue::SCUCD> object.
+Constructor. Creates C<Queue::Backend::JACInst> and C<Queue::Contents>
+objects when creating the C<Queue::UKIRT> object.
 
 =cut
 
@@ -69,7 +69,7 @@ L<Queue>, L<Queue::Backend>, L<Queue::Contents>, L<Queue::Entry>
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 
-Copyright 2002-2004 Particle Physics and Astronomy Research Council.
+Copyright 2002-2005 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
