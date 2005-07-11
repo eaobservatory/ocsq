@@ -21,7 +21,7 @@ The instrument tasks must be running before the queue can be started.
 To start the queue simply run this program in the background.  The
 Queue registers itself as B<OCSQUEUE> in the DRAMA message system.
 
-Queue clients (e.g. C<qmonitor>) can be started as required.
+Queue clients (e.g. C<ocsqmon>) can be started as required.
 
 =head1 OPTIONS
 
@@ -128,6 +128,7 @@ use warnings;
 # an MSB
 BEGIN { $ENV{SYBASE} = "/local/progs/sybase" unless exists $ENV{SYBASE}; }
 
+use File::Spec;
 use Data::Dumper;
 
 # Work out where local software is
@@ -135,9 +136,10 @@ use FindBin;
 use lib "$FindBin::RealBin/lib";
 
 # Need OMP class for done msb
-use lib "/jac_sw/omp/msbserver";
+use constant OMPLIB => "/jac_sw/omp/msbserver";
+use lib OMPLIB;
 BEGIN {
-  $ENV{OMP_CFG_DIR} = "/jac_sw/omp/msbserver/cfg"
+  $ENV{OMP_CFG_DIR} = File::Spec->catdir(OMPLIB,"cfg")
     unless exists $ENV{OMP_CFG_DIR};
 }
 
@@ -197,8 +199,8 @@ if (defined $tel) {
   # case-insensitive match
   $tel = uc($tel);
   if ($tel eq 'JCMT') {
-    require Queue::SCUCD;
-    $QUEUE = new Queue::SCUCD;
+    require Queue::JCMT;
+    $QUEUE = new Queue::JCMT;
     $REMOTE_TASK = 'JCMT_INST@palila';
   } elsif ($tel eq 'UKIRT') {
     require Queue::UKIRT;
@@ -242,7 +244,7 @@ exit;
 
 =head1 SEE ALSO
 
-L<Queue::Server::DRAMA>, L<Queue::Contents>, L<qmonitor>
+L<Queue::Server::DRAMA>, L<Queue::Contents>, L<ocsqmon>
 
 =head1 AUTHOR
 
