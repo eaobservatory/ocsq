@@ -680,12 +680,21 @@ sub _toggleq {
 
 # Subroutine to play a sound on the speaker. Do not test
 # return value since it should be non-fatal if it fails
+# See also OMP::Audio class
+# Attempt to support OSX as well as esdplay
 sub _play_sound {
   my $file = shift;
   print "PLAYING A SOUND\n";
-  return;
+
   $file = File::Spec->catfile($AUDIO_DIR, $file);
-  system("/usr/bin/esdplay",$file);
+  return unless -e $file;
+
+  # horrible hack
+  if (-e "/usr/bin/esdplay" ) {
+    system("/usr/bin/esdplay", $file);
+  } elsif (-e '/usr/local/bin/qtplay') {
+    system("/usr/local/bin/qtplay",'-q',$file);
+  }
   return;
 }
 
