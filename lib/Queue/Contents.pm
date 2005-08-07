@@ -632,16 +632,13 @@ entries that are missing target information.
 
   $c->propsrc( $index );
 
-The propagation stops for the following two conditions:
+The propagation stops for the following conditions:
 
  1. We hit an entry that has a valid target
  2. Once we hit a calibration observation we continue
     to propogate until we are no longer doing calibrations.
     This allows us to propogate through a set of 6 scan maps.
  3. We hit the last observation in an MSB.
-
-This should probably not need to know about the iscal method in "entity".
-An entry should probably be modified to know about calibrations.
 
 =cut
 
