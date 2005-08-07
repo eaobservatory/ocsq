@@ -313,8 +313,9 @@ sub getTarget {
 
 =item B<setTarget>
 
-Set target information associated with the entry. Requires an C<Astro::Coords>
-object.
+Set target information associated with the entry. Requires an
+C<Astro::Coords>, C<JAC::OCS::Config::TCS::BASE>, or
+C<JAC::OCS::Config::TCS> object
 
   $e->setTarget( $coords );
 
