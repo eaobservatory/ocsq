@@ -1015,37 +1015,19 @@ sub respond_to_failure {
 
 					my %mods;
 
-					# Convert the target to XML using the OCS configure
-					# We may need to use a TCS rather than BASE if we
-					# also want to specify reference positions
-					my $base = new JAC::OCS::Config::TCS::BASE;
-					$base->coords( $c );
-					$base->tag( "SCIENCE" );
-					$mods{TARGET} = "$base";
+					# The modentry method can take an Astro::Coords
+					# object directly if we do not want to specify
+					# a REFERENCE position.
+					$mods{TARGET} = $c;
 
 					# Add INDEX field
 					my $index = $details->{INDEX};
 
 					# add PROPSRC flag
-					my $propsrc = 1;
+					$mods{PROPAGATE} = 1;
 
-					# Create the Arg structure
-#					my $status = new DRAMA::Status;
-#					my $arg = Arg->Create;
-#					for my $key (keys %hash) {
-#					  $arg->PutString($key, $hash{$key}, $status);
-#					}
-
-					# update the entry parameters
-					$Q->update_entry( $index, $propsrc, %mods );
-
-#					&DRAMA::obey($QNAME, "UPDATE", $arg,
-#						     { -deletearg => 0,
-#						       -success => sub {
-#							 $Q->starq;
-#						       },
-#						       -error => \&drama_error,
-#						     } );
+					# update the entry parameters in the queue
+					$Q->modentry( $index, %mods);
 
 				      },
 				      # On update we trigger a source plot
