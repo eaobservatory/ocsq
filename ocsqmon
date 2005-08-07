@@ -33,6 +33,10 @@ Print a small help message.
 
 Print the full manual page.
 
+=item B<-sim>
+
+Only look on localhost for the queue task.
+
 =back
 
 =cut
@@ -82,11 +86,12 @@ $MW->iconname($TASK_ROOT);
 # Get the options
 use Getopt::Long;
 use Pod::Usage;
-my ($man,$help,$tel);
+my ($man,$help,$tel,$sim);
 my $status = GetOptions(
 			"help"    => \$help,
 			"man"     => \$man,
 			"tel=s"   => \$tel,
+			"sim"     => \$sim,
 		       );
 
 if ($help || $man) {
@@ -97,7 +102,7 @@ if ($help || $man) {
 
 # Queue host (could be config file driven)
 my $host = '';
-if (defined $tel) {
+if (defined $tel && !$sim) {
   if ($tel =~ /jcmt/i) {
     $host = '@palila';
   } elsif ($tel =~ /ukirt/i) {
