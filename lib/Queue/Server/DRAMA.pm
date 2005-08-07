@@ -1281,7 +1281,8 @@ sub MODENTRY {
     my $xml = $sds{TARGET};
 
     # Create TCS object
-    $tcs = new JAC::OCS::Config::TCS( XML => $xml );
+    # disable validation since we are not expecting a DTD with this snippet
+    $tcs = new JAC::OCS::Config::TCS( XML => $xml, validation => 0 );
 
   } else {
     $Q->addmessage( $status, "Nothing to modify");
@@ -1291,11 +1292,13 @@ sub MODENTRY {
   # Get the current entry
   my $curr = $Q->queue->contents->getentry($index);
 
-  # Set the target
-  $old->setTarget( $tcs->getTarget->coords );
+  # Set the SCIENCE target
+  # To include the REFERENCE simply pass in the $tcs itself
+  $curr->setTarget( $tcs->getTarget );
+
 
   # if we are propogating source information we need to do it now
-  $Q->queue->contents->propsrc($index, $tcs->getTarget->coords);
+  $Q->queue->contents->propsrc($index)
     if $prop;
 
   # Always clear if we have tweaked something
