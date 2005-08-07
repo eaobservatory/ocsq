@@ -385,12 +385,13 @@ parameters are stored in %mods with the following keys:
            The tag name is assumed to be SCIENCE if an Astro::Coords
            is supplied.
 
+The queue is started once the entry is updated.
+
 =cut
 
 sub modentry {
   my $self = shift;
   my $index = shift;
-  my $propsrc = shift;
   my %mods = @_;
 
   # First look for a target
@@ -401,6 +402,7 @@ sub modentry {
 
   # see what type of target we have
   my $targ = $mods{TARGET};
+
   my $tcsxml;
   if (blessed($targ)) {
 
@@ -448,6 +450,10 @@ sub modentry {
   $obeyargs{-deletearg} = 0;
   $obeyargs{-error} = $self->error if defined $self->error;
 
+  # Want to start the queue on success
+  $obeyargs{-success} = sub { $self->startq };
+
+  # New error context
   DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
