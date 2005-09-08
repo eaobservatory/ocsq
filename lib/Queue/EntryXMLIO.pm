@@ -273,7 +273,7 @@ sub writeXML {
 
   # Build up the XML in memory first before writing it to disk
   my $xml = '<?xml version="1.0" encoding="ISO-8859-1"?>'."\n".
-    "<$RE $TA=\"$tel>\n";
+    "<$RE $TA=\"$tel\">\n";
 
   # Options for file output
   my %fileopt;
