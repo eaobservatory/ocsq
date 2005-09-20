@@ -8,7 +8,7 @@ jac_inst - DRAMA task emulating the queue functionality of the JAC instrument ta
 
  jac_inst -tel ukirt -transdir /tmp
 
- ditscmd "JAC_INST_TEST" "xxx.exec"
+ ditscmd "UKIRT_INST" "xxx.exec"
 
 
 =head1 DESCRIPTION
@@ -31,7 +31,8 @@ The following command-line options are supported:
 =item B<-tel>
 
 Configure the queue for use at a specific telescope. This option
-is mandatory. Can be one of "JCMT" or "UKIRT".
+is mandatory. Can be one of "JCMT" or "UKIRT". This option controls
+the name of the DRAMA task.
 
 =item B<-transdir>
 
@@ -64,7 +65,7 @@ it only has a single action and can only fail or succeed.
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 
-Copyright (C) 2002-2004 Particle Physics and Astronomy Research Council.
+Copyright (C) 2002-2005 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -90,7 +91,6 @@ use Jit;
 use DRAMA;
 use Pod::Usage;
 use Getopt::Long;
-use constant DTASK => 'JAC_INST_TEST';
 use SCUBA::ODF;
 use UKIRT::Sequence;
 use JAC::OCS::Config;
@@ -114,8 +114,10 @@ $tel = uc($tel);
 die "Unrecognized telescope '$tel'"
   unless ($tel eq 'UKIRT' || $tel eq 'JCMT');
 
+my $DTASK = $tel . '_INST';
+
 # Init Jit
-Jit::Init( DTASK );
+Jit::Init( $DTASK );
 
 # Initiate actions
 my $status = new DRAMA::Status;
