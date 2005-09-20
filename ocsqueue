@@ -38,7 +38,8 @@ is mandatory. Can be one of "JCMT" or "UKIRT".
 
 Run the task in simulate mode. When running in this mode no commands
 are sent to the OMP database (MSBs are not marked as complete) and the
-task does not attempt to talk to the real instrument task. The task
+task does not attempt to talk to the real instrument task (it uses
+localhost by default but see the C<-rhost> option). The task
 will attempt to talk to the demo scucd program on the same machine
 (see L<scucd>).
 
@@ -47,6 +48,13 @@ will attempt to talk to the demo scucd program on the same machine
 The directory in which translated ODFs will appear. It is also
 the directory  used to write rewritten ODFs prior to sending
 them to SCUBA. Default is to use C</observe/ompodf>.
+
+=item B<-rhost>
+
+Remote host to be used for the location of the JCMT_INST or
+UKIRT_INST tasks. Default is to use localhost in simulation
+mode and the actual summit hosts in live mode. This host name will
+override the location in both sim and non-sim mode.
 
 =item B<-help>
 
@@ -160,12 +168,13 @@ use constant NENTRIES => 200;
 use Getopt::Long;
 use Pod::Usage;
 
-my ($man,$help, $verbose, $sim, $tel);
+my ($man,$help, $verbose, $sim, $tel, $rhost);
 my $status = GetOptions("verbose" => \$verbose,
 			"sim"     => \$sim,
 			"transdir=s"=> \$TRANS_DIR, # override translator dir
 			"help"    => \$help,
 			"man"     => \$man,
+			"rhost=s"   => \$rhost,
 			"telescope=s" => \$tel,
 		       );
 
@@ -192,7 +201,13 @@ $DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
 # Create a Queue
 # This is a global, make sure that we only have one
 # queue running
-# Depending on the tel switch
+# Depending on the tel switch names
+# For -sim mode and no rhost we should default to no host
+
+if ($sim) {
+  $rhost = ( defined $rhost ? '@'.$rhost : "" );
+}
+
 my $QUEUE;
 my $REMOTE_TASK;
 if (defined $tel) {
@@ -201,11 +216,11 @@ if (defined $tel) {
   if ($tel eq 'JCMT') {
     require Queue::JCMT;
     $QUEUE = new Queue::JCMT;
-    $REMOTE_TASK = 'JCMT_INST@palila';
+    $REMOTE_TASK = 'JCMT_INST' . (defined $rhost ? $rhost : '@palila' );
   } elsif ($tel eq 'UKIRT') {
     require Queue::UKIRT;
     $QUEUE = new Queue::UKIRT;
-    $REMOTE_TASK = 'UKIRT_INST@ohi';
+    $REMOTE_TASK = 'UKIRT_INST' . (defined $rhost ? $rhost : '@ohi' );
   } else {
     die "Do not recognize telescope $tel";
   }
@@ -215,11 +230,7 @@ if (defined $tel) {
 
 
 # Set the task name
-if ($sim) {
-  $QUEUE->backend->TASK( "JAC_INST_TEST" );
-} else {
-  $QUEUE->backend->TASK( $REMOTE_TASK );
-}
+$QUEUE->backend->TASK( $REMOTE_TASK );
 
 # override translator directory
 # This should really be a global independent of SCUBAODFs.
