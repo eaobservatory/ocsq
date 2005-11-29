@@ -690,8 +690,8 @@ sub _play_sound {
   return unless -e $file;
 
   # horrible hack
-  if (-e "/usr/bin/esdplay" ) {
-    system("/usr/bin/esdplay", $file);
+  if (-e "/usr/bin/play" ) {
+    system("/usr/bin/play", $file);
   } elsif (-e '/usr/local/bin/qtplay') {
     system("/usr/local/bin/qtplay",'-q',$file);
   }
