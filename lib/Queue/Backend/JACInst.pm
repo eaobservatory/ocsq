@@ -225,7 +225,7 @@ sub _send {
 
 
   my $retstatus = 1;
-  $self->_pushmessage( $self->_good, "Sending entry to instrument task...");
+  $self->_pushmessage( $self->_good, "Sending entry to instrument task $TASK...");
 
   # do the obey and return immediately but make sure we set
   # up triggers
