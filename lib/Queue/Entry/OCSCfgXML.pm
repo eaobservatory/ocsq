@@ -2,13 +2,13 @@ package Queue::Entry::OCSCfgXML;
 
 =head1 NAME
 
-Queue::Entry::OCSCfgXML - Queue entry for UKIRT sequences
+Queue::Entry::OCSCfgXML - Queue entry for JCMT OCS XML configurations
 
 =head1 SYNOPSIS
 
   use Queue::Entry::OCSCfgXML;
 
-  $entry = new Queue::Entry::OCSCfgXML('name', $seq_object );
+  $entry = new Queue::Entry::OCSCfgXML('name', $cfg_object );
   $entry = new Queue::Entry::OCSCfgXML('name', $file );
 
   $entry->label($label);
@@ -21,14 +21,14 @@ Queue::Entry::OCSCfgXML - Queue entry for UKIRT sequences
 
 This class describes entries that can be manipulated by a
 C<Queue::Contents> class. The particular type of entry must be a
-C<UKIRT::Sequence> object.  This object is converted to a file on disk
-when the entry is sent to the backend (the UKIRT instrument task). The
+C<JAC::OCS::Config> object.  This object is converted to a file on disk
+when the entry is sent to the backend (the JCMT instrument task). The
 string representation of the entry is obtained directly from the
-C<UKIRT::Sequence> object.
+C<JAC::OCS::Config> object.
 
 This class is a sub-class of C<Queue::Entry>.
 
-It is a thin layer on top of a C<UKIRT::Sequence> object.
+It is a thin layer on top of a C<JAC::OCS::Config> object.
 
 =cut
 
@@ -76,7 +76,7 @@ sub new {
     $entity = $thing;
   } elsif (not ref($thing)) {
     # treat it as a filename
-    $entity = new JAC::OCS::Config( File => $thing );
+    $entity = new JAC::OCS::Config( File => $thing, validation => 0 );
   } else {
     croak "Argument to constructor is neither a JAC::OCS::Config object nor a simple scalar filename";
   }
@@ -171,8 +171,8 @@ sub configure {
 
 =item B<write_entry>
 
-Write the entry to disk. In this case uses the C<writeseq> method from
-C<UKIRT::Sequence>. Returns the names of all the files that were
+Write the entry to disk. In this case uses the C<write_entry> method from
+C<JAC::OCS::Config>. Returns the names of all the files that were
 created.  The first file in the returned list is the "primary" file
 that can be used to create a new C<Queue::Entry> object of this class.
 
@@ -242,9 +242,6 @@ sub prepare {
 
   my $cfg = $self->entity;
 
-  use Data::Dumper;
-  print Dumper($cfg);
-
   # Should return a reason here
   return unless defined $cfg;
 
@@ -290,6 +287,9 @@ sub prepare {
   # Write the ODF
   my @files = $self->write_entry();
   return unless @files;
+
+  print colored("Wrote the following configuration files:\n","cyan");
+  print join("\n",map { "\t$_"} @files), "\n";
 
   # Store the filename in the be_object
   $self->be_object( $files[0] );
@@ -526,8 +526,7 @@ only the primary file will be deleted by the destructor. This
 is probably a bug and the system should be storing the file
 names independently of the C<be_object> method.
 
-Will not be used until UKIRT::Sequence actually starts writing
-files.
+Not currentlty enabled.
 
 =cut
 
