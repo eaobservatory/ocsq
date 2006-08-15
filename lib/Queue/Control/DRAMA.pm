@@ -406,33 +406,11 @@ sub modentry {
   my $tcsxml;
   if (blessed($targ)) {
 
-    my $base;
-    my $tcs;
-    if ($targ->isa("Astro::Coords")) {
-      # Create a BASE (code duplication is bad!)
-      $base = new JAC::OCS::Config::TCS::BASE;
-      $base->coords( $targ );
-      $base->tag( "SCIENCE" );
-    } elsif ($targ->isa("JAC::OCS::Config::TCS::BASE")) {
-      # This is the base we are looking for
-      $base = $targ;
-    } elsif ($targ->isa("JAC::OCS::Config::TCS")) {
-      # we actually have a TCS already
-      $tcs = $targ;
-    }
-
-    # now create a TCS if we only have a base
-    if (defined $base) {
-      # create a TCS object for the base
-      $tcs = new JAC::OCS::Config::TCS();
-      $tcs->tags( $base->tag => $base );
-
-      # need a telescope name
-      my $c = $base->coords;
-      my $tel = $c->telescope;
-      $tcs->telescope( $tel->name ) if defined $tel;
-
-    } elsif (!defined $tcs) {
+    # we want to create a TCS config object from any of the
+    # three supported object types so that we can stringify
+    # it in a consistent manner
+    my $tcs = JAC::OCS::Config::TCS->from_coord( $targ );
+    if (!defined $tcs) {
       print "Supplied TARGET was not of the correct class\n";
       return;
     }
