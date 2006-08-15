@@ -266,14 +266,25 @@ sub Populate {
   # print information to this text widget
   my $status = new DRAMA::Status;
   Dits::UfacePutMsgOut( sub {
-			  $w->write_text_messages( 'messages', $_[0] );
+			  $w->write_text_messages( 'messages', @_ );
 			},
 			$status);
 
   # Also want this to appear in the log file so just print it
   Dits::UfacePutErsOut( sub {
-			  print "Err: $_[1]\n";
-			  $w->write_text_messages( 'errors', $_[1] );
+			  my $flag = shift;
+			  # make sure that we prepend with # marks in the DRAMA style
+			  my $done_first;
+			  my @hashed = map {
+			    my $hash = " ";
+			    if (!$done_first) {
+			      $hash = "#";
+			      $done_first = 1;
+			    }
+			    "#". $hash . $_;
+			  } @_;
+			  print "$_\n" for @hashed;
+			  $w->write_text_messages( 'errors', @hashed );
 			},
 			$status);
 
