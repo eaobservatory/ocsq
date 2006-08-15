@@ -46,6 +46,9 @@ use 5.006;
 use strict;
 use warnings;
 
+use lib "/jac_sw/drama/CurrentRelease/lib/site_perl/";
+use lib "/jac_sw/itsroot/install/common/lib/site_perl/";
+
 use vars qw/$VERSION/;
 
 # Load local software
