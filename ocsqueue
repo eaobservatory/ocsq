@@ -126,8 +126,9 @@ use 5.006;
 use strict;
 use warnings;
 
-#use lib "/jac_sw/drama/drama-v1.4.1/lib/site_perl","/jac_sw/itsroot/install/common/lib/site_perl";
-#use lib "/jac_sw/itsroot/install/common/lib/site_perl";
+use lib "/jac_sw/drama/CurrentRelease/lib/site_perl/";
+use lib "/jac_sw/itsroot/install/common/lib/site_perl/";
+
 #use blib "/home/timj/perlmods/DRAMA/blib";
 #use JAC::ITSRoot;
 
@@ -204,7 +205,7 @@ $DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
 # Depending on the tel switch names
 # For -sim mode and no rhost we should default to no host
 
-if ($sim) {
+if ($sim || defined $rhost) {
   $rhost = ( defined $rhost ? '@'.$rhost : "" );
 }
 
@@ -216,7 +217,7 @@ if (defined $tel) {
   if ($tel eq 'JCMT') {
     require Queue::JCMT;
     $QUEUE = new Queue::JCMT;
-    $REMOTE_TASK = 'JCMT_INST' . (defined $rhost ? $rhost : '@palila' );
+    $REMOTE_TASK = 'JCMT_INST' . (defined $rhost ? $rhost : '@ocsmaster' );
   } elsif ($tel eq 'UKIRT') {
     require Queue::UKIRT;
     $QUEUE = new Queue::UKIRT;
