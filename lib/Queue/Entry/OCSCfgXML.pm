@@ -304,6 +304,8 @@ object. Returns C<undef> if no target information is found.
 
  $c = $e->getTarget;
 
+Does not handle REFERENCE positions.
+
 =cut
 
 sub getTarget {
@@ -319,6 +321,16 @@ C<JAC::OCS::Config::TCS> object
 
   $e->setTarget( $coords );
 
+If the entry currently only has a SCIENCE tag the position
+will be modified to that in the supplied argument. If the 
+entry has multiple tags and the supplied argument only has one tag
+all tags that share the position of the current SCIENCE value will
+be modified. If the entry has multiple tags and the current entry has
+many, all will be overridden.
+
+An error occurs if multiple tags pre-exist and are not modified (maybe
+because they have an absolute position).
+
 =cut
 
 sub setTarget {
@@ -329,7 +341,10 @@ sub setTarget {
   my $tcs = $self->entity->tcs;
 
   if (defined $tcs) {
-    $tcs->setTarget( $coords );
+    # synchronize
+    my @un = $tcs->setTargetSync( $coords );
+    croak "Error setting target override because tags ".join(",",@un).
+      "were not synchronized with the SCIENCE position" if @un;
   } else {
     croak "No TCS information available in configuration so can not set a target!";
   }
@@ -350,6 +365,7 @@ sub clearTarget {
   my $tcs = $self->entity->tcs;
 
   if (defined $tcs) {
+    # note that this only clears the SCIENCE position
     $tcs->clearTarget;
   } else {
     croak "No TCS information available in configuration so can not clear a target!";
