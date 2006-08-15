@@ -1271,7 +1271,7 @@ sub MODENTRY {
   my %sds;
   tie %sds, 'Sds::Tie', $argId;
 
-  print Dumper(\%sds);
+  print "RECEIVED Argument for entry modification: ". Dumper(\%sds);
 
   my $index = $sds{INDEX};
   my $prop = $sds{PROPAGATE};
@@ -1292,10 +1292,8 @@ sub MODENTRY {
   # Get the current entry
   my $curr = $Q->queue->contents->getentry($index);
 
-  # Set the SCIENCE target
-  # To include the REFERENCE simply pass in the $tcs itself
-  $curr->setTarget( $tcs->getTarget );
-
+  # Synchronize target information
+  $curr->setTarget( $tcs );
 
   # if we are propogating source information we need to do it now
   $Q->queue->contents->propsrc($index)
@@ -1325,11 +1323,6 @@ sub CLEARTARG {
     if $Q->verbose;
 
   my $argId = Dits::GetArgument;
-
-  $status->SetStatus( Dits::APP_ERROR );
-#  $status->ErsRep(0,"Test error");
-#  $Q->addmessage($status, "Test error message");
-  $status->ErsRep(0,"Test error");
 
   # If no argument simply return
   return $status unless defined $argId;
