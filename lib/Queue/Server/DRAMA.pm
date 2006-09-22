@@ -1855,11 +1855,25 @@ sub MSBCOMPLETE {
 
           $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
 
-          $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
+          $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 6);
 
 	  $msg = '';
-	  $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-				$donemsb->{reason});
+	  # You can not use a SOAP call from within a DRAMA callback
+	  # since they both share the same alarm system. You will find that
+	  # you get instant timeouts even though the message is sent
+	  # correctly. We either need to revert to using the native
+	  # perl method calls (Which we used in the past but ran into
+	  # problems when OMP systems got out of sync, especially if 
+	  # MSBID calculation changes)
+	  # Sometimes the MSB acceptance takes a long time and we also
+	  # do not want to hang the queue during this. Use a short timeout
+	  # which always fails.
+	  eval {
+	    $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
+			      $donemsb->{reason});
+	  };
+	  $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
+	    if $@;
 	}
 	$Q->addmessage($status,
 		       "MSB marked as done for project $projectid $msg");
@@ -1882,6 +1896,7 @@ sub MSBCOMPLETE {
 	  $msg = "[in simulation without modifying the DB]";
 	} else {
 	  $msg = '';
+	  # This can be a local call since MSBID is not recalculated
 	  OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
 				     $donemsb->{reason});
 	}
