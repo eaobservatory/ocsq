@@ -98,7 +98,20 @@ The following [case-insensitive] options are supported:
 
 Run the queue in database simulation mode such that the queue never
 prompts the user to officially accept, reject or suspend an MSB. Default
-is false.
+is false. Note that the MSB completion parameter will still be populated and
+the queue monitor will still request input from the user to clear the MSB
+(even though the clear will be immediate and will not talk to the database).
+See the C<nocomplete> parameter to disable the MSB acceptance behaviour completely.
+Note that this flag will effectively be automatically enabled if C<nocomplete>
+is set since the code to process accepts will never be activated.
+
+=item nocomplete
+
+Do not store MSB completion parameters in the parameter system. Simply
+log the fact we would have completed an MSB. This allows the queue to
+run without forcing the user to deal with MSBs. During engineering tests
+it is usually annoying for a MSB accept popup to appear only for the observer
+to click on "Took No Data". This will disable the queue monitor popup.
 
 =item taskname
 
@@ -148,6 +161,7 @@ sub new {
 
   # Populate object creation hash with defaults
   my %params = ( simdb => 0,
+		 nocomplete => 0,
 	         taskname => TASKNAME,
 	         maxwidth => MAXWIDTH,
 	         nentries => NENTRIES,
@@ -452,6 +466,22 @@ sub simdb {
     $self->{SIMDB} = shift;
   }
   return $self->{SIMDB};
+}
+
+=item B<nocomplete>
+
+Control whether the queue is allowed to store completion parameters.
+Default is to allow this. If completion parameters are disabled the simdb
+flag will probably have no effect.
+
+=cut
+
+sub nocomplete {
+  my $self = shift;
+  if (@_) {
+    $self->{NOCOMPLETE} = shift;
+  }
+  return $self->{NOCOMPLETE};
 }
 
 =item B<verbose>
@@ -761,6 +791,39 @@ sub ersRep {
   croak "Q->ersRep Not trustworthy yet!\n";
 }
 
+=item B<cutmsb>
+
+Cut the supplied C<Queue::MSB> object from the queue.
+
+  $Q->cutmsb( $msb );
+
+No action if $msb is not defined.
+
+=cut
+
+sub cutmsb {
+  my $self = shift;
+  my $msb = shift;
+  return unless defined $msb;
+
+  croak "$Q->cutmsb: Must supply a Queue::MSB object as argument"
+    unless $msb->isa("Queue::MSB");
+
+  # Get an entry from the MSB
+  my $entry = $msb->entries->[0];
+
+  # Convert to an index
+  if ($entry) {
+    my $index = $self->queue->contents->getindex( $entry );
+    if (defined $index) {
+      # Cut it
+      $self->queue->contents->cutmsb( $index );
+    }
+  }
+
+  return;
+}
+
 =item B<set_msbcomplete_parameter>
 
 Set the contents of the MSB complete parameter.
@@ -782,6 +845,9 @@ The expectation is that %details includes sufficient information
 to identify the MSB. It will likely include the position of the
 MSB in the queue, the projectid and the MSBID.
 
+If C<nocomplete> is true, this method will cut the MSB and will not
+store any completion parameters.
+
 =cut
 
 sub set_msbcomplete_parameter {
@@ -789,16 +855,33 @@ sub set_msbcomplete_parameter {
   my $status = shift;
   return unless $status->Ok;
 
-  # Read the MSBCOMPLETED parameter
-  my $sdp = $self->_params;
-  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
-  return undef unless defined $sds;
-
   # Read the arguments
   my %details = @_;
 
   print Dumper(\%details);
   print ($status->Ok ? "status ok\n" : "status bad\n");
+
+  # if we have disabled completion then we should go no further
+  if ($self->nocomplete) {
+    # Look for the MSB object
+    my $msb = $details{MSB};
+
+    if (defined $msb) {
+      # someone has to cut the MSB from the queue
+      $self->addmessage( $status,
+			 "Removing completed MSB from queue without prompting user");
+
+      $self->cutmsb( $msb );
+    }
+
+    # return since we do not want to store the parameter
+    return;
+  }
+
+  # Read the MSBCOMPLETED parameter
+  my $sdp = $self->_params;
+  my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
+  return undef unless defined $sds;
 
   # Generate a timestamp (not that it really needs to be
   # unique since Sds will handle it if we keep on adding
@@ -1927,18 +2010,7 @@ sub MSBCOMPLETE {
     # And remove the MSB from the queue
     if ($msb) {
       $Q->addmessage($status, "Removing completed MSB from queue");
-
-      # Get an entry from the MSB
-      my $entry = $msb->entries->[0];
-
-      # Convert to an index
-      if ($entry) {
-	my $index = $Q->queue->contents->getindex( $entry );
-	if (defined $index) {
-	  # Cut it
-	  $Q->queue->contents->cutmsb( $index );
-	}
-      }
+      $Q->cutmsb( $msb );
     }
 
   }
