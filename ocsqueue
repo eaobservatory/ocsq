@@ -41,7 +41,21 @@ are sent to the OMP database (MSBs are not marked as complete) and the
 task does not attempt to talk to the real instrument task (it uses
 localhost by default but see the C<-rhost> option). The task
 will attempt to talk to the demo scucd program on the same machine
-(see L<scucd>).
+(see L<scucd>). This option is equivalent to using both C<-local> and
+C<-ompsim>.
+
+=item B<-local>
+
+Does not use a remote host name when contacting the instrument task.
+Enabled automatically if C<-sim> is used. C<-rhost> and C<-local>
+can not be supplied at the same time.
+
+=item B<-ompsim>
+
+Do not connect to the OMP database when accepting or rejecting MSBs.
+This switch is enabled when C<-sim> is used. The OMP database may still
+be used for user name translation.
+
 
 =item B<-transdir>
 
@@ -126,11 +140,8 @@ use 5.006;
 use strict;
 use warnings;
 
-use lib "/jac_sw/drama/CurrentRelease/lib/site_perl/";
-use lib "/jac_sw/itsroot/install/common/lib/site_perl/";
 
-#use blib "/home/timj/perlmods/DRAMA/blib";
-#use JAC::ITSRoot;
+use JAC::ITSRoot;
 
 
 # Required because the queue talks to Sybase directly when accepting
@@ -169,7 +180,7 @@ use constant NENTRIES => 200;
 use Getopt::Long;
 use Pod::Usage;
 
-my ($man,$help, $verbose, $sim, $tel, $rhost);
+my ($man,$help, $verbose, $sim, $tel, $rhost, $ompsim, $local);
 my $status = GetOptions("verbose" => \$verbose,
 			"sim"     => \$sim,
 			"transdir=s"=> \$TRANS_DIR, # override translator dir
@@ -177,6 +188,8 @@ my $status = GetOptions("verbose" => \$verbose,
 			"man"     => \$man,
 			"rhost=s"   => \$rhost,
 			"telescope=s" => \$tel,
+			"ompsim"  => \$ompsim,
+			"local"   => \$local,
 		       );
 
 pod2usage(1)  if ($help);
@@ -185,12 +198,29 @@ pod2usage(-verbose => 2)  if ($man);
 die "Must supply a telescope" unless defined $tel;
 
 
+# Make sure that $rhost is not defined when $local is set
+if ($local && defined $rhost) {
+  die "Can not use the -local and -rhost options simultaneously\n";
+}
+
+# Simulate database if OMP is simulated or global simulation flag
+my $simdb;
+if ($sim || $ompsim) {
+  $simdb = 1;
+}
+
+# Local host name can be enabled with -local or -sim
+my $localhost;
+if ($sim || $local) {
+  $localhost = 1;
+}
 
 # Start the DRAMA system and associate callbacks with actions
 my $DQUEUE = new Queue::Server::DRAMA( taskname => TASKNAME,
 				       nentries => NENTRIES,
 				       maxwidth => MAXWIDTH,
-				       simdb => $sim,
+				       simdb => $simdb,
+				       nocomplete => $simdb,
 				       verbose => $verbose,
 				     );
 
@@ -205,8 +235,9 @@ $DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
 # Depending on the tel switch names
 # For -sim mode and no rhost we should default to no host
 
-if ($sim || defined $rhost) {
-  $rhost = ( defined $rhost ? '@'.$rhost : "" );
+if ($localhost || defined $rhost) {
+  $rhost = "@" . ( defined $rhost ? $rhost : "localhost" );
+  $rhost =~ s/\@localhost//;
 }
 
 my $QUEUE;
@@ -229,7 +260,7 @@ if (defined $tel) {
   die "Telescope not specified.";
 }
 
-
+print "Using remote task '$REMOTE_TASK'\n";
 # Set the task name
 $QUEUE->backend->TASK( $REMOTE_TASK );
 
@@ -237,7 +268,7 @@ $QUEUE->backend->TASK( $REMOTE_TASK );
 # This should really be a global independent of SCUBAODFs.
 # Maybe a config parameter using a shared config object
 if ($TRANS_DIR) {
-  print "Overriding translation directory: $TRANS_DIR\n";
+  print "Overriding translation output directory: $TRANS_DIR\n";
   Queue::Entry->outputdir( $TRANS_DIR );
 }
 
@@ -263,7 +294,7 @@ L<Queue::Server::DRAMA>, L<Queue::Contents>, L<ocsqmon>
 Tim Jenness, E<lt>t.jenness@jach.hawaii.eduE<gt>
 
 Copyright (C) Particle Physics and Astronomy Research Council
-1999-2004. All Rights Reserved.
+1999-2006. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
