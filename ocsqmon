@@ -46,9 +46,6 @@ use 5.006;
 use strict;
 use warnings;
 
-use lib "/jac_sw/drama/CurrentRelease/lib/site_perl/";
-use lib "/jac_sw/itsroot/install/common/lib/site_perl/";
-
 use vars qw/$VERSION/;
 
 # Load local software
@@ -56,7 +53,7 @@ use FindBin;
 use File::Spec;
 use lib "$FindBin::RealBin/lib";
 
-
+use JAC::ITSRoot;
 use Jit;
 use Tk;
 use Tk::OCSQMonitor;
@@ -76,12 +73,13 @@ our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
 
 # Start up DRAMA
 my $TASK_ROOT = "OCSQMON";
-Jit::TkInit( $TASK_ROOT."_$$" );
+my $dtask = $TASK_ROOT . "_$$";
+Jit::TkInit( $dtask );
 
 # Start up Tk early and put up a status bar
 # Create a new main window
 my $MW = MainWindow->new;
-$MW->title('JAC OCS Queue monitor');
+$MW->title("JAC OCS Queue monitor ($dtask)");
 $MW->iconname($TASK_ROOT);
 
 # Read options early so that we can choose targets
