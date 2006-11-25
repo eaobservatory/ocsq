@@ -215,10 +215,43 @@ sub _send {
   };
 
   my $info = sub {
-    my $msg = shift;
-    print "REMOTE INFO MESSAGE: $msg\n";
-    $self->_pushmessage( $self->_good, "TASK: $msg");
+    my @msg = @_;
+    print "REMOTE INFO MESSAGE: $_\n" for @msg;
+    $self->_pushmessage( $self->_good, "$TASK: $_") for @msg;
   };
+
+
+  # infofull gives us full control of messages so we can distinguish error
+  # from Msg messages. This will be used if the DRAMA module is new enough
+  # but will use -info otherwise. so -info should stay around for the migration
+  # period.
+  my $infofull = sub {
+    my $rtask = shift;
+    my @messages = @_;
+
+    my $err = 0;
+    for my $msg (@messages) {
+      my $prefix;
+      my $status;
+      if (! exists $msg->{status}) {
+	$status = $self->_good;
+	$prefix = '';
+	$err = 0; # not in an error
+      } else {
+	$status = $msg->{status};
+	if (!$err) {
+	  # first error chunk
+	  $err = 1;
+	  $prefix = "##";
+	} else {
+	  $prefix = "# ";
+	}
+      }
+      print $prefix . "$rtask:" . $msg->{message} ."\n";
+      $self->_pushmessage( $status, "$rtask: ". $msg->{message} );
+    }
+  };
+
 
   # Indicate that we are not accepting at the moment
   $self->accepting(0);
@@ -238,6 +271,7 @@ sub _send {
 				-error => $error,
 				-complete => $complete,
 				-info => $info,
+				-infofull => $infofull,
 			       };
 
   # Return status is only relevant for the obeyw
