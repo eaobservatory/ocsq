@@ -746,8 +746,8 @@ sub addmessage {
 	  # need a status and flag per line of message
 	  my @flags = map { 0 } @lines;
 	  my @msgstati = map { $msgstatus } @lines;
-	  $stsds->PutPdl(PDL::Core::pdl(\@msgstati));
-	  $fsds->PutPdl(PDL::Core::pdl(\@flags));
+	  $stsds->PutPdl(PDL::Core::long(\@msgstati));
+	  $fsds->PutPdl(PDL::Core::long(\@flags));
 
 	  # Trigger update in parameter system
 	  print "------- TRIGGERING UPDATE [$msgstatus] with ".
