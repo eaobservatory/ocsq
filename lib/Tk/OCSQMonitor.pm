@@ -75,6 +75,7 @@ use strict;
 use warnings;
 use Carp;
 use Tk;
+use Tk::TextANSIColor;
 use File::Spec;
 
 use Astro::Catalog;
@@ -207,7 +208,7 @@ sub Populate {
 
 
   # Create listbox in frame 2
-  $Fr2->Label(-text => 'Queue contents')->grid(-row=>0,-column=>1);
+  $Fr2->Label(-text => 'Queue contents')->pack(-side => 'top');
 
 
   my $ContentsBox = $Fr2->Scrolled('Text',
@@ -216,7 +217,7 @@ sub Populate {
 				   -height => $args->{'-qheight'},
 				   -width  => $args->{'-qwidth'},
 				   #		 -state  => 'disabled',
-				  )->grid(-row=>1,-column=>1);
+				  )->pack(-side=> 'top', -expand => 1, -fill => 'both');
 
   $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
 
@@ -227,20 +228,16 @@ sub Populate {
   $priv->{MORE_INFO} = 0;  # is the window visible
   $priv->{MORE_DISPLAYED_ONCE} = 0; # Has it been visible at least once?
 
-  my $MsgText = $Fr4->Scrolled('Text',-scrollbars=>'w',
-			       -height=>16,
-			       -width=>$args->{'-msgwidth'},
-			      );
-  BindMouseWheel($MsgText);
-
   my $MsgBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_INFO},
 				 -text     => 'Info messages...',
 				 -command => [ 'show_info', $w ],
-				)->grid(-row=>0,-column=>1,-sticky=>'w');
+				);
 
-  my $ErsText = $Fr4->Scrolled('Text',-scrollbars=>'w',
-			       -height=>8,
+  my $MsgText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
+			       -height=>16,
 			       -width=>$args->{'-msgwidth'},
+			       -background => 'black',
+			       -foreground => 'white',
 			      );
   BindMouseWheel($MsgText);
 
@@ -248,7 +245,24 @@ sub Populate {
   my $ErsBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_ERS},
 				 -text     => 'Error messages...',
 				 -command => ['show_ers', $w],
-				)->grid(-row=>2,-column=>1,-sticky=>'w');
+				);
+
+  my $ErsText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
+			       -height=>8,
+			       -width=>$args->{'-msgwidth'},
+			       -background => 'black',
+			       -foreground => 'white',
+			      );
+  BindMouseWheel($ErsText);
+
+  # Pack into frame four - note that the show_info method displays the Msg and ErsText widgets
+  $MsgBut->grid(-row=>0, -column=>1, -sticky=>'w');
+  $ErsBut->grid(-row=>2, -column=>1, -sticky=>'w');
+
+  # Set weights
+  $Fr4->gridRowconfigure(1, -weight => 2);
+  $Fr4->gridRowconfigure(3, -weight => 1);
+  $Fr4->gridColumnconfigure(1, -weight => 1);
 
 
   # Advertise the messages and error text widgets
@@ -275,6 +289,7 @@ sub Populate {
 			  my $flag = shift;
 			  # make sure that we prepend with # marks in the DRAMA style
 			  my $done_first;
+			  print "<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.\n";
 			  my @hashed = map {
 			    my $hash = " ";
 			    if (!$done_first) {
@@ -298,9 +313,14 @@ sub Populate {
 
   # Finally, pack frames into top frame
   $Fr1->grid(-row => 0, -column =>0, -sticky=>'w');
-  $Fr2->grid(-row => 1, -column =>0);
+  $Fr2->grid(-row => 1, -column =>0, -sticky=>'ewns', -columnspan=>2);
   $Fr3->grid(-row => 2, -column =>0);
-  $Fr4->grid(-row => 3, -column =>0, -sticky=>'w');
+  $Fr4->grid(-row => 3, -column =>0, -sticky=>'ewns',-columnspan=>2);
+
+  # And configure the grid weighting for resize events
+  $w->gridRowconfigure( 3, -weight => 2 );
+  $w->gridRowconfigure( 1, -weight => 1 );
+  $w->gridColumnconfigure( 1, -weight => 1 );
 
   return;
 }
@@ -476,7 +496,8 @@ sub show_info {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('messages');
   if ($priv->{MORE_INFO}) {
-    $w->grid(-row=>1,-column=>1,-sticky=>'ens');
+    # Span two columns so that grid weights can be applied
+    $w->grid(-row=>1,-column=>1,-columnspan=>2,-sticky=>'nsew');
     # Indicate that we have been displayed at least once
     $priv->{MORE_DISPLAYED_ONCE} = 1;
   } else {
@@ -491,7 +512,8 @@ sub show_ers {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('errors');
   if ($priv->{MORE_ERS}) {
-    $w->grid(-row=>3,-column=>1,-sticky=>'ens');
+    # Span two columns so that grid weights can be applied
+    $w->grid(-row=>3,-column=>1,-columnspan=>2,-sticky=>'nsew');
   } else {
     $w->gridForget;
   }
