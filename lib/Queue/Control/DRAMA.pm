@@ -145,7 +145,7 @@ Start the queue. No arguments or return values.
 
 sub startq {
   my $self = shift;
-  obeyw $self->qtask, 'STARTQ';
+  obey $self->qtask, 'STARTQ';
 }
 
 =item B<stopq>
