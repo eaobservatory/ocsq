@@ -45,6 +45,8 @@ use warnings;
 use Carp;
 use Jit;
 use DRAMA;
+use Term::ANSIColor qw/ colored /;
+use Data::Dumper;
 
 use Queue::MSB;
 use Queue::EntryXMLIO qw/ readXML /;
@@ -684,11 +686,15 @@ integer (where '0' is good status aka STATUS__OK).
 
 Returns true if the message could be propagated, and false otherwise.
 
+Multiple lines can be supplied as a list.
+
+  $Q->addmessage( $msgstatus, @text );
+
 =cut
 
 sub addmessage {
   my $self = shift;
-  my ($msgstatus, $msg) = @_;
+  my ($msgstatus, @lines) = @_;
 
   # trap for DRAMA status
   if (UNIVERSAL::can($msgstatus, "GetStatus")) {
@@ -697,7 +703,15 @@ sub addmessage {
   }
 
   # split messages on new lines
-  my @lines = split(/\n/,$msg);
+  @lines = map { split(/\n/,$_) } @lines;
+
+  # Calculate a timestamp - note that this doesn't have to accurately
+  # reflect the time the message was sent from the client. It's simply meant
+  # as a debugging aid to get a reasonable idea of when something occurred
+  # for the log
+  my $time = DateTime->now->set_time_zone( 'UTC' );
+  my $tstamp = colored( $time->strftime("%T").":", "green");
+  @lines = map { "$tstamp$_" } @lines;
 
   # Create a new error context
   DRAMA::ErsPush();
@@ -710,56 +724,24 @@ sub addmessage {
     Carp::cluck("msgstatus not defined");
   }
 
- # print "Status Y: ". $status->GetStatus ."\n";
-
-  # We really want to use the JIT parameters for monitoring
-  # so that we integrate properly into the OCS. The problem
-  # is that the Jit_ErsOut routines are only called when we
-  # are in user interface context.
+  # Either use MsgOut or ErsOut
   if ($msgstatus == DRAMA::STATUS__OK) { # STATUS__OK
-    # Send back through normal channels
-    # problem here is that we do not want to do this if this
-    # is a user interface context because then Jit will also
-    # intercept this and attach it to a parameter!
-    # Would be nice to send it to STDOUT if we are in user interface
-    # context so that we can log if everything is acting up.
-    Dits::UfaceCtxEnable(sub {use Data::Dumper;
-			      print "CTXENABLE:".Dumper(\@_);}, $status);
+    # Send back through normal channels as a single long string
+    my $msg = join("\n", @lines);
     DRAMA::MsgOut($status, $msg);
-    Dits::UfaceCtxEnable(undef, $status);
-    # Simple "good" messages go in a simple parameter
-#    $sdp->PutString( 'JIT_MSG_OUT', $msg, $status);
-    print "MsgOut: $msg\n";
+    print "MsgOut: $_\n" for @lines;
   } else {
-    # bad status so we have to populate JIT_ERS_OUT
-    # with values of MESSAGE, FLAGS and STATUS
-    my $sds = $sdp->GetSds('JIT_ERS_OUT', $status);
-    if ($status->Ok) {
-      my $msgsds = $sds->Find('MESSAGE',$status);
-      if ($status->Ok) {
-	my $stsds = $sds->Find('STATUS',$status);
-	my $fsds = $sds->Find('FLAGS',$status);
-	use PDL::Lite;
-	$msgsds->PutStringArrayExists(\@lines,$status);
-
-	if ($status->Ok) {
-	  # need a status and flag per line of message
-	  my @flags = map { 0 } @lines;
-	  my @msgstati = map { $msgstatus } @lines;
-	  $stsds->PutPdl(PDL::Core::long(\@msgstati));
-	  $fsds->PutPdl(PDL::Core::long(\@flags));
-
-	  # Trigger update in parameter system
-	  print "------- TRIGGERING UPDATE [$msgstatus] with ".
-	    join("\n",@lines)."\n";
-	  $sdp->Update($sds,$status);
-	}
-      }
-    }
+    # This relies on JIT populating JIT_ERS_OUT
+    DRAMA::ErsPush();
+    my $lstat = new DRAMA::Status;
+    $lstat->SetStatus( $msgstatus );
+    $lstat->ErsOut( 0, join("\n",@lines));
+    DRAMA::ErsPop();
+    print "ErsOut: $_\n" for @lines;
   }
 
   unless ($status->Ok) {
-    warn "Error populating message parameters:". $status->ErrorText;
+    Carp::cluck "Error populating message parameters:". $status->ErrorText;
     $status->Annul;
     DRAMA::ErsPop();
     return 0;
@@ -1665,26 +1647,27 @@ sub POLL {
   update_index_param($status);
   update_status_param($status);
 
-  # If pstat is false, set status to bad
+  # If pstat is false (perl bad status), set status to bad
   # If be_status is bad also set status to bad.
   # Stop the queue in both cases, report the errors but then
   # carry on using good status
   if (!$pstat) {
+    # Poll failure
     DRAMA::ErsPush();
+    $Q->addmessage( Dits::APP_ERROR, "Error polling the backend - queue will be stopped");
     my $lstat = new DRAMA::Status;
-    $lstat->SetStatus(Dits::APP_ERROR);
-    $lstat->ErsOut(0,"Error polling the backend [status = $pstat] - Queue stopped");
+    &STOPQ($lstat);
 
     # Did we get a reason
     my $r = $Q->queue->backend->failure_reason;
     if ($r) {
+      $Q->addmessage( 0, "A reason for the polling failure was supplied.");
       # Did get a reason. Does it help?
       # Need to convert the details to a SDS object
       my %details = $r->details;
       $details{INDEX} = $r->index;
       $details{REASON} = $r->type;
 
-      use Data::Dumper;
       print "detected a failure: " . Dumper(\%details) ."\n";
 
       set_failure_parameter( $lstat, %details );
@@ -1693,40 +1676,47 @@ sub POLL {
       $Q->queue->backend->failure_reason(undef);
     }
 
-    # error so we must stop the queue. Note that since lstat has
-    # been flushed this now corresponds to a good status.
-    &STOPQ($lstat);
+    # Pop error stack
     DRAMA::ErsPop();
   } else {
-    # Need to go through the backend messages and check status on each
+    # Go through the messages and group them by status code to separate
+    # good from bad. This allows the parameter updating to be slightly
+    # more efficient since we can send multiple lines to addmessage() at once
     my $good = $Q->queue->backend->_good;
-    my $err_found = 0; # true if we have found an error
+    my @stack;
+    my $curstat = -1;
     for my $i (0..$#$be_status) {
       my $bestat = $be_status->[$i];
       my $bemsg  = $message->[$i];
-      if ($bestat == $good) {
-	$Q->addmessage( $bestat, $bemsg) if defined $bemsg;
-      } else {
-	# We have an error from the backend itself
-	# We need to file the message and stop the queue
-	if (!$err_found) {
-	  # we have found an error
-	  $err_found = 1;
+      $bemsg = "Status bad without associated error message!"
+        if (!defined $bemsg && $bestat != $good);
 
-	  DRAMA::ErsPush();
-	  my $lstat = new DRAMA::Status;
-	  $lstat->SetStatus(Dits::APP_ERROR);
-	  $lstat->ErsOut(0,
-			 "Error from queue backend task - Stopping the queue");
-	  &STOPQ( $lstat );
-	  DRAMA::ErsPop();
-	  $Q->addmessage($bestat, "Stopping the queue due to backend error");
-	}
-	# Send the message
-	$bemsg = "Status bad without associated error message!"
-	  unless defined $bemsg;
-	$Q->addmessage($bestat, $bemsg);
+      # skip if we have no message defined in this slot by now.
+      # it is possible if status is good
+      next unless defined $bemsg;
+
+      # Store messages in list each of which is an array ref with first element
+      # the status and subsequent elements the messages
+      if ($curstat == $bestat ) {
+	push(@{$stack[-1]}, $bemsg);
+      } else {
+	$curstat = $bestat;
+	push(@stack, [ $bestat, $bemsg]);
       }
+    }
+
+    # Need to go through the backend messages and check status on each
+    my $err_found = 0; # true if we have found an error
+    for my $chunk (@stack) {
+      my $bestat = shift(@$chunk);
+      if ($bestat != $good && !$err_found) {
+	# if this is the first bad status
+	# we have found an error
+	$err_found = 1;
+	$Q->addmessage($bestat, "Stopping the queue due to backend error");
+	&STOPQ( $status);
+      }
+      $Q->addmessage( $bestat, @$chunk);
     }
   }
 
@@ -1847,7 +1837,6 @@ sub MSBCOMPLETE {
   my %sds;
   tie %sds, 'Sds::Tie', $arg;
 
-  use Data::Dumper;
   print Dumper( \%sds );
 
   my @completed;
