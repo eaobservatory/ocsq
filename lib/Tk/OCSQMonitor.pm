@@ -75,8 +75,10 @@ use strict;
 use warnings;
 use Carp;
 use Tk;
+use Term::ANSIColor qw/ colored /;
 use Tk::TextANSIColor;
 use File::Spec;
+use Data::Dumper;
 
 use Astro::Catalog;
 use Astro::Coords;
@@ -570,7 +572,7 @@ sub cvtsub {
     $w->update_index( $value );
   } elsif ($param eq 'JIT_MSG_OUT') {
     # Simple informational message
-    print "+++++++++++++++++ $param -------- $value \n";
+    print colored("$param:",'yellow') . "$value\n";
     $w->write_text_messages( 'messages', $value);
 
   }
@@ -607,7 +609,7 @@ sub cvtsub {
     # and then work that out when we enter the event loop. Easiest thing
     # is to do an after() for a few milliseconds later.
 
-    use Data::Dumper;
+    print _param_log($param)."\n";
     print Dumper(\%tie);
 
     # if we are prompting for changes to the ODF we
@@ -637,8 +639,7 @@ sub cvtsub {
 
   } elsif ($param eq 'MSBCOMPLETED') {
 
-    print "Got MSBCOMPLETED parameter:\n";
-    use Data::Dumper;
+    print _param_log($param)."\n";
     print Dumper(\%tie);
 
     # The parameter has been changed. Run the supplied callback.
@@ -663,23 +664,12 @@ sub cvtsub {
       print "No registered callback for MSBCOMPLETED\n";
     }
   } elsif ($param eq 'JIT_ERS_OUT') {
-    $value->List(new DRAMA::Status);
+    # $value->List(new DRAMA::Status);
     $w->write_text_messages( 'errors', $tie{MESSAGE});
 
-    # look for errors from the queue/scucd that are not coming
-    # to us directly because we did not initiate the action
-#      for (@{$tie{MESSAGE}}) {
-#	if ($_ =~ /^ERROR/) {
-#	  print "Triggering ERROR associated with message from the queue\n";
-#	  _play_sound('alert.wav');
-#	  last;
-#	}
-#      }
-
-
   } else {
-    print "Unrecognized parameter $param\n";
-    print Dumper(\%tie);
+    print colored("Unrecognized parameter $param\n",'yellow');
+    print colored(Dumper(\%tie),"yellow");
   }
   #print "*********** Completed Monitor conversion [$param]\n";
   return $value;
@@ -731,6 +721,17 @@ sub _play_sound {
   return;
 }
 
+# Return formatted parameter prefix string
+sub _param_log {
+  my $param = shift;
+  return colored("$param:",'yellow'). _tstamp();
+}
+
+# return a time stamp string to prepend to log messages
+sub _tstamp {
+  my $time = DateTime->now->set_time_zone( 'UTC' );
+  return colored( $time->strftime("%T").":", "green");
+}
 
 sub update_listboxes {
   # Read the hash ref
