@@ -49,6 +49,7 @@ use base qw/ Queue::Backend /;
 
 use DRAMA;
 use Time::Piece qw/ :override /;
+use Term::ANSIColor qw/ colored /;
 
 =head1 METHODS
 
@@ -204,7 +205,10 @@ sub _send {
     $entry->status("ERROR");
 
     # print "ERROR HANDLER: $msg\n";
-    $self->_pushmessage( $lstat, "ERROR: $msg" );
+    $self->_pushmessage( $lstat,
+			 colored("##", "bold red").
+			 colored("$TASK:",'red').
+			 $msg );
   };
 
   my $complete = sub {
@@ -232,11 +236,13 @@ sub _send {
     my $err = 0;
     for my $msg (@messages) {
       my $prefix;
+      my $task = "$rtask:";
       my $status;
       if (! exists $msg->{status}) {
 	$status = $self->_good;
 	$prefix = '';
 	$err = 0; # not in an error
+	$task = colored($task, 'green');
       } else {
 	$status = $msg->{status};
 	if (!$err) {
@@ -246,9 +252,13 @@ sub _send {
 	} else {
 	  $prefix = "# ";
 	}
+	$task = colored($task, 'red');
+	$prefix = colored($prefix, 'bold red');
       }
-      print $prefix . "$rtask:" . $msg->{message} ."\n";
-      $self->_pushmessage( $status, "$rtask: ". $msg->{message} );
+
+      my $pretext = $prefix . $task;
+      print $pretext . $msg->{message} ."\n";
+      $self->_pushmessage( $status, $pretext. $msg->{message} );
     }
   };
 
