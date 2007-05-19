@@ -372,62 +372,11 @@ sub clearTarget {
   }
 }
 
-=item B<iscal>
-
-Returns true if the sequence seems to be associated with a
-science calibration observation (e.g. a flux or wavelength
-calibration). Returns false otherwise.
-
-  $iscal = $seq->iscal();
-
-=cut
-
-sub iscal {
-  my $self = shift;
-  warn "iscal not implemented";
-  return 0;
-}
-
-=item B<isGenericCal>
-
-Returns true if the sequence seems to be associated with a
-generic calibration observation such as array tests.
-
- $isgencal = $seq->isGenericCal();
-
-Note that if the sequence includes both array tests and 
-science observations, it is possible for a single sequence
-to be a calibration and science observation.
-
-=cut
-
-sub isGenericCal {
-  my $self = shift;
-  warn "isGenericCal not implemented";
-  return 0;
-}
-
-=item B<isScienceObs>
-
-Return true if this sequence includes a science observation.
-
- $issci = $seq->isScienceObs;
-
-=cut
-
-sub isScienceObs {
-  my $self = shift;
-  warn "isScienceObs not implemented";
-  return 1;
-}
-
 =item B<projectid>
 
 Returns the project ID associated with this entry.
 
   $proj = $entry->projectid;
-
-The base class always returns undef.
 
 =cut
 
@@ -565,7 +514,8 @@ L<Queue::Entry>, L<Queue::Contents>, L<JAC::OCS::Config>
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 
-Copyright (C) 2003-2005 Particle Physics and Astronomy Research Council.
+Copyright (C) 2003-2006 Particle Physics and Astronomy Research Council.
+Copyright (C) 2007 Science and Technology Facilities Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
