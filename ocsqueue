@@ -40,8 +40,8 @@ Run the task in simulate mode. When running in this mode no commands
 are sent to the OMP database (MSBs are not marked as complete) and the
 task does not attempt to talk to the real instrument task (it uses
 localhost by default but see the C<-rhost> option). The task
-will attempt to talk to the demo scucd program on the same machine
-(see L<scucd>). This option is equivalent to using both C<-local> and
+will attempt to talk to the demo C<jac_inst> program on the same machine
+(see L<jac_inst>). This option is equivalent to using both C<-local> and
 C<-ompsim>.
 
 =item B<-local>
