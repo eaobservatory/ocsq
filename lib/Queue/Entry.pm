@@ -522,6 +522,22 @@ sub msbid {
   return ();
 }
 
+=item B<msbtid>
+
+MSB transaction ID. Undefined if the entry does not refer to a Queue::MSB
+object.
+
+ $msbtid = $entry->msbtid;
+
+=cut
+
+sub msbtid {
+  my $self = shift;
+  my $msb = $self->msb;
+  return unless defined $msb;
+  return $msb->transid;
+}
+
 =back
 
 =head2 Display methods

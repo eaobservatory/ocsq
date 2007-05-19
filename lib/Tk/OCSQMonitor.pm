@@ -1177,8 +1177,11 @@ sub create_msbcomplete_tab {
   my $tstamp = shift;
   my %details = @_;
 
-  my $text = "MSB $details{MSBID} of project $details{PROJECTID} was completed at\n".
-    scalar(gmtime($tstamp)) ."UT\n".
+  my $title = $details{MSBTITLE};
+  $title = $details{MSBID} if !$title;
+
+  my $text = "MSB $title of project $details{PROJECTID} was completed at\n".
+    scalar(gmtime($details{TIMESTAMP})) ."UT\n".
  " Please either accept or reject it and enter a reason (if desired)";
 
   $w->Label( -text => $text,

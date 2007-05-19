@@ -813,10 +813,11 @@ Set the contents of the MSB complete parameter.
 Arguments: Inherited status, information hash.
 
 This method takes the data (a hash of information that should be sent
-to the monitoring system), timestamps it and places it into the
-parameter. Use C<clear_msbcomplete_parameter> method to remove
-it. This allows us to stack up MSB completion requests if we do not
-have a queue monitor running.
+to the monitoring system), retrieves the MSB transaction ID as a
+unique key it and places it into the parameter. Use
+C<clear_msbcomplete_parameter> method to remove it. This allows us to
+stack up MSB completion requests if we do not have a queue monitor
+running.
 
   $Q->set_msbcomplete_parameter( $status, %details)
 
@@ -840,7 +841,11 @@ sub set_msbcomplete_parameter {
   # Read the arguments
   my %details = @_;
 
-  print Dumper(\%details);
+  # Dump the completion details but strip out the Entry object because
+  # the config is enormous
+  my %copy = %details;
+  delete $copy{MSB};
+  print Dumper(\%copy);
   print ($status->Ok ? "status ok\n" : "status bad\n");
 
   # if we have disabled completion then we should go no further
@@ -865,29 +870,16 @@ sub set_msbcomplete_parameter {
   my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
 
-  # Generate a timestamp (not that it really needs to be
-  # unique since Sds will handle it if we keep on adding
-  # identical entries but they are hard to remove AND
-  # we have problems with the systems monitoring us tying
-  # to a hash AND the MSBCOMPLETE method only taking the unique
-  # key as argument). Make sure that the key is unique, adding
-  # a second if another MSB is accepted at the same time (e.g.
-  # if you clear the queue with multiple active MSBs!)
-  my $tstamp = time();
-
-  my $loop = 0;
-  while (exists $self->_msbcomplete_table->{$tstamp}) {
-    $tstamp++;
-    $loop++;
-    croak "Unable to determine unique key for MSB complete parameter after 100 iteration" if $loop > 100;
-  }
+  # Use the MSB transaction id as the unique key
+  my $msbtid;
+  $msbtid = $details{MSB}->transid if (exists $details{MSB} && defined $details{MSB});
 
   # The MSB object should not go in the SDS structure
   # so we store all this information in a hash outside
   # of it [that only the *_msbcomplete functions use -
   # this is essentially a Queue::MSBComplete object
   # Take a copy
-  $self->_msbcomplete_table->{$tstamp} = { %details };
+  $self->_msbcomplete_table->{$msbtid} = { %details };
 
   # Remove the MSB field
   delete $details{MSB};
@@ -896,8 +888,8 @@ sub set_msbcomplete_parameter {
   # standard kluge
   bless $sds, "Sds";
 
-  # put in the information
-  $sds->PutHash( \%details, "$tstamp", $status);
+  # put in the information (forcing msbtid to stringify in case it is an object
+  $sds->PutHash( \%details, "$msbtid", $status);
 
   $sds->List($status);
 
@@ -912,9 +904,10 @@ sub set_msbcomplete_parameter {
 
 Remove the completed information from the DRAMA parameter.
 
- $Q->clear_msbcomplete_parameter($status, $timestamp);
+ $Q->clear_msbcomplete_parameter($status, $msbtid);
 
-The timestamp must match a timestamp stored in the completion table.
+The transaction ID must match a MSB transaction ID stored in the
+completion table.
 
 =cut
 
@@ -928,9 +921,9 @@ sub clear_msbcomplete_parameter {
   my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
 
-  my $tstamp = shift;
+  my $msbtid = shift;
 
-  # Now need to look for the timestamp object
+  # Now need to look for the msbtid object
   # (use a private status)
   DRAMA::ErsPush();
   my $lstat = new DRAMA::Status;
@@ -938,7 +931,7 @@ sub clear_msbcomplete_parameter {
   # Have to remove the old entries
   my $updated;
   {
-    my $detsds = $sds->Find("$tstamp", $lstat);
+    my $detsds = $sds->Find("$msbtid", $lstat);
 
     if ($detsds) {
       # if we have a DETAILS object we need to
@@ -959,29 +952,29 @@ sub clear_msbcomplete_parameter {
   $sdp->Update($sds, $status) if $updated;
 
   # Clear the hash entry
-  delete $self->_msbcomplete_table->{$tstamp};
+  delete $self->_msbcomplete_table->{$msbtid};
 
   return;
 }
 
-=item B<get_msbcomplete_parameter_timestamp>
+=item B<get_msbcomplete_parameter_transid>
 
 Retrieve the MSBID and Projectid information associated with the
-supplied timestamp.  Simply returns the hash entry in the MSB completion table.
-(the pseudo C<Queue::MSBComplete> object).
+supplied transaction ID.  Simply returns the hash entry in the MSB
+completion table.  (the pseudo C<Queue::MSBComplete> object).
 
- %details = $Q->get_msbcomplete_parameter_timestamp($status,$tstamp);
+ %details = $Q->get_msbcomplete_parameter_transid($status,$transid);
 
 =cut
 
-sub get_msbcomplete_parameter_timestamp {
+sub get_msbcomplete_parameter_transid {
   my $self = shift;
   my $status = shift;
   return unless $status->Ok;
-  my $tstamp = shift;
+  my $msbtid = shift;
 
-  if (exists $self->_msbcomplete_table->{$tstamp}) {
-    return %{ $self->_msbcomplete_table->{$tstamp} };
+  if (exists $self->_msbcomplete_table->{$msbtid}) {
+    return %{ $self->_msbcomplete_table->{$msbtid} };
   } else {
     return ();
   }
@@ -1564,13 +1557,14 @@ sub SUSPENDMSB {
   my $label = $entry->entity->getObsLabel;
 
   if ($proj && $msbid && $label) {
+    my $msbtid = $entry->msbtid;
     try {
       # Suspend the MSB unless we are in simulate mode
       my $msg;
       if ($Q->simdb) {
 	$msg = "[in simulation without modifying the DB]";
       } else {
-	OMP::MSBServer->suspendMSB($proj, $msbid, $label);
+	OMP::MSBServer->suspendMSB($proj, $msbid, $label, $msbtid);
 	$msg = '';
       }
 
@@ -1801,7 +1795,7 @@ This action sends a doneMSB or rejectMSB to the OMP database
 if the corresponding entries can be found in the completion
 data structure.
 
-Sds Argument contains a structure with a timestamp key (which must be
+Sds Argument contains a structure with a transaction ID key (which must be
 recognized by the system [ie in the completion parameter]) pointing
 to:
 
@@ -1810,13 +1804,13 @@ to:
   USERID     - user associated with this request [optional]
   REASON     - String describing any particular reason
 
-There can be more than one timestamp entry so we can trigger
+There can be more than one pending transaction entry so we can trigger
 multiple MSBs at once (this will be the case if we have been
 running the queue without a monitor GUI).
 
 Alternatively, for ease of use at the command line we also support
 
-  Argument1=timestamp Argument2=complete 
+  Argument1=msbtid Argument2=complete 
   Argument3=userid Argument4=reason
 
 =cut
@@ -1842,18 +1836,18 @@ sub MSBCOMPLETE {
   my @completed;
   if (exists $sds{Argument1}) {
     # We have numbered args
-    push(@completed, { timestamp => $sds{Argument1},
+    push(@completed, { msbtid => $sds{Argument1},
 		       complete => $sds{Argument2},
 		       userid => $sds{Argument3},
 		       reason => $sds{Argument4},
 		     });
   } else {
-    # We have timestamp args
+    # We have transid args
     for my $key (keys %sds) {
       # see if we have a hash ref
       next unless ref($sds{$key}) eq 'HASH';
       push(@completed, {
-			timestamp => $key,
+			msbtid => $key,
 			complete => $sds{$key}->{COMPLETE},
 			userid => $sds{$key}->{USERID},
 			reason => $sds{$key}->{REASON},
@@ -1873,11 +1867,11 @@ sub MSBCOMPLETE {
     return $status;
   }
 
-  # Now loop over all the timestamps
+  # Now loop over all the transids
   for my $donemsb (@completed) {
 
     # First get the MSBID and PROJECTID
-    my %details = $Q->get_msbcomplete_parameter_timestamp( $status,$donemsb->{timestamp});
+    my %details = $Q->get_msbcomplete_parameter_transid( $status,$donemsb->{msbtid});
 
     my $projectid = $details{PROJECTID};
     my $msbid     = $details{MSBID};
@@ -1885,16 +1879,16 @@ sub MSBCOMPLETE {
 
     print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
       " MSBID: ".(defined $msbid ? $msbid : "<undef>").
-	" TimeStamp: ". (defined $donemsb->{timestamp} ? 
-			 $donemsb->{timestamp} : "<undef>").
+	" Transaction: ". (defined $donemsb->{msbtid} ? 
+			 $donemsb->{msbtid} : "<undef>").
 			   "\n";
 
     # Ooops if we have nothing
-    if (!$donemsb->{timestamp}) {
-      $Q->addmessage($status,"Attempting to mark MSB as complete but no timestamp supplied!");
+    if (!$donemsb->{msbtid}) {
+      $Q->addmessage($status,"Attempting to mark MSB as complete but no transaction ID supplied!");
       next;
     } elsif (!$msbid || !$projectid) {
-      $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete but can no longer find it in the parameter system.");
+      $Q->addmessage($status,"Attempting to mark MSB with transaction ID ".$donemsb->{msbtid}." as complete but can no longer find it in the parameter system.");
       next;
     }
 
@@ -1909,7 +1903,7 @@ sub MSBCOMPLETE {
     } else {
       $martxt = 'UNKNOWN';
     }
-    $Q->addmessage($status,"Attempting to mark MSB with timestamp ".$donemsb->{timestamp}." as complete [$martxt]");
+    $Q->addmessage($status,"Attempting to mark MSB with transaction ID ".$donemsb->{msbtid}." as complete [$martxt]");
 
     if ($mark > 0) {
 
@@ -1942,7 +1936,7 @@ sub MSBCOMPLETE {
 	  # which always fails.
 	  eval {
 	    $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-			      $donemsb->{reason});
+			      $donemsb->{reason}, $donemsb->{msbtid});
 	  };
 	  $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
 	    if $@;
@@ -1970,7 +1964,7 @@ sub MSBCOMPLETE {
 	  $msg = '';
 	  # This can be a local call since MSBID is not recalculated
 	  OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
-				     $donemsb->{reason});
+				     $donemsb->{reason}, $donemsb->{msbtid});
 	}
 	$Q->addmessage($status,"MSB rejected for project $projectid $msg");
 
@@ -1994,7 +1988,7 @@ sub MSBCOMPLETE {
     }
 
     # and clear the parameter
-    $Q->clear_msbcomplete_parameter( $status, $donemsb->{timestamp} );
+    $Q->clear_msbcomplete_parameter( $status, $donemsb->{msbtid} );
 
     # And remove the MSB from the queue
     if ($msb) {
@@ -2635,11 +2629,18 @@ sub msbtidy {
 
     } else {
 
-      $Q->addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid]");
+      $Q->addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid TID=".
+		     $msb->transid."]");
 
       # Store it
       $data{MSBID} = $msbid;
       $data{PROJECTID} = $projectid;
+      $data{TIMESTAMP} = time(); # so that the gui can report the completion time
+
+      # the queue monitor wants the MSB title and rather than asking each client to 
+      # query the database for it we query it once here
+      my $msbtitle = OMP::MSBServer->titleMSB( $msbid );
+      $data{MSBTITLE} = $msbtitle if $msbtitle;
 
       # And now store it in the parameter
       $Q->set_msbcomplete_parameter($status, %data);
@@ -2662,7 +2663,8 @@ sub msbtidy {
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>.
 
-Copyright (C) 2002-2004 Particle Physics and Astronomy Research Council.
+Copyright (C) 2002-2006 Particle Physics and Astronomy Research Council.
+Copyright (C) 2007 Science and Technology Facilities Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
