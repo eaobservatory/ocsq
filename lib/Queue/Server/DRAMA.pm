@@ -47,6 +47,7 @@ use Jit;
 use DRAMA;
 use Term::ANSIColor qw/ colored /;
 use Data::Dumper;
+use Storable qw/ nstore retrieve /;
 
 use Queue::MSB;
 use Queue::EntryXMLIO qw/ readXML /;
@@ -190,6 +191,9 @@ sub new {
 
   # and the parameter system
   $q->init_pars();
+
+  # and check for any left over MSB accepts
+  $q->process_pending_msbcomplete();
 
   # Cache it and return it
   $Q = $q;
@@ -870,16 +874,24 @@ sub set_msbcomplete_parameter {
   my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
 
-  # Use the MSB transaction id as the unique key
-  my $msbtid;
-  $msbtid = $details{MSB}->transid if (exists $details{MSB} && defined $details{MSB});
+  # calculate the MSB transaction ID. It can not be the unique key because
+  # it is too long for SDS.
+  $details{MSBTID} = $details{MSB}->transid if (exists $details{MSB} && defined $details{MSB});
+
+  # Choose a unique key for the completion hash - timestamp is the only
+  # choice given length constraints. Making the MSBTID shorter by dropping
+  # the milliseconds would also be possible
+  my $compkey = $details{TIMESTAMP};
 
   # The MSB object should not go in the SDS structure
   # so we store all this information in a hash outside
   # of it [that only the *_msbcomplete functions use -
   # this is essentially a Queue::MSBComplete object
   # Take a copy
-  $self->_msbcomplete_table->{$msbtid} = { %details };
+  $self->_msbcomplete_table->{$details{TIMESTAMP}} = { %details };
+
+  # Write to file store in case we are shutdown before we have accepted
+  $self->archive_pending_msbcomplete();
 
   # Remove the MSB field
   delete $details{MSB};
@@ -888,9 +900,10 @@ sub set_msbcomplete_parameter {
   # standard kluge
   bless $sds, "Sds";
 
-  # put in the information (forcing msbtid to stringify in case it is an object
-  $sds->PutHash( \%details, "$msbtid", $status);
+  # Note that keys in Sds structures can not be more than 15 characters.
+  $sds->PutHash( \%details, "$compkey", $status);
 
+  print "Listing SDS for MSB transaction $details{MSBTID}:\n";
   $sds->List($status);
 
   # Notify the parameter system
@@ -904,9 +917,9 @@ sub set_msbcomplete_parameter {
 
 Remove the completed information from the DRAMA parameter.
 
- $Q->clear_msbcomplete_parameter($status, $msbtid);
+ $Q->clear_msbcomplete_parameter($status, $compkey);
 
-The transaction ID must match a MSB transaction ID stored in the
+The completion key must match a MSB completion key stored in the
 completion table.
 
 =cut
@@ -921,9 +934,9 @@ sub clear_msbcomplete_parameter {
   my $sds = $sdp->GetSds('MSBCOMPLETED',$status);
   return undef unless defined $sds;
 
-  my $msbtid = shift;
+  my $compkey = shift;
 
-  # Now need to look for the msbtid object
+  # Now need to look for the completion object
   # (use a private status)
   DRAMA::ErsPush();
   my $lstat = new DRAMA::Status;
@@ -931,7 +944,7 @@ sub clear_msbcomplete_parameter {
   # Have to remove the old entries
   my $updated;
   {
-    my $detsds = $sds->Find("$msbtid", $lstat);
+    my $detsds = $sds->Find("$compkey", $lstat);
 
     if ($detsds) {
       # if we have a DETAILS object we need to
@@ -951,8 +964,9 @@ sub clear_msbcomplete_parameter {
   # if it was changed
   $sdp->Update($sds, $status) if $updated;
 
-  # Clear the hash entry
-  delete $self->_msbcomplete_table->{$msbtid};
+  # Clear the hash entry and the file cache
+  delete $self->_msbcomplete_table->{$compkey};
+  $self->archive_pending_msbcomplete();
 
   return;
 }
@@ -960,10 +974,10 @@ sub clear_msbcomplete_parameter {
 =item B<get_msbcomplete_parameter_transid>
 
 Retrieve the MSBID and Projectid information associated with the
-supplied transaction ID.  Simply returns the hash entry in the MSB
+supplied completion key.  Simply returns the hash entry in the MSB
 completion table.  (the pseudo C<Queue::MSBComplete> object).
 
- %details = $Q->get_msbcomplete_parameter_transid($status,$transid);
+ %details = $Q->get_msbcomplete_parameter_transid($status,$compkey);
 
 =cut
 
@@ -971,17 +985,85 @@ sub get_msbcomplete_parameter_transid {
   my $self = shift;
   my $status = shift;
   return unless $status->Ok;
-  my $msbtid = shift;
+  my $compkey = shift;
 
-  if (exists $self->_msbcomplete_table->{$msbtid}) {
-    return %{ $self->_msbcomplete_table->{$msbtid} };
+  if (exists $self->_msbcomplete_table->{$compkey}) {
+    return %{ $self->_msbcomplete_table->{$compkey} };
   } else {
     return ();
   }
 
 }
 
+=item B<archive_pending_msbcomplete>
 
+Write the pending MSB completion information in case the queue is shut
+down without having resolved all MSB accepts/rejects.
+
+  $Q->archive_pending_msbcomplete();
+
+Information is written to a file that will be read on runup.
+
+If no information is pending, no file is written and any pre-existing
+file is removed.
+
+If the file can not be written, we carry on about our business rather
+than treating it as fatal.
+
+=cut
+
+sub archive_pending_msbcomplete {
+  my $self = shift;
+  # use Storable since we do not care about the format
+  # Strip out the MSB object since it won't be valid when the
+  # new queue is run up
+  my %pending;
+
+  my $table = $self->_msbcomplete_table;
+  for my $compkey (keys %$table) {
+    my %temp = %{$table->{$compkey}};
+    delete $temp{MSB};
+    $pending{$compkey} = \%temp;
+  }
+
+  # if we have no keys delete the file rather than storing
+  # an empty
+  if (keys %pending) {
+    eval {
+      nstore( \%pending, $self->_pending_msb_filename );
+    };
+    if ($@) {
+      print "Log warning: Unable to write pending complete information to ".$self->_pending_msb_filename.": $@";
+    }
+  } else {
+    unlink $self->_pending_msb_filename;
+  }
+  return;
+}
+
+=item B<process_pending_msbcomplete>
+
+Process any pending MSB complete information. The contents of
+the data file are read and placed into completion parameters to
+be picked up by the queue.
+
+  $self->process_pending_msbcomplete();
+
+=cut
+
+sub process_pending_msbcomplete {
+  my $self = shift;
+  my $pending;
+  eval {
+    $pending = retrieve( $self->_pending_msb_filename );
+  };
+  my $status = new DRAMA::Status;
+  if (defined $pending) {
+    for my $compkey (keys %$pending) {
+      $self->set_msbcomplete_parameter( $status, %{$pending->{$compkey}} );
+    }
+  }
+}
 
 =back
 
@@ -1795,22 +1877,22 @@ This action sends a doneMSB or rejectMSB to the OMP database
 if the corresponding entries can be found in the completion
 data structure.
 
-Sds Argument contains a structure with a transaction ID key (which must be
-recognized by the system [ie in the completion parameter]) pointing
-to:
+Sds Argument contains a structure with a completion key which must match
+the key published by the queue (present in the MSBCOMPLETE
+parameter) pointing to:
 
   COMPLETE   - tri-valued  0 - reject +ve - accept MSB
                -ve - remove MSB without action "took no data"
   USERID     - user associated with this request [optional]
   REASON     - String describing any particular reason
 
-There can be more than one pending transaction entry so we can trigger
+There can be more than one pending MSB entry so we can trigger
 multiple MSBs at once (this will be the case if we have been
 running the queue without a monitor GUI).
 
 Alternatively, for ease of use at the command line we also support
 
-  Argument1=msbtid Argument2=complete 
+  Argument1=CompletionKey Argument2=complete 
   Argument3=userid Argument4=reason
 
 =cut
@@ -1836,7 +1918,7 @@ sub MSBCOMPLETE {
   my @completed;
   if (exists $sds{Argument1}) {
     # We have numbered args
-    push(@completed, { msbtid => $sds{Argument1},
+    push(@completed, { compkey => $sds{Argument1},
 		       complete => $sds{Argument2},
 		       userid => $sds{Argument3},
 		       reason => $sds{Argument4},
@@ -1847,7 +1929,7 @@ sub MSBCOMPLETE {
       # see if we have a hash ref
       next unless ref($sds{$key}) eq 'HASH';
       push(@completed, {
-			msbtid => $key,
+			compkey => $key,
 			complete => $sds{$key}->{COMPLETE},
 			userid => $sds{$key}->{USERID},
 			reason => $sds{$key}->{REASON},
@@ -1871,24 +1953,25 @@ sub MSBCOMPLETE {
   for my $donemsb (@completed) {
 
     # First get the MSBID and PROJECTID
-    my %details = $Q->get_msbcomplete_parameter_transid( $status,$donemsb->{msbtid});
+    my %details = $Q->get_msbcomplete_parameter_transid( $status,$donemsb->{compkey});
 
     my $projectid = $details{PROJECTID};
     my $msbid     = $details{MSBID};
     my $msb       = $details{MSB};
+    my $msbtid    = $details{MSBTID};
 
     print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
       " MSBID: ".(defined $msbid ? $msbid : "<undef>").
-	" Transaction: ". (defined $donemsb->{msbtid} ? 
-			 $donemsb->{msbtid} : "<undef>").
+	" Transaction: ". (defined $msbtid ? 
+			 $msbtid : "<undef>").
 			   "\n";
 
     # Ooops if we have nothing
-    if (!$donemsb->{msbtid}) {
-      $Q->addmessage($status,"Attempting to mark MSB as complete but no transaction ID supplied!");
+    if (!$donemsb->{compkey}) {
+      $Q->addmessage($status,"Attempting to mark MSB as complete but insufficient information supplied!");
       next;
     } elsif (!$msbid || !$projectid) {
-      $Q->addmessage($status,"Attempting to mark MSB with transaction ID ".$donemsb->{msbtid}." as complete but can no longer find it in the parameter system.");
+      $Q->addmessage($status,"Attempting to mark MSB with completion key ".$donemsb->{compkey}." as complete but can no longer find it in the parameter system.");
       next;
     }
 
@@ -1903,7 +1986,7 @@ sub MSBCOMPLETE {
     } else {
       $martxt = 'UNKNOWN';
     }
-    $Q->addmessage($status,"Attempting to mark MSB with transaction ID ".$donemsb->{msbtid}." as complete [$martxt]");
+    $Q->addmessage($status,"Attempting to mark MSB with completion key ".$donemsb->{compkey}." (transaction $msbtid) as complete [$martxt]");
 
     if ($mark > 0) {
 
@@ -1936,7 +2019,7 @@ sub MSBCOMPLETE {
 	  # which always fails.
 	  eval {
 	    $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-			      $donemsb->{reason}, $donemsb->{msbtid});
+			      $donemsb->{reason}, $msbtid);
 	  };
 	  $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
 	    if $@;
@@ -1964,7 +2047,7 @@ sub MSBCOMPLETE {
 	  $msg = '';
 	  # This can be a local call since MSBID is not recalculated
 	  OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
-				     $donemsb->{reason}, $donemsb->{msbtid});
+				     $donemsb->{reason}, $msbtid);
 	}
 	$Q->addmessage($status,"MSB rejected for project $projectid $msg");
 
@@ -1988,7 +2071,7 @@ sub MSBCOMPLETE {
     }
 
     # and clear the parameter
-    $Q->clear_msbcomplete_parameter( $status, $donemsb->{msbtid} );
+    $Q->clear_msbcomplete_parameter( $status, $donemsb->{compkey} );
 
     # And remove the MSB from the queue
     if ($msb) {
@@ -2653,6 +2736,37 @@ sub msbtidy {
   }
 }
 
+=item B<_pending_msb_filename>
+
+Retrieve the name of the filename being used for the pending MSB information.
+This will be read on runup to see if any MSBs are pending. It will be written
+every time MSBs are ready for acceptance and removed if no MSBs are pending.
+
+  $filename = $Q->_pending_msb_filename();
+
+Temporary directory is returned if the primary directory does not exist.
+
+Only one queue is allowed to run on any system so no attempt is made to lock
+the filename to a unique host (else another program would need to know the host
+to find out pending MSBs).
+
+=cut
+
+{
+  my $DEFAULTDIR = "/jcmtdata/orac_data";
+  my $DEFAULTNAME = "pending_msb_accepts.dat";
+  my $FNAME;
+  sub _pending_msb_filename {
+    if (!defined $FNAME) {
+      if (-d $DEFAULTDIR) {
+	$FNAME = File::Spec->catfile( $DEFAULTDIR, $DEFAULTNAME );
+      } else {
+	$FNAME = File::Spec->catfile( File::Spec->tmpdir, $DEFAULTNAME );
+      }
+    }
+    return $FNAME;
+  }
+}
 
 =back
 
