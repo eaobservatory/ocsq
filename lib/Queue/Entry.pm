@@ -529,13 +529,22 @@ object.
 
  $msbtid = $entry->msbtid;
 
+If an argument is supplied, the transaction ID can be set, but only
+if the entry is part of an MSB.
+
 =cut
 
 sub msbtid {
   my $self = shift;
   my $msb = $self->msb;
-  return unless defined $msb;
-  return $msb->transid;
+  if (defined $msb && defined $self->entity && $self->entity->can("msbtid")) {
+    if (@_) {
+      $self->entity->msbtid( $_[0] );
+    } else {
+      return $self->entity->msbtid();
+    }
+  }
+  return;
 }
 
 =back
