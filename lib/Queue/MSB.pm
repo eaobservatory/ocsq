@@ -82,7 +82,7 @@ sub new {
     }
   }
 
-  # Calculate a transaction ID
+  # Calculate a transaction ID (if required)
   $msb->_calc_transid();
 
   # Now update the first and last obs settings
@@ -188,7 +188,8 @@ is checked for type.
   $msb->entries(\@entries);
 
 Makes sure that each entry has this MSB associated with it
-(via the C<msb> method).
+(via the C<msb> method). Additionally, each entry is configured
+with a MSB transaction ID.
 
 =cut
 
@@ -215,9 +216,14 @@ sub entries {
     # Store them
     @{ $self->{Entries} } = @entries;
 
+    # we have entries set so we can now calculated a transaction ID
+    $self->_calc_transid();
+
     # Go through each entry and associate it with this msb
+    # and force the transaction ID
     for (@entries) {
       $_->msb( $self );
+      $_->msbtid( $self->transid );
     }
 
   }
@@ -621,10 +627,14 @@ Calculate the MSB transaction ID and store it in the object.
 
 The transaction id consists of the telescope name and the current time.
 
+Nothing happens if a value currently is set (indicating that it was
+calculated during entry store).
+
 =cut
 
 sub _calc_transid {
   my $self = shift;
+  return if defined $self->transid;
 
   # Current time
   my ($sec, $musec) = gettimeofday;
