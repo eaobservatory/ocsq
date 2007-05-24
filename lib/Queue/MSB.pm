@@ -634,7 +634,10 @@ sub _calc_transid {
   my $tel = $entries[0]->telescope;
   $tel = "NOTEL" unless defined $tel; # should not happen
 
-  # form transaction ID
+  # form transaction ID - we are careful to keep the transaction unique.
+  # Since we do not know the name of the telescope we can not predict
+  # the length of this string so it can not be used in an SDS structure
+  # as a key.
   my $tid = sprintf("%s_%d_%06d", $tel, $sec, $musec);
   print "TRANSACTION ID: $tid\n";
   return $self->transid( $tid );
