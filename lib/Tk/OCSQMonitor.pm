@@ -1015,6 +1015,7 @@ sub respond_to_failure {
 
       # convert ISO date to Time::Piece object
       $refcoord->datetime( OMP::General->parse_date( $details->{TIME} ));
+      print "# OCSQMON: Reference date for all targets: ".$refcoord->datetime->datetime ."\n";
 
       # register the reference position
       $cat->reference( $refcoord );
