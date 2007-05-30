@@ -70,6 +70,14 @@ use OMP::General;
 # Work out where the audio files are located
 our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
 
+# Need to set up buffers
+# Buffer sizes
+$DRAMA::BUFSIZE = 300000;
+
+# Override the space for receiving parameters
+# This limits replies to 80kB
+$DRAMA::REPLYBYTES   = 80000;
+$DRAMA::MAXREPLIES   = 1;
 
 # Start up DRAMA
 my $TASK_ROOT = "OCSQMON";
