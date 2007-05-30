@@ -730,10 +730,12 @@ sub addmessage {
 
   # Either use MsgOut or ErsOut
   if ($msgstatus == DRAMA::STATUS__OK) { # STATUS__OK
-    # Send back through normal channels as a single long string
-    my $msg = join("\n", @lines);
-    DRAMA::MsgOut($status, $msg);
-    print "MsgOut: $_\n" for @lines;
+    # Send back through normal channels
+    # one line at a time (else the parameter monitoring doesn't pick it up properly)
+    for (@lines) {
+      DRAMA::MsgOut($status, $_);
+      print "MsgOut: $_\n";
+    }
   } else {
     # This relies on JIT populating JIT_ERS_OUT
     DRAMA::ErsPush();
