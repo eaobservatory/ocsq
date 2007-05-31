@@ -1014,8 +1014,8 @@ sub respond_to_failure {
       $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
 
       # convert ISO date to Time::Piece object
-      $refcoord->datetime( OMP::General->parse_date( $details->{TIME} ));
-      print "# OCSQMON: Reference date for all targets: ".$refcoord->datetime->datetime ."\n";
+      my $refdate = OMP::General->parse_date( $details->{TIME} );
+      $refcoord->datetime( $refdate );
 
       # register the reference position
       $cat->reference( $refcoord );
