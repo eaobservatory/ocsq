@@ -870,11 +870,15 @@ sub update_index {
       # Now set the highlight
       $ContentsBox->tagRaise($dtag);
 
-      # and make it visible (index needs to be incremented by 1
-      # here to make sure the line is visible rather than just its
-      # top
-      $index++;
-      $ContentsBox->see("$index.0");
+      # and make it visible.
+      # see() has the problem that if the new index is close to the edge
+      # it just displays the new index at the edge (so people can not see what
+      # is coming up in the queue - they get to see what's already happened)
+      # We therefore have to use yview()
+      # (We decrement $index to make sure that we have a couple of lines visible
+      # from the earlier part of the queue)
+      $index--;
+      $ContentsBox->yview("$index.0");
     }
   }
 }
