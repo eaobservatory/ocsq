@@ -96,8 +96,6 @@ use FindBin;
 use Time::Piece qw/ gmtime /;
 use Time::Seconds qw/ ONE_HOUR /;
 
-$DRAMA::MAXREPLIES = 40;
-
 our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
 
 use vars qw/ $VERSION /;
