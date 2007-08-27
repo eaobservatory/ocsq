@@ -176,16 +176,19 @@ that can be used to create a new C<Queue::Entry> object of this class.
 
   @files = $e->write_entry();
 
-By default, uses the directory specified using the C<outputdir>
-class method. An optional argument can be used to specify a new
-output directory (useful when dumping the queue contents to a temporary
-location via XML (see L<Queue::EntryXMLIO/"writeXML">).
+By default, uses the directory from which the sequence was read.  An
+optional argument can be used to specify a new output directory
+(useful when dumping the queue contents to a temporary location via
+XML (see L<Queue::EntryXMLIO/"writeXML">).
 
  @files = $e->write_entry( $outputdir );
 
 An empty return list indicates an error occurred.
 
 No attempt is made to "fixup" or "verify" the entry prior to writing.
+
+If the config has not been modified the original filename will
+be returned and the directory argument will be ignored.
 
 =cut
 
@@ -197,13 +200,15 @@ sub write_entry {
   my $seq = $self->entity;
   return () unless defined $seq;
 
-  # Configure the output directory
-#  my $out = $dir || $self->outputdir;
-
-  warn "Existing sequence is not modified. Just returning input name.";
-
-  #  my @files = $seq->writeseq( $out );
-  return ($seq->inputfile());
+  my @files;
+  if ($seq->modified) {
+    # Configure the output directory
+    my $out = $dir || $seq->inputdir();
+    @files = $seq->writeseq( $out );
+  } else {
+    @files = ($seq->intputfile);
+  }
+  return @files;
 }
 
 =item B<prepare>
