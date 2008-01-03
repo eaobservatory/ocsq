@@ -212,7 +212,7 @@ sub cleartarg {
 		$arg,\%obeyargs);
   } else {
     $status->Flush();
-    DRAMA::ErsPop;
+    DRAMA::ErsPop();
     croak "Error in CLEARTARG";
   }
   DRAMA::ErsPop();
@@ -261,7 +261,7 @@ sub cutmsb {
     obeyw $self->qtask, 'CUTMSB', $arg, \%args;
   } else {
     $status->Flush();
-    DRAMA::ErsPop;
+    DRAMA::ErsPop();
     croak "Error in cutmsb";
   }
   DRAMA::ErsPop();
