@@ -15,9 +15,20 @@ correct functionality of the Jit overrides.
 
 =cut
 
+use strict;
+use warnings;
+use vars qw/ @EXPORT /;
+use base qw/ Exporter /;
+
+@EXPORT = qw/ DoDramaEvents monitor obeyw /;
+
 # use JAC::ITSRoot;
 use Jit;
 use DRAMA;
+
+sub import {
+  Queue::JitDRAMA->export_to_level(1, @_);
+}
 
 =head1 AUTHOR
 
