@@ -23,7 +23,7 @@ use DRAMA;
 
 Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>.
 
-Copyright (C) 2007 Science and Technology Facilities Council.
+Copyright (C) 2008 Science and Technology Facilities Council.
 All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
