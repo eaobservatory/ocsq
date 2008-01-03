@@ -47,7 +47,7 @@ use Carp;
 
 use base qw/ Queue::Backend /;
 
-use DRAMA;
+use Queue::JitDRAMA;
 use Time::Piece qw/ :override /;
 use Term::ANSIColor qw/ colored /;
 

@@ -31,7 +31,7 @@ use strict;
 use warnings;
 use Carp;
 use Scalar::Util qw/ blessed /;
-use DRAMA;
+use Queue::JitDRAMA;
 
 use JAC::OCS::Config::TCS;
 use Astro::Coords;

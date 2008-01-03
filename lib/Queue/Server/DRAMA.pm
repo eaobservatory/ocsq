@@ -43,8 +43,7 @@ at this time.
 use strict;
 use warnings;
 use Carp;
-use Jit;
-use DRAMA;
+use Queue::JitDRAMA;
 use Term::ANSIColor qw/ colored /;
 use Data::Dumper;
 use Storable qw/ nstore retrieve /;

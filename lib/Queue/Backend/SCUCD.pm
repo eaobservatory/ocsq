@@ -74,7 +74,7 @@ use Carp;
 
 use base qw/ Queue::Backend /;
 
-use DRAMA;
+use Queue::JitDRAMA;
 use Time::Piece qw/ :override /;
 
 =head1 METHODS

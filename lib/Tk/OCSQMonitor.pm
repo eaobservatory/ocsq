@@ -89,7 +89,7 @@ use JAC::OCS::Config::TCS::BASE;
 
 
 # We use DRAMA but we assume the queue gui is initialising DRAMA
-use DRAMA;
+use Queue::JitDRAMA;
 use Queue::Control::DRAMA;
 use FindBin;
 
