@@ -663,10 +663,12 @@ sub cvtsub {
     }
   } elsif ($param eq 'JIT_ERS_OUT') {
     # $value->List(new DRAMA::Status);
-    my @lines = @{$tie{MESSAGE}};
-    _clean_array(\@lines);
-    chomp(@lines);
-    print colored("$param:",'yellow') . "$_\n" for @lines;
+    if (defined $tie{MESSAGE}) {
+      my @lines = @{$tie{MESSAGE}};
+      _clean_array(\@lines);
+      chomp(@lines);
+      print colored("$param:",'yellow') . "$_\n" for @lines;
+    }
     $w->write_text_messages( 'errors', $tie{MESSAGE});
 
   } else {
