@@ -20,7 +20,7 @@ use warnings;
 use vars qw/ @EXPORT /;
 use base qw/ Exporter /;
 
-@EXPORT = qw/ DoDramaEvents monitor obeyw /;
+@EXPORT = qw/ DoDramaEvents monitor obeyw obey pset /;
 
 # use JAC::ITSRoot;
 use Jit;
