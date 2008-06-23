@@ -162,7 +162,7 @@ sub readXML {
 
     # Verify the telescope
     my $t = $entry->telescope;
-    croak "Telescope mismatch ['$tel' vs '$t']"
+    croak "Telescope mismatch at entry $counter ['$tel' vs '$t']"
       unless $tel eq $t;
 
 
@@ -264,10 +264,14 @@ sub writeXML {
   # Retrieve the telescope name and verify that it is the same
   # for each entry
   my $tel = uc($entries[0]->telescope);
+  my $counter = 0;
   for my $e (@entries) {
+    $counter++;
     my $t = uc($e->telescope);
-    croak "Telescope mismatch in entries ['$tel' vs '$t']"
+    croak "Telescope mismatch in entries ['$tel' vs '$t'], starting at entry $counter"
       if $tel ne $t;
+    croak "Telescope must be filled in for an entry (entry $counter).".
+      " Possible programming error.\n" unless $t;
   }
 
 
