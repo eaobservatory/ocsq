@@ -163,11 +163,11 @@ sub new {
 
   # Populate object creation hash with defaults
   my %params = ( simdb => 0,
-		 nocomplete => 0,
-	         taskname => TASKNAME,
-	         maxwidth => MAXWIDTH,
-	         nentries => NENTRIES,
-	       );
+                 nocomplete => 0,
+                 taskname => TASKNAME,
+                 maxwidth => MAXWIDTH,
+                 nentries => NENTRIES,
+               );
 
   # Now read the arguments and merge with default parameters
   my %args = @_;
@@ -223,7 +223,7 @@ sub init_msgsys {
   Jit::Init( $taskname );
   print "--- JIT Initialised\n";
   # Set up the actions
-  my $flag = 0;  # Not spawnable
+  my $flag = 0;                 # Not spawnable
   DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
@@ -335,7 +335,7 @@ sub init_pars {
   DRAMA::ErsPush();
   my $status = new DRAMA::Status;
 
-#  my $sdp = new Sdp;
+  #  my $sdp = new Sdp;
   my $sdp = Dits::GetParId();
   $sdp->Create("STATUS","STRING",'Stopped');
   $sdp->Create("INDEX","INT",0);
@@ -344,14 +344,14 @@ sub init_pars {
 
   my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$status);
   $queue_sds->Create("Contents",undef,Sds::CHAR,
-		     [$maxwidth,$nentries],$status);
+                     [$maxwidth,$nentries],$status);
 
   # This contains any information on ODFs that need more information
   my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$status);
 
   # This contains queue completion triggers
   my $msbcomplete_sds = Sds->Create("MSBCOMPLETED",undef, Sds::STRUCT,0,
-				    $status);
+                                    $status);
 
   # Initialise the arrays that hold the queue entries
   {
@@ -861,7 +861,7 @@ sub set_msbcomplete_parameter {
     if (defined $msb) {
       # someone has to cut the MSB from the queue
       $self->addmessage( $status,
-			 "Removing completed MSB from queue without prompting user");
+                         "Removing completed MSB from queue without prompting user");
 
       $self->cutmsb( $msb );
     }
@@ -1193,10 +1193,10 @@ sub LOADQ {
   update_contents_param($status);
   update_index_param($status);
 
-#  print Dumper($grp);
-#  print Dumper(\@entries);
-#  print Dumper($Q->queue);
-#  print "Found " . scalar(@entries) . " ODFs\n";
+  #  print Dumper($grp);
+  #  print Dumper(\@entries);
+  #  print Dumper($Q->queue);
+  #  print "Found " . scalar(@entries) . " ODFs\n";
 
   Jit::ActionExit( $status );
   return $status;
@@ -1356,10 +1356,10 @@ sub INSERTQ {
   update_contents_param($status);
   update_index_param($status);
 
-#  print Dumper($grp);
-#  print Dumper(\@entries);
-#  print Dumper($Q->queue);
-#  print "Found " . scalar(@entries) . " ODFs\n";
+  #  print Dumper($grp);
+  #  print Dumper(\@entries);
+  #  print Dumper($Q->queue);
+  #  print "Found " . scalar(@entries) . " ODFs\n";
 
   Jit::ActionExit( $status );
   return $status;
@@ -1471,14 +1471,14 @@ sub CLEARTARG {
   # tie the argId to a perl Hash
   $argId->List($status);
 
-#  if ($status->Ok) {
+  #  if ($status->Ok) {
   DRAMA::ErsPush();
-    my %sds;
-    tie %sds, 'Sds::Tie', $argId;
-    my $index = $sds{Argument1};
-    $Q->queue->contents->clear_target( $index );
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+  my $index = $sds{Argument1};
+  $Q->queue->contents->clear_target( $index );
   DRAMA::ErsPop();
-#  }
+  #  }
   # update contents string
   update_contents_param($status);
   Jit::ActionExit( $status );
@@ -1537,7 +1537,7 @@ sub CUTQ {
   $ncut = 1 unless defined $ncut;
 
   $Q->addmessage($status,
-		 "Removing $ncut observation[s] starting from index $index");
+                 "Removing $ncut observation[s] starting from index $index");
 
   # CUT
   $Q->queue->contents->cutq($index, $ncut);
@@ -1645,10 +1645,10 @@ sub SUSPENDMSB {
       # Suspend the MSB unless we are in simulate mode
       my $msg;
       if ($Q->simdb) {
-	$msg = "[in simulation without modifying the DB]";
+        $msg = "[in simulation without modifying the DB]";
       } else {
-	OMP::MSBServer->suspendMSB($proj, $msbid, $label, $msbtid);
-	$msg = '';
+        OMP::MSBServer->suspendMSB($proj, $msbid, $label, $msbtid);
+        $msg = '';
       }
 
       $Q->addmessage($status, "MSB for project $proj has been suspended at the current observation $msg");
@@ -1775,23 +1775,23 @@ sub POLL {
       # Store messages in list each of which is an array ref with first element
       # the status and subsequent elements the messages
       if ($curstat == $bestat ) {
-	push(@{$stack[-1]}, $bemsg);
+        push(@{$stack[-1]}, $bemsg);
       } else {
-	$curstat = $bestat;
-	push(@stack, [ $bestat, $bemsg]);
+        $curstat = $bestat;
+        push(@stack, [ $bestat, $bemsg]);
       }
     }
 
     # Need to go through the backend messages and check status on each
-    my $err_found = 0; # true if we have found an error
+    my $err_found = 0;          # true if we have found an error
     for my $chunk (@stack) {
       my $bestat = shift(@$chunk);
       if ($bestat != $good && !$err_found) {
-	# if this is the first bad status
-	# we have found an error
-	$err_found = 1;
-	$Q->addmessage($bestat, "Stopping the queue due to backend error");
-	&STOPQ( $status);
+        # if this is the first bad status
+        # we have found an error
+        $err_found = 1;
+        $Q->addmessage($bestat, "Stopping the queue due to backend error");
+        &STOPQ( $status);
       }
       $Q->addmessage( $bestat, @$chunk);
     }
@@ -1800,9 +1800,9 @@ sub POLL {
   # Need to reschedule polltime seconds
   Jit::DelayRequest( $Q->polltime, $status);
 
-#  print Dumper($status) . "\nSTATUS: ".$status->GetStatus . "\n";
+  #  print Dumper($status) . "\nSTATUS: ".$status->GetStatus . "\n";
 
-#  Jit::ActionExit( $status );
+  #  Jit::ActionExit( $status );
   return $status;
 }
 
@@ -1920,21 +1920,21 @@ sub MSBCOMPLETE {
   if (exists $sds{Argument1}) {
     # We have numbered args
     push(@completed, { compkey => $sds{Argument1},
-		       complete => $sds{Argument2},
-		       userid => $sds{Argument3},
-		       reason => $sds{Argument4},
-		     });
+                       complete => $sds{Argument2},
+                       userid => $sds{Argument3},
+                       reason => $sds{Argument4},
+                     });
   } else {
     # We have transid args
     for my $key (keys %sds) {
       # see if we have a hash ref
       next unless ref($sds{$key}) eq 'HASH';
       push(@completed, {
-			compkey => $key,
-			complete => $sds{$key}->{COMPLETE},
-			userid => $sds{$key}->{USERID},
-			reason => $sds{$key}->{REASON},
-		       });
+                        compkey => $key,
+                        complete => $sds{$key}->{COMPLETE},
+                        userid => $sds{$key}->{USERID},
+                        reason => $sds{$key}->{REASON},
+                       });
 
     }
 
@@ -1963,9 +1963,9 @@ sub MSBCOMPLETE {
 
     print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
       " MSBID: ".(defined $msbid ? $msbid : "<undef>").
-	" Transaction: ". (defined $msbtid ? 
-			 $msbtid : "<undef>").
-			   "\n";
+        " Transaction: ". (defined $msbtid ? 
+                           $msbtid : "<undef>").
+                             "\n";
 
     # Ooops if we have nothing
     if (!$donemsb->{compkey}) {
@@ -1992,13 +1992,13 @@ sub MSBCOMPLETE {
     if ($mark > 0) {
 
       try {
-	my $msg;
-	# Need to mark it as done [unless we are in simulate mode]
-	if ($Q->simdb) {
-	  # Simulation so do nothing
-	  $msg = "[in simulation without modifying the DB]";
-	} else {
-	  # Reality - blank message and update DB
+        my $msg;
+        # Need to mark it as done [unless we are in simulate mode]
+        if ($Q->simdb) {
+          # Simulation so do nothing
+          $msg = "[in simulation without modifying the DB]";
+        } else {
+          # Reality - blank message and update DB
           # SOAP message
           use SOAP::Lite;
           my $msbserv =  new SOAP::Lite();
@@ -2007,62 +2007,62 @@ sub MSBCOMPLETE {
 
           $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 6);
 
-	  $msg = '';
-	  # You can not use a SOAP call from within a DRAMA callback
-	  # since they both share the same alarm system. You will find that
-	  # you get instant timeouts even though the message is sent
-	  # correctly. We either need to revert to using the native
-	  # perl method calls (Which we used in the past but ran into
-	  # problems when OMP systems got out of sync, especially if 
-	  # MSBID calculation changes)
-	  # Sometimes the MSB acceptance takes a long time and we also
-	  # do not want to hang the queue during this. Use a short timeout
-	  # which always fails.
-	  eval {
-	    $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-			      $donemsb->{reason}, $msbtid);
-	  };
-	  $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
-	    if $@;
-	}
-	$Q->addmessage($status,
-		       "MSB marked as done for project $projectid $msg");
+          $msg = '';
+          # You can not use a SOAP call from within a DRAMA callback
+          # since they both share the same alarm system. You will find that
+          # you get instant timeouts even though the message is sent
+          # correctly. We either need to revert to using the native
+          # perl method calls (Which we used in the past but ran into
+          # problems when OMP systems got out of sync, especially if 
+          # MSBID calculation changes)
+          # Sometimes the MSB acceptance takes a long time and we also
+          # do not want to hang the queue during this. Use a short timeout
+          # which always fails.
+          eval {
+            $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
+                              $donemsb->{reason}, $msbtid);
+          };
+          $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
+            if $@;
+        }
+        $Q->addmessage($status,
+                       "MSB marked as done for project $projectid $msg");
       } otherwise {
-	# Big problem with OMP system
-	my $E = shift;
-	$status->SetStatus( Dits::APP_ERROR );
-	$status->ErsRep(0,"Error marking msb $msbid as done: $E");
-	$Q->addmessage($status, "Error marking msb $msbid as done: $E");
+        # Big problem with OMP system
+        my $E = shift;
+        $status->SetStatus( Dits::APP_ERROR );
+        $status->ErsRep(0,"Error marking msb $msbid as done: $E");
+        $Q->addmessage($status, "Error marking msb $msbid as done: $E");
       };
 
     } elsif ($mark == 0) {
       # Reject the MSB
 
       try {
-	# file a comment to indicate that the MSB was rejected
-	# unless we are in simulation mode
-	my $msg;
-	if ($Q->simdb) {
-	  $msg = "[in simulation without modifying the DB]";
-	} else {
-	  $msg = '';
-	  # This can be a local call since MSBID is not recalculated
-	  OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
-				     $donemsb->{reason}, $msbtid);
-	}
-	$Q->addmessage($status,"MSB rejected for project $projectid $msg");
+        # file a comment to indicate that the MSB was rejected
+        # unless we are in simulation mode
+        my $msg;
+        if ($Q->simdb) {
+          $msg = "[in simulation without modifying the DB]";
+        } else {
+          $msg = '';
+          # This can be a local call since MSBID is not recalculated
+          OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
+                                     $donemsb->{reason}, $msbtid);
+        }
+        $Q->addmessage($status,"MSB rejected for project $projectid $msg");
 
       } otherwise {
-	# Big problem with OMP system
-	my $E = shift;
-	$status->SetStatus( Dits::APP_ERROR );
-	$status->ErsRep(0,"Error marking msb $msbid as rejected: $E");
-	$Q->addmessage($status, "Error marking msb $msbid as rejected: $E");
+        # Big problem with OMP system
+        my $E = shift;
+        $status->SetStatus( Dits::APP_ERROR );
+        $status->ErsRep(0,"Error marking msb $msbid as rejected: $E");
+        $Q->addmessage($status, "Error marking msb $msbid as rejected: $E");
       };
 
     } else {
       $Q->addmessage($status,
-		     "Removing MSB without notifying OMP database [took no data]");
+                     "Removing MSB without notifying OMP database [took no data]");
     }
 
     # Return if we have bad status
@@ -2093,44 +2093,44 @@ sub SOAPTEST {
   my $userid = '';
   my $reason = '';
 
-#  try {
-    my $msg;
-    # Need to mark it as done [unless we are in simulate mode]
-    if ($Q->simdb) {
-      # Simulation so do nothing
-      $msg = "[in simulation without modifying the DB]";
-    } else {
-      # Reality - blank message and update DB
-      # SOAP message
-      use SOAP::Lite;
-      my $msbserv =  new SOAP::Lite();
+  #  try {
+  my $msg;
+  # Need to mark it as done [unless we are in simulate mode]
+  if ($Q->simdb) {
+    # Simulation so do nothing
+    $msg = "[in simulation without modifying the DB]";
+  } else {
+    # Reality - blank message and update DB
+    # SOAP message
+    use SOAP::Lite;
+    my $msbserv =  new SOAP::Lite();
 
-      $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
+    $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
 
-      $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
+    $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
 
-      $msg = '';
+    $msg = '';
 
-      local $SIG{ALRM} = 'IGNORE';
-      local $SIG{PIPE} = 'IGNORE';
+    local $SIG{ALRM} = 'IGNORE';
+    local $SIG{PIPE} = 'IGNORE';
 
-      my $reply = $msbserv->rejectMSB($projectid, $msbid, $userid,
-				      $reason);
+    my $reply = $msbserv->rejectMSB($projectid, $msbid, $userid,
+                                    $reason);
 
-      if ($reply->fault) {
-	croak $reply->faultcode . ": ".$reply->faultstring;
-      }
-
+    if ($reply->fault) {
+      croak $reply->faultcode . ": ".$reply->faultstring;
     }
-    $Q->addmessage($status,
-		   "MSB marked as done for project $projectid $msg");
-#  } otherwise {
-    # Big problem with OMP system
-#    my $E = shift;
-#    $status->SetStatus( Dits::APP_ERROR );
-#    $status->ErsRep(0,"Error marking msb $msbid as done: $E");
-#    $Q->addmessage($status, "Error marking msb $msbid as done: $E");
-#  };
+
+  }
+  $Q->addmessage($status,
+                 "MSB marked as done for project $projectid $msg");
+  #  } otherwise {
+  # Big problem with OMP system
+  #    my $E = shift;
+  #    $status->SetStatus( Dits::APP_ERROR );
+  #    $status->ErsRep(0,"Error marking msb $msbid as done: $E");
+  #    $Q->addmessage($status, "Error marking msb $msbid as done: $E");
+  #  };
 
   return $status;
 }
@@ -2190,9 +2190,9 @@ sub Sds_to_Entry {
   # If we are calibrations we do not want an MSB associations
   unless ($iscal) {
     my $msb = new Queue::MSB( entries => \@entries,
-			      projectid => $entries[0]->projectid,
-			      msbid => $entries[0]->msbid,
-			    );
+                              projectid => $entries[0]->projectid,
+                              msbid => $entries[0]->msbid,
+                            );
 
     # Register a completion handler
     $msb->msbcomplete( \&msbtidy );
@@ -2380,7 +2380,7 @@ sub verify_time_remaining {
   my $maxindex = $Q->queue->contents->maxindex;
 
   return if defined $curindex && defined $maxindex
-	    && $curindex == $maxindex;
+    && $curindex == $maxindex;
 
   # Set the threshold
   my $TIME_THRESHOLD = 40.0;
@@ -2579,7 +2579,7 @@ a monitor trigger every time we may have changed the Perl array).
 sub compare_sds_to_perl ($$$$) {
   die 'Usage: compare_sds_to_perl($sds,$name,$arref,$status)'
     unless (scalar(@_) == 4 && ref($_[2]) eq 'ARRAY'
-	    && UNIVERSAL::isa($_[0],'Sds'));
+            && UNIVERSAL::isa($_[0],'Sds'));
 
   return unless $_[3]->Ok;
 
@@ -2622,15 +2622,15 @@ sub compare_sds_to_perl ($$$$) {
       # Take null character into account
       my $current = $arr->[$i];
       $current = substr($current,0,$Q->maxwidth()-1)
-	if length($current) >= $Q->maxwidth;
+        if length($current) >= $Q->maxwidth;
 
       # Also need to trim trailing space
       $current =~ s/\s+$//;
 	
       # Now compare the sds and current entries
       if ($sds_contents[$i] ne $current) {
-	$cur_diff = 1;
-	last;
+        $cur_diff = 1;
+        last;
       }
     }
   }
@@ -2714,7 +2714,7 @@ sub msbtidy {
     } else {
 
       $Q->addmessage($status, "Possibility of marking MSB for project $projectid as done [MSB=$msbid TID=".
-		     $msb->transid."]");
+                     $msb->transid."]");
 
       # Store it
       $data{MSBID} = $msbid;
@@ -2760,9 +2760,9 @@ to find out pending MSBs).
   sub _pending_msb_filename {
     if (!defined $FNAME) {
       if (-d $DEFAULTDIR) {
-	$FNAME = File::Spec->catfile( $DEFAULTDIR, $DEFAULTNAME );
+        $FNAME = File::Spec->catfile( $DEFAULTDIR, $DEFAULTNAME );
       } else {
-	$FNAME = File::Spec->catfile( File::Spec->tmpdir, $DEFAULTNAME );
+        $FNAME = File::Spec->catfile( File::Spec->tmpdir, $DEFAULTNAME );
       }
     }
     return $FNAME;

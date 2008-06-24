@@ -43,7 +43,7 @@ use XML::LibXML;
 use File::Spec;
 use Time::HiRes qw/ gettimeofday /;
 
-use Queue::Entry; # To make sure we have the right search path
+use Queue::Entry;         # To make sure we have the right search path
 
 use vars qw/ $VERSION $DEBUG @EXPORT_OK/;
 use base qw/ Exporter /;
@@ -54,11 +54,11 @@ $DEBUG = 0;
 @EXPORT_OK = qw/ readXML writeXML /;
 
 # Element and attribute names used in the XML
-my $RE = "QueueEntries"; # Root element
-my $EE = "Entry";        # Entry element
-my $TA = "telescope";    # Telescope Attribute
-my $DA = "totalDuration";# Duration attribute
-my $IA = "instrument";   # Instrument attribute
+my $RE = "QueueEntries";        # Root element
+my $EE = "Entry";               # Entry element
+my $TA = "telescope";           # Telescope Attribute
+my $DA = "totalDuration";       # Duration attribute
+my $IA = "instrument";          # Instrument attribute
 
 
 =head1 FUNCTIONS
@@ -100,7 +100,7 @@ sub readXML {
   croak "Unable to find a telescope specified in the file $file"
     unless defined $tel;
   $tel = uc($tel);
-#  $self->telescope( $tel );
+  #  $self->telescope( $tel );
   print "Telescope: $tel\n" if $DEBUG;
 
   # Loop over the individual entries
@@ -140,9 +140,9 @@ sub readXML {
       $class .= "::UKIRTSeq";
     } elsif ($tel eq 'JCMT') {
       if ($inst eq 'SCUBA') {
-	$class .= "::SCUBAODF";
+        $class .= "::SCUBAODF";
       } else {
-	$class .= "::OCSCfgXML";
+        $class .= "::OCSCfgXML";
       }
     } else {
       croak "Unrecognized telescope $tel";
@@ -222,9 +222,9 @@ using only a lightweight wrapper.
 
 sub writeXML {
   my %options = (
-		 noxmlfile => 0,
-		 fprefix => "qentries",
-		);
+                 noxmlfile => 0,
+                 fprefix => "qentries",
+                );
 
   # See if the first argument is a hash reference
   if (ref($_[0]) eq 'HASH') {
@@ -254,10 +254,10 @@ sub writeXML {
 
   # Check attributes
   for my $e (@entries) {
-    for my $method  (qw/ telescope instrument duration /) {
+    for my $method (qw/ telescope instrument duration /) {
       croak ("Entry of class '".ref($e).
-	     "' can not support the '$method' method")
-	unless $e->can($method);
+             "' can not support the '$method' method")
+        unless $e->can($method);
     }
   }
 
@@ -297,9 +297,9 @@ sub writeXML {
     } elsif ($e->can('outputdir')) {
       # we have an output dir method and no specified override
       if (defined $e->outputdir) {
-	$thisdir = $e->outputdir;
+        $thisdir = $e->outputdir;
       } else {
-	$thisdir = File::Spec->curdir;
+        $thisdir = File::Spec->curdir;
       }
     } else {
       # current direcotry
@@ -344,7 +344,7 @@ sub writeXML {
     my ($sec, $mic_sec) = gettimeofday();
     my $ms = substr($mic_sec,0,3);
     my $filename = File::Spec->catfile($xmldir,
-				       $options{fprefix}."_$sec"."_$ms.xml");
+                                       $options{fprefix}."_$sec"."_$ms.xml");
     print "Writing XML File: $filename\n" if $DEBUG;
 
     open my $fh, ">$filename" or croak "Error writing XML file:$filename - $!";

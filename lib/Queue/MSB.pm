@@ -60,16 +60,16 @@ sub new {
 
   # Create and bless
   my $msb = bless {
-		   ProjectID => undef,
-		   MSBID => undef,
-		   Entries => [],
-		   HasBeenObserved => 0,
-		   HasBeenCompleted => 0,
-		   MSBComplete => undef,
-		   RefEntry => undef,
-		   QID => undef,
-		   TransID => undef,
-		  }, $class;
+                   ProjectID => undef,
+                   MSBID => undef,
+                   Entries => [],
+                   HasBeenObserved => 0,
+                   HasBeenCompleted => 0,
+                   MSBComplete => undef,
+                   RefEntry => undef,
+                   QID => undef,
+                   TransID => undef,
+                  }, $class;
 
   # Go through the input args invoking relevant methods
   for my $key (keys %args) {
@@ -209,7 +209,7 @@ sub entries {
     # Now check each entry
     for my $src (@entries) {
       if (!UNIVERSAL::isa($src, "Queue::Entry")) {
-	croak "Must supply MSB queue object with Queue::Entry objects";
+        croak "Must supply MSB queue object with Queue::Entry objects";
       }
     }
 
@@ -565,38 +565,38 @@ sub cut {
       # currently highlighted entry in the queue and all the
       # entries following it.
       if ($self->refentry) {
-	my $ref = $self->refentry;
+        my $ref = $self->refentry;
 
-	# Go through the entries that were removed
-	# [It would probably be more efficient to do this
-	# test in the loop that removes the entries]
-	my $refindex;
-	for my $i (0..$#removed) {
-	  next unless defined $removed[$i];
-	  if ($ref == $removed[$i]) {
-	    $refindex = $i;
-	    last;
-	  }
-	}
+        # Go through the entries that were removed
+        # [It would probably be more efficient to do this
+        # test in the loop that removes the entries]
+        my $refindex;
+        for my $i (0..$#removed) {
+          next unless defined $removed[$i];
+          if ($ref == $removed[$i]) {
+            $refindex = $i;
+            last;
+          }
+        }
 
-	# see if we have a match
-	if (defined $refindex) {
+        # see if we have a match
+        if (defined $refindex) {
 
-	  my $trigger; # true if we have completed the MSB
-	  for my $i ($refindex .. $#removed) {
-	    # Go through and set trigger on the basis of whether
-	    # the entry exists in the remaining entries
-	    if (defined $removed[$i]) {
-	      $trigger = 1;
-	    } else {
-	      $trigger = 0;
-	    }
+          my $trigger;          # true if we have completed the MSB
+          for my $i ($refindex .. $#removed) {
+            # Go through and set trigger on the basis of whether
+            # the entry exists in the remaining entries
+            if (defined $removed[$i]) {
+              $trigger = 1;
+            } else {
+              $trigger = 0;
+            }
 
-	  }
+          }
 
-	  $self->completed if $trigger;
+          $self->completed if $trigger;
 
-	}
+        }
 
       }
 

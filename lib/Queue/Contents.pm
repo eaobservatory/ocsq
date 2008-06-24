@@ -141,7 +141,9 @@ entries have been inserted into the queue.
 
 sub lastindex {
   my $self = shift;
-  if (@_) { $self->{LastIndex} = shift; }
+  if (@_) {
+    $self->{LastIndex} = shift;
+  }
   return $self->{LastIndex};
 }
 
@@ -347,7 +349,7 @@ sub cutq {
   my %msbs;
   for (@removed) {
     my $msb = $_->msb;
-    next unless defined $msb; # this is not part of an MSB
+    next unless defined $msb;   # this is not part of an MSB
     if (!exists $msbs{$msb}) {
       $msbs{$msb} = [];
     }
@@ -568,8 +570,8 @@ sub insertq {
     my $last = $self->lastindex;
     if (defined $last) {
       if ($last >= $pos) {
-	$last += scalar(@paste);
-	$self->lastindex($last);
+        $last += scalar(@paste);
+        $self->lastindex($last);
       }
     }
 
@@ -614,7 +616,7 @@ sub replaceq {
     my $last = $self->lastindex;
     if (defined $last) {
       if ($pos == $last) {
-	$self->lastindex(undef);
+        $self->lastindex(undef);
       }
     }
 
