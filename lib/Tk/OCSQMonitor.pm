@@ -665,7 +665,7 @@ sub cvtsub {
   } elsif ($param eq 'JIT_ERS_OUT') {
     # $value->List(new DRAMA::Status);
     if (defined $tie{MESSAGE}) {
-      my @lines = @{$tie{MESSAGE}};
+      my @lines = (ref $tie{MESSAGE} ? @{$tie{MESSAGE}} : ($tie{MESSAGE}));
       _clean_array(\@lines);
       chomp(@lines);
       print colored("$param:",'yellow') . "$_\n" for @lines;
