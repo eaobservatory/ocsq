@@ -125,12 +125,12 @@ sub Populate {
 
   # Configure options
   $w->ConfigSpecs( -qtask => ['PASSIVE'],
-		   -qwidth => ['PASSIVE'],
-		   -qheight => ['PASSIVE'],
-		   -msgwidth => ['PASSIVE'],
-		   -user => ['PASSIVE'],
-		   -msbcompletecb => ['PASSIVE'],
-		 );
+                   -qwidth => ['PASSIVE'],
+                   -qheight => ['PASSIVE'],
+                   -msgwidth => ['PASSIVE'],
+                   -user => ['PASSIVE'],
+                   -msbcompletecb => ['PASSIVE'],
+                 );
 
   # Generic widget options
   $w->SUPER::Populate($args);
@@ -175,22 +175,22 @@ sub Populate {
   #update_status 'Creating buttons',75;
   #$Fr3->Button( -text => 'EXIT', -command => \&shutdown)->pack(-side => 'left');
   $Fr3->Button( -textvariable => \$priv->{TOGGLE},
-		-width => 10,
-		-command => sub { $w->_toggleq(); },
-	      )->pack(-side => 'left');
+                -width => 10,
+                -command => sub { $w->_toggleq(); },
+              )->pack(-side => 'left');
   $Fr3->Button( -text => 'CLEAR',
-		-command => sub { $priv->{QCONTROL}->clearq }
-	      )->pack(-side => 'left');
+                -command => sub { $priv->{QCONTROL}->clearq }
+              )->pack(-side => 'left');
   $Fr3->Button( -text => 'DISPOSE MSB',
-		-command => sub { $priv->{QCONTROL}->cutmsb }
-	      )->pack(-side => 'left');
+                -command => sub { $priv->{QCONTROL}->cutmsb }
+              )->pack(-side => 'left');
 
-#  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
+  #  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 
   # Create a label for Queue status
   $Fr1->Label(-text => 'Queue Status:')->grid(-row => 0,-column=>0,-sticky=>'w');
   my $Qstatus = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{STATUS},
-			   )->grid(-row=>0,-column=>1,-sticky=>'w');
+                           )->grid(-row=>0,-column=>1,-sticky=>'w');
 
 
   # We must be allowed to access the Q status widget
@@ -199,12 +199,12 @@ sub Populate {
   # Label for current entry information
   $Fr1->Label(-text => 'Current entry:')->grid(-row => 3,-column=>0,-sticky=>'w');
   my $CurrStatus = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{CURRENT},
-			      )->grid(-row=>3,-column=>1,-sticky=>'w');
+                              )->grid(-row=>3,-column=>1,-sticky=>'w');
 
   # Time remaining on the queue
   $Fr1->Label(-text => 'Time on Queue (minutes):')->grid(-row => 4,-column=>0,-sticky=>'w');
   my $TimeOnQueue = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{TIMEONQUEUE},
-			       )->grid(-row=>4,-column=>1,-sticky=>'w');
+                               )->grid(-row=>4,-column=>1,-sticky=>'w');
 
 
   # Create listbox in frame 2
@@ -212,47 +212,47 @@ sub Populate {
 
 
   my $ContentsBox = $Fr2->Scrolled('Text',
-				   -scrollbars => 'e',
-				   -wrap => 'none',
-				   -height => $args->{'-qheight'},
-				   -width  => $args->{'-qwidth'},
-				   #		 -state  => 'disabled',
-				  )->pack(-side=> 'top', -expand => 1, -fill => 'both');
+                                   -scrollbars => 'e',
+                                   -wrap => 'none',
+                                   -height => $args->{'-qheight'},
+                                   -width  => $args->{'-qwidth'},
+                                   #		 -state  => 'disabled',
+                                  )->pack(-side=> 'top', -expand => 1, -fill => 'both');
 
-  $ContentsBox->bindtags(qw/widget_demo/);        # remove all bindings but dummy "widget_
+  $ContentsBox->bindtags(qw/widget_demo/); # remove all bindings but dummy "widget_
 
   # We must be allowed to access the Q status widget
   $w->Advertise( '_qcontents' => $ContentsBox);
 
   # Setup a Text widget that will take all the output sent to MsgOut
-  $priv->{MORE_INFO} = 0;  # is the window visible
+  $priv->{MORE_INFO} = 0;           # is the window visible
   $priv->{MORE_DISPLAYED_ONCE} = 0; # Has it been visible at least once?
 
   my $MsgBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_INFO},
-				 -text     => 'Info messages...',
-				 -command => [ 'show_info', $w ],
-				);
+                                 -text     => 'Info messages...',
+                                 -command => [ 'show_info', $w ],
+                                );
 
   my $MsgText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
-			       -height=>16,
-			       -width=>$args->{'-msgwidth'},
-			       -background => 'black',
-			       -foreground => 'white',
-			      );
+                               -height=>16,
+                               -width=>$args->{'-msgwidth'},
+                               -background => 'black',
+                               -foreground => 'white',
+                              );
   BindMouseWheel($MsgText);
 
   $priv->{MORE_ERS} = 0;
   my $ErsBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_ERS},
-				 -text     => 'Error messages...',
-				 -command => ['show_ers', $w],
-				);
+                                 -text     => 'Error messages...',
+                                 -command => ['show_ers', $w],
+                                );
 
   my $ErsText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
-			       -height=>8,
-			       -width=>$args->{'-msgwidth'},
-			       -background => 'black',
-			       -foreground => 'white',
-			      );
+                               -height=>8,
+                               -width=>$args->{'-msgwidth'},
+                               -background => 'black',
+                               -foreground => 'white',
+                              );
   BindMouseWheel($ErsText);
 
   # Pack into frame four - note that the show_info method displays the Msg and ErsText widgets
@@ -274,34 +274,34 @@ sub Populate {
   $priv->{MORE_INFO} = 1;
   $w->show_info();
 
-  $priv->{MORE_ERS} = 1; # Force display
+  $priv->{MORE_ERS} = 1;        # Force display
   $w->show_ers();
 
   # print information to this text widget
   my $status = new DRAMA::Status;
   Dits::UfacePutMsgOut( sub {
-			  $w->write_text_messages( 'messages', @_ );
-			},
-			$status);
+                          $w->write_text_messages( 'messages', @_ );
+                        },
+                        $status);
 
   # Also want this to appear in the log file so just print it
   Dits::UfacePutErsOut( sub {
-			  my $flag = shift;
-			  # make sure that we prepend with # marks in the DRAMA style
-			  my $done_first;
-			  print "<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.\n";
-			  my @hashed = map {
-			    my $hash = " ";
-			    if (!$done_first) {
-			      $hash = "#";
-			      $done_first = 1;
-			    }
-			    "#". $hash . $_;
-			  } @_;
-			  print "$_\n" for @hashed;
-			  $w->write_text_messages( 'errors', @hashed );
-			},
-			$status);
+                          my $flag = shift;
+                          # make sure that we prepend with # marks in the DRAMA style
+                          my $done_first;
+                          print "<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.\n";
+                          my @hashed = map {
+                            my $hash = " ";
+                            if (!$done_first) {
+                              $hash = "#";
+                              $done_first = 1;
+                            }
+                            "#". $hash . $_;
+                          } @_;
+                          print "$_\n" for @hashed;
+                          $w->write_text_messages( 'errors', @hashed );
+                        },
+                        $status);
 
 
   # These variables record whether or not we have an active monitor
@@ -348,11 +348,11 @@ sub _shutdown {
 sub BindMouseWheel {
   my $w = shift;
 
-# Mousewheel binding from Mastering Perl/Tk, pp 370-371.
+  # Mousewheel binding from Mastering Perl/Tk, pp 370-371.
   if ($^O eq 'MSWin32') {
     $w->bind('<MouseWheel>' =>
              [ sub { $_[0]->yview('scroll', -($_[1] / 120) * 3, 'units') },
-                 Ev('D') ]
+               Ev('D') ]
             );
   } else {
     $w->bind('<4>' => sub {
@@ -362,7 +362,7 @@ sub BindMouseWheel {
                $_[0]->yview('scroll', +3, 'units') unless $Tk::strictMotif;
              });
   }
-} # end BindMouseWheel
+}                               # end BindMouseWheel
 
 
 # These routines relate to the handling of DRAMA monitors
@@ -473,18 +473,19 @@ sub init_queue_monitor {
 
   # initiate the monitor
   monitor($w->cget("-qtask"), "START", 
-	  "STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
-	  "TIMEONQUEUE", "JIT_MSG_OUT", "JIT_ERS_OUT",
-	  { -monitorvar => $priv->{MONITOR},
-	    -sendcur    => 1,
-	    -repmonloss => 1,
-	    -complete   => sub { $w->write_text_messages('messages',"Monitor complete\n");
-				 $priv->{QUEUE_CANCELLED} = 1;
-			       },
-	    -info       => sub { print "Monitor INFO callback: $_[0]\n"},
-	    -cvtsub     => sub { $w->cvtsub(@_) },
-	    -error      => sub { $w->_monerror(@_) },
-	  });
+          "STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
+          "TIMEONQUEUE", "JIT_MSG_OUT", "JIT_ERS_OUT",
+          {
+           -monitorvar => $priv->{MONITOR},
+           -sendcur    => 1,
+           -repmonloss => 1,
+           -complete   => sub { $w->write_text_messages('messages',"Monitor complete\n");
+                                $priv->{QUEUE_CANCELLED} = 1;
+                              },
+           -info       => sub { print "Monitor INFO callback: $_[0]\n"},
+           -cvtsub     => sub { $w->cvtsub(@_) },
+           -error      => sub { $w->_monerror(@_) },
+          });
 
 }
 
@@ -492,7 +493,7 @@ sub init_queue_monitor {
 # depending on the value of $MORE_INFO.
 
 sub show_info {
-  my $mega = shift;  # The mega widget
+  my $mega = shift;             # The mega widget
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('messages');
   if ($priv->{MORE_INFO}) {
@@ -650,9 +651,9 @@ sub cvtsub {
       my $userid = $w->cget('-user');
 
       if (!defined $userid) {
-	my $null = '';
-	$w->configure('-user', \$null);
-	$userid = $w->cget('-user');
+        my $null = '';
+        $w->configure('-user', \$null);
+        $userid = $w->cget('-user');
       }
 
       # Run callback
@@ -696,10 +697,10 @@ sub _toggleq {
   my $priv = $w->privateData;
 
   if ($priv->{MONITOR}->{STATUS} =~ /^Stop/i) {
-#    print "Starting Q\n";
+    #    print "Starting Q\n";
     $priv->{QCONTROL}->startq;
   } else {
-#    print "Stopping Q\n";
+    #    print "Stopping Q\n";
     $priv->{QCONTROL}->stopq;
   }
 }
@@ -772,7 +773,7 @@ sub update_listboxes {
 
     # Remove all the tags at this position
     foreach my $tag ($ContentsBox->tag('names', $start)) {
-        $ContentsBox->tag('remove', $tag, $start, 'insert');
+      $ContentsBox->tag('remove', $tag, $start, 'insert');
     }
 
     # Create a new tag for the highlighter
@@ -780,8 +781,8 @@ sub update_listboxes {
 
     # and configure it 
     $ContentsBox->tag('configure', $dtag, 
-#		      -foreground => 'white',
-		      -background => 'green',);
+                      #		      -foreground => 'white',
+                      -background => 'green',);
 
     # Now create a new base color tag at higher priority
     # to control the general color. When a highlighter is added the
@@ -801,31 +802,31 @@ sub update_listboxes {
     # and configure it
     my $bgcol = "white";
     $ContentsBox->tag('configure', $ctag, 
-		      -foreground => $fgcol,
-		      -background => $bgcol,);
+                      -foreground => $fgcol,
+                      -background => $bgcol,);
 
     # raise it
     $ContentsBox->tagRaise($ctag);
 
     # bind the tag to button click
     $ContentsBox->tag('bind', $dtag, '<ButtonRelease-1>' =>
-		      sub {pset($w->cget('-qtask'),"INDEX", $index)});
+                      sub {pset($w->cget('-qtask'),"INDEX", $index)});
 
     # and to the right mouse button
     $ContentsBox->tag('bind', $dtag, '<Button-2>' =>
-		      [ \&ContentsMenu, $w, $index, Ev('X'), Ev('Y')] ,
-		     );
+                      [ \&ContentsMenu, $w, $index, Ev('X'), Ev('Y')] ,
+                     );
 
     # show the user where there mouse is
     $ContentsBox->tag('bind', $ctag, '<Any-Enter>' =>
                       sub { shift->tag('configure', $ctag,
-				       -background => 'yellow',
+                                       -background => 'yellow',
                                        qw/ -relief raised
                                            -borderwidth 3 /); } );
 
     $ContentsBox->tag('bind', $ctag, '<Any-Leave>' =>
                       sub { shift->tag('configure', $ctag,
-				       -background => $bgcol,
+                                       -background => $bgcol,
                                        qw/ -relief flat /); } );
 
 
@@ -902,30 +903,30 @@ sub ContentsMenu {
   my $Q = $priv->{QCONTROL};
 
   my $menu = $wid->Menu(-tearoff => 0,
-			-menuitems => [
-                                      [
-                                       "command" => "Modify observation $index",
-                                       -command => sub {# do nothing
-                                       },
-                                       -state => 'disabled',
+                        -menuitems => [
+                                       [
+                                        "command" => "Modify observation $index",
+                                        -command => sub { # do nothing
+                                        },
+                                        -state => 'disabled',
+                                       ],
+                                       "separator",
+                                       ["command" => "Clear target index $index",
+                                        -command => sub {
+                                          $Q->cleartarg( $index );
+                                        }
+                                       ],
+                                       ["command" => "Cut observation at index $index",
+                                        -command => sub {
+                                          $Q->cutq( $index, 1 );
+                                        }],
+                                       ["command" => "Cut MSB containing index $index",
+                                        -command => sub {
+                                          $Q->cutmsb( $index );
+                                        }],
                                       ],
-                                      "separator",
-                                      ["command" => "Clear target index $index",
-                                       -command => sub {
-					 $Q->cleartarg( $index );
-				       }
-                                      ],
-                                      ["command" => "Cut observation at index $index",
-                                       -command => sub {
-					 $Q->cutq( $index, 1 );
-                                       }],
-                                      ["command" => "Cut MSB containing index $index",
-                                       -command => sub {
-					 $Q->cutmsb( $index );
-                                       }],
-                                     ],
-                      );
-#  $menu->Popup(-popover => "cursor");
+                       );
+  #  $menu->Popup(-popover => "cursor");
   $menu->Post($X,$Y);
 }
 
@@ -964,32 +965,32 @@ sub respond_to_failure {
 
       # if we are a POINTING or FOCUS then we need the pointing catalog
       if ($details->{CAL}) {
-	# We want calibrators only
-	$cat = new Astro::Catalog;
+        # We want calibrators only
+        $cat = new Astro::Catalog;
 
-	# need to add the planets to this list
+        # need to add the planets to this list
 	
-	my @planets = map { new Astro::Coords(planet => $_) }
-        qw/ mars uranus saturn jupiter venus neptune /;
-	for (@planets) {
-	  $_->telescope($tel);
-	}
+        my @planets = map { new Astro::Coords(planet => $_) }
+          qw/ mars uranus saturn jupiter venus neptune /;
+        for (@planets) {
+          $_->telescope($tel);
+        }
 
-	# Now need to add either the SCUBA secondary calibrators or the
-	# heterodyne standards
-	$cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
+        # Now need to add either the SCUBA secondary calibrators or the
+        # heterodyne standards
+        $cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
 	
       } else {
-	# continuum pointing catalog if not a Calibrator
-	my $pcat = "/local/progs/etc/poi.dat";
+        # continuum pointing catalog if not a Calibrator
+        my $pcat = "/local/progs/etc/poi.dat";
 
-	# If that catalogue does not exist fall back to the
-	# full catalogue
-	$pcat = 'default' unless -e $pcat;
+        # If that catalogue does not exist fall back to the
+        # full catalogue
+        $pcat = 'default' unless -e $pcat;
 
-	# This will add the planets automatically
-	$cat = new Astro::Catalog( Format => 'JCMT',
-				   File => $pcat );
+        # This will add the planets automatically
+        $cat = new Astro::Catalog( Format => 'JCMT',
+                                   File => $pcat );
 
       }
 
@@ -1040,77 +1041,77 @@ sub respond_to_failure {
     _play_sound('chime.wav');
     # and put up the GUI
     $priv->{FAIL_GUI} = new Tk::AstroCatalog( $w,
-				      -onDestroy => sub { $priv->{FAIL_GUI} = undef;},
-				      -addCmd => sub {
-					# The actual coordinate (come in as an array)
-					my $arr = shift;
-					# Get the most recently selected item
-					my $c = $arr->[-1];
+                                              -onDestroy => sub { $priv->{FAIL_GUI} = undef;},
+                                              -addCmd => sub {
+                                                # The actual coordinate (come in as an array)
+                                                my $arr = shift;
+                                                # Get the most recently selected item
+                                                my $c = $arr->[-1];
 
-					# if nothing has been selected
-					# must simply do nothing
-					return unless $c;
+                                                # if nothing has been selected
+                                                # must simply do nothing
+                                                return unless $c;
 
-					# now reset the gui object
-					undef $priv->{FAIL_GUI};
+                                                # now reset the gui object
+                                                undef $priv->{FAIL_GUI};
 
-					print "C is ". $c->status;
+                                                print "C is ". $c->status;
 
-					my %mods;
+                                                my %mods;
 
-					# The modentry method can take an Astro::Coords
-					# object directly if we do not want to specify
-					# a REFERENCE position.
-					$mods{TARGET} = $c;
+                                                # The modentry method can take an Astro::Coords
+                                                # object directly if we do not want to specify
+                                                # a REFERENCE position.
+                                                $mods{TARGET} = $c;
 
-					# Add INDEX field
-					my $index = $details->{INDEX};
+                                                # Add INDEX field
+                                                my $index = $details->{INDEX};
 
-					# add PROPSRC flag
-					$mods{PROPAGATE} = 1;
+                                                # add PROPSRC flag
+                                                $mods{PROPAGATE} = 1;
 
-					# update the entry parameters in the queue
-					$Q->modentry( $index, %mods);
+                                                # update the entry parameters in the queue
+                                                $Q->modentry( $index, %mods);
 
-				      },
-				      # On update we trigger a source plot
-				      -upDate => sub {
-					my $w = shift;
-					my $cat = $w->Catalog;
-					return if not defined $cat;
-					my $curr = $cat->stars;
-					return if !defined $curr;
-					my @current = @$curr;
+                                              },
+                                              # On update we trigger a source plot
+                                              -upDate => sub {
+                                                my $w = shift;
+                                                my $cat = $w->Catalog;
+                                                return if not defined $cat;
+                                                my $curr = $cat->stars;
+                                                return if !defined $curr;
+                                                my @current = @$curr;
 
-					# plot no more than 10 tracks including ref posn
-					my $max = 9; # this is an index
-					my $n = ($#current <= $max ? $#current : $max);
-					return if $n == 0;
+                                                # plot no more than 10 tracks including ref posn
+                                                my $max = 9; # this is an index
+                                                my $n = ($#current <= $max ? $#current : $max);
+                                                return if $n == 0;
 
-					# convert "stars" to "coords" (and compensate for ref pos)
-					@current = map { $_->coords } @current[0..$n-1];
+                                                # convert "stars" to "coords" (and compensate for ref pos)
+                                                @current = map { $_->coords } @current[0..$n-1];
 
-					# Must include the reference coordinate if one exists
-					my $refc = $cat->reference;
-					unshift(@current, $refc) if defined $refc;
+                                                # Must include the reference coordinate if one exists
+                                                my $refc = $cat->reference;
+                                                unshift(@current, $refc) if defined $refc;
 
-					# Want to plot the current time and 1 hour in the future
-					my $start = gmtime;
-					my $end = $start + ONE_HOUR;
+                                                # Want to plot the current time and 1 hour in the future
+                                                my $start = gmtime;
+                                                my $end = $start + ONE_HOUR;
 
-					# plot on xwindow
-					sourceplot( coords => \@current,
-						    hdevice => '/xserve', output => '',
-						    format => 'AZEL',
-						    start => $start, end => $end,
-						    objlabel => 'list',
-						    annotrack => 0,
-						  );
+                                                # plot on xwindow
+                                                sourceplot( coords => \@current,
+                                                            hdevice => '/xserve', output => '',
+                                                            format => 'AZEL',
+                                                            start => $start, end => $end,
+                                                            objlabel => 'list',
+                                                            annotrack => 0,
+                                                          );
 
-				      },
-				      -catalog => $cat,
-				      -transient => 1,
-				    );
+                                              },
+                                              -catalog => $cat,
+                                              -transient => 1,
+                                            );
 
   } else {
     print "Unable to deal with reason: " . $details->{REASON}. "\n";
@@ -1167,7 +1168,7 @@ sub respond_to_qcomplete {
 
     # create the tab contents
     &create_msbcomplete_tab( $tab, $Q, $userid, $tstamp, 
-			     %{$details->{$tstamp}});
+                             %{$details->{$tstamp}});
   }
 
   # Now that we have made the popups we can display them
@@ -1191,7 +1192,7 @@ sub create_msbcomplete_tab {
 
   my $text = "MSB '$title' of project $details{PROJECTID} was completed at\n".
     scalar(gmtime($details{TIMESTAMP})) ."UT\n".
- " Please either accept or reject it and enter a reason (if desired)";
+      " Please either accept or reject it and enter a reason (if desired)";
 
   $w->Label( -text => $text,
              -wraplength=>400)->pack(-side =>'top',-expand => 1,-fill=>'both');
@@ -1201,16 +1202,16 @@ sub create_msbcomplete_tab {
   # Now add on the buttons on the bottom
   my $butframe = $w->Frame->pack;
   $butframe->Button(-text => "Accept",
-		    -command => [ \&msbcompletion, $w, $Q,
-				  $userid, $tstamp, 1, $Reason]
+                    -command => [ \&msbcompletion, $w, $Q,
+                                  $userid, $tstamp, 1, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Reject",
-		    -command => [ \&msbcompletion, $w, $Q,
-				  $userid, $tstamp, 0, $Reason]
+                    -command => [ \&msbcompletion, $w, $Q,
+                                  $userid, $tstamp, 0, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Took no Data",
-		    -command => [ \&msbcompletion, $w, $Q,
-				  $userid, $tstamp, -1, $Reason]
+                    -command => [ \&msbcompletion, $w, $Q,
+                                  $userid, $tstamp, -1, $Reason]
                    )->pack(-side =>'left');
 }
 
@@ -1305,7 +1306,9 @@ sub scuba_2cals {
 
   my $tel = new Astro::Telescope( 'JCMT' );
   my @c = map { new Astro::Coords( %$_ ) } @coords;
-  foreach (@c) { $_->telescope($tel); }
+  foreach (@c) {
+    $_->telescope($tel);
+  }
   return @c;
 }
 
