@@ -474,7 +474,7 @@ sub init_queue_monitor {
   # initiate the monitor
   monitor($w->cget("-qtask"), "START", 
           "STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
-          "TIMEONQUEUE", "JIT_MSG_OUT", "JIT_ERS_OUT",
+          "TIMEONQUEUE", "JIT_MSG_OUT", "JIT_ERS_OUT", "ALERT",
           {
            -monitorvar => $priv->{MONITOR},
            -sendcur    => 1,
@@ -574,6 +574,8 @@ sub cvtsub {
     print colored("$param:",'yellow') . "$value\n";
     $w->write_text_messages( 'messages', $value);
 
+  } elsif ($param eq 'ALERT') {
+    _play_sound('alert.wav') if $value;
   }
   return $value if not ref($value);
 
@@ -712,7 +714,7 @@ sub _toggleq {
 # Attempt to support OSX as well as esdplay
 sub _play_sound {
   my $file = shift;
-  print "PLAYING A SOUND\n";
+  print "PLAYING A SOUND ($file)\n";
 
   $file = File::Spec->catfile($AUDIO_DIR, $file);
   return unless -e $file;

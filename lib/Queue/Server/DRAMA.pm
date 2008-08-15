@@ -315,6 +315,11 @@ example, a request for a calibration target.
 An SDS structure containing information on MSBs that are awaiting
 acceptance or rejection by the observer.
 
+=item ALERT
+
+Set to true when the queue monitor should alert the operator that
+there is a problem with the observation.
+
 =back
 
 =cut
@@ -338,6 +343,7 @@ sub init_pars {
   #  my $sdp = new Sdp;
   my $sdp = Dits::GetParId();
   $sdp->Create("STATUS","STRING",'Stopped');
+  $sdp->Create("ALERT", "INT", 0 );
   $sdp->Create("INDEX","INT",0);
   $sdp->Create("TIMEONQUEUE","INT",0);
   $sdp->Create("CURRENT","STRING",'None');
@@ -1103,7 +1109,7 @@ sub EXIT {
 
 =item B<STARTQ>
 
-Start the queue.
+Start the queue. ALERT parameter is reset.
 
 =cut
 
@@ -1116,6 +1122,7 @@ sub STARTQ {
   }
   # still sync parameters even if we do not print the message
   update_status_param($_[0]);
+  update_alert_param(0, $_[0]);
   clear_failure_parameter($_[0]);
   Jit::ActionExit( $_[0] );
   return $_[0];
@@ -1124,6 +1131,10 @@ sub STARTQ {
 =item B<STOPQ>
 
 Stop the queue from sending any more entries to the backend.
+
+Optional second argument will set the ALERT parameter to true if true.
+ALERT will be cleared if STOPQ is called without this flag or if STARTQ
+is called.
 
 =cut
 
@@ -1136,6 +1147,10 @@ sub STOPQ {
   }
   # still sync the parameter
   update_status_param($_[0]);
+
+  # Set the alert parameter
+  update_alert_param($_[1], $_[0]);
+
   Jit::ActionExit( $_[0] );
   return $_[0];
 }
@@ -1723,6 +1738,7 @@ sub POLL {
   update_contents_param($status);
   update_index_param($status);
   update_status_param($status);
+  update_alert_param(0, $status);
 
   # If pstat is false (perl bad status), set status to bad
   # If be_status is bad also set status to bad.
@@ -1733,7 +1749,7 @@ sub POLL {
     DRAMA::ErsPush();
     $Q->addmessage( Dits::APP_ERROR, "Error polling the backend - queue will be stopped");
     my $lstat = new DRAMA::Status;
-    &STOPQ($lstat);
+    &STOPQ($lstat, 1);
 
     # Did we get a reason
     my $r = $Q->queue->backend->failure_reason;
@@ -1791,7 +1807,7 @@ sub POLL {
         # we have found an error
         $err_found = 1;
         $Q->addmessage($bestat, "Stopping the queue due to backend error");
-        &STOPQ( $status);
+        &STOPQ( $status, 1);
       }
       $Q->addmessage( $bestat, @$chunk);
     }
@@ -2293,6 +2309,35 @@ sub update_status_param {
 
 }
 
+=item B<update_alert_param>
+
+Make sure the alert parameter is ok.
+
+  update_alert_param( $isalert, $status );
+
+If first argument is true, the ALERT parameter is triggered. If it
+is false it is reset.
+
+=cut
+
+sub update_alert_param {
+  my $alert = shift;
+  my $status = shift;
+  return unless $status->Ok;
+
+  # Read the Alert parameter
+  my $sdp = $Q->_params;
+  my $state = $sdp->Geti('ALERT',$status);
+
+  $alert = 0 if !defined $alert;
+  # Only change the parameter if needed
+  if ( ($alert && !$state) || 
+       (!$alert && $state)) {
+    $sdp->Puti("ALERT", $alert, $status );
+  }
+
+}
+
 =item B<update_index_param>
 
 Sync the index parameter with the queue
@@ -2431,7 +2476,7 @@ sub check_index_param_sync {
     #print "+_+_+_+_+ Stopping queue due to index change [$index/$curindex]\n";
     $Q->_local_index( $index );
     $Q->queue->contents->curindex( $index );
-    &STOPQ($status);
+    &STOPQ( $status, 1 );
     # Always clear if we have tweaked something
     clear_failure_parameter($status);
 
