@@ -1749,7 +1749,7 @@ sub POLL {
     DRAMA::ErsPush();
     $Q->addmessage( Dits::APP_ERROR, "Error polling the backend - queue will be stopped");
     my $lstat = new DRAMA::Status;
-    &STOPQ($lstat, 1);
+    &STOPQ($lstat);
 
     # Did we get a reason
     my $r = $Q->queue->backend->failure_reason;
@@ -2476,7 +2476,7 @@ sub check_index_param_sync {
     #print "+_+_+_+_+ Stopping queue due to index change [$index/$curindex]\n";
     $Q->_local_index( $index );
     $Q->queue->contents->curindex( $index );
-    &STOPQ( $status, 1 );
+    &STOPQ( $status );
     # Always clear if we have tweaked something
     clear_failure_parameter($status);
 
