@@ -206,7 +206,7 @@ sub write_entry {
     my $out = $dir || $seq->inputdir();
     @files = $seq->writeseq( $out );
   } else {
-    @files = ($seq->intputfile);
+    @files = ($seq->inputfile);
   }
   return @files;
 }
