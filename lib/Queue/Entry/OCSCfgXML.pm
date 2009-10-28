@@ -310,7 +310,10 @@ Does not handle REFERENCE positions.
 
 sub getTarget {
   my $self = shift;
-  return $self->entity->tcs->getTarget;
+  if (defined $self && defined $self->entity && defined $self->entity->tcs) {
+    return $self->entity->tcs->getTarget;
+  }
+  return;
 }
 
 =item B<setTarget>
