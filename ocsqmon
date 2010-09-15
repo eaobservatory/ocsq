@@ -49,6 +49,9 @@ use warnings;
 use vars qw/$VERSION/;
 
 # Load local software
+
+use JAC::Setup qw/ omp its /;
+
 use FindBin;
 use File::Spec;
 use lib "$FindBin::RealBin/lib";
@@ -56,14 +59,6 @@ use lib "$FindBin::RealBin/lib";
 use Queue::JitDRAMA;
 use Tk;
 use Tk::OCSQMonitor;
-
-# Need an OMP class for user handling
-use constant OMPLIB => '/jac_sw/omp/msbserver';
-use lib OMPLIB;
-BEGIN {
-  $ENV{OMP_CFG_DIR} = File::Spec->catdir(OMPLIB, "cfg")
-    unless exists $ENV{OMP_CFG_DIR};
-}
 use OMP::General;
 
 # Work out where the audio files are located

@@ -141,12 +141,7 @@ use strict;
 use warnings;
 
 
-use JAC::ITSRoot;
-
-
-# Required because the queue talks to Sybase directly when accepting
-# an MSB
-BEGIN { $ENV{SYBASE} = "/local/progs/sybase" unless exists $ENV{SYBASE}; }
+use JAC::Setup qw/ drama its omp sybase/;
 
 use File::Spec;
 use Data::Dumper;
@@ -154,14 +149,6 @@ use Data::Dumper;
 # Work out where local software is
 use FindBin;
 use lib "$FindBin::RealBin/lib";
-
-# Need OMP class for done msb
-use constant OMPLIB => "/jac_sw/omp/msbserver";
-use lib OMPLIB;
-BEGIN {
-  $ENV{OMP_CFG_DIR} = File::Spec->catdir(OMPLIB,"cfg")
-    unless exists $ENV{OMP_CFG_DIR};
-}
 
 # Load the DRAMA system
 use Queue::Server::DRAMA;

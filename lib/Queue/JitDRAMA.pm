@@ -22,7 +22,6 @@ use base qw/ Exporter /;
 
 @EXPORT = qw/ DoDramaEvents monitor obeyw obey pset /;
 
-# use JAC::ITSRoot;
 use Jit;
 use DRAMA;
 
