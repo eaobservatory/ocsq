@@ -24,7 +24,6 @@ use warnings;
 use Carp;
 require Queue::Backend::JACInst;
 require Queue::Contents::Indexed;
-require Queue::Entry::SCUBAODF;
 
 use base qw/Queue/;
 
