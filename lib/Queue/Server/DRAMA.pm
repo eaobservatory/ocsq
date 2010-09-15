@@ -44,6 +44,7 @@ use strict;
 use warnings;
 use Carp;
 use Queue::JitDRAMA;
+use Queue::Constants;
 use Term::ANSIColor qw/ colored /;
 use Data::Dumper;
 use Storable qw/ nstore retrieve /;
@@ -317,8 +318,9 @@ acceptance or rejection by the observer.
 
 =item ALERT
 
-Set to true when the queue monitor should alert the operator that
-there is a problem with the observation.
+Set to non-zero value when the queue monitor should alert the operator that
+there is a problem with the observation. The allowed values are defined as
+constants in Queue::Constants and the queue monitor can behave accordingly.
 
 =back
 
@@ -1132,8 +1134,8 @@ sub STARTQ {
 
 Stop the queue from sending any more entries to the backend.
 
-Optional second argument will set the ALERT parameter to true if true.
-ALERT will be cleared if STOPQ is called without this flag or if STARTQ
+Optional second argument will set the ALERT parameter to the supplied constant.
+ALERT will be cleared if STOPQ is called without this parameter or if STARTQ
 is called.
 
 =cut
@@ -1807,7 +1809,7 @@ sub POLL {
         # we have found an error
         $err_found = 1;
         $Q->addmessage($bestat, "Stopping the queue due to backend error");
-        &STOPQ( $status, 1);
+        &STOPQ( $status, Queue::Constants::QSTATE__BCKERR );
       }
       $Q->addmessage( $bestat, @$chunk);
     }
@@ -2315,8 +2317,8 @@ Make sure the alert parameter is ok.
 
   update_alert_param( $isalert, $status );
 
-If first argument is true, the ALERT parameter is triggered. If it
-is false it is reset.
+If first argument is true, the ALERT parameter is set to this
+value. If it is false it is reset.
 
 =cut
 

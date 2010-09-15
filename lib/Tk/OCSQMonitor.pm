@@ -91,6 +91,7 @@ use JAC::OCS::Config::TCS::BASE;
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use Queue::JitDRAMA;
 use Queue::Control::DRAMA;
+use Queue::Constants;
 use FindBin;
 
 use Time::Piece qw/ gmtime /;
@@ -575,7 +576,13 @@ sub cvtsub {
     $w->write_text_messages( 'messages', $value);
 
   } elsif ($param eq 'ALERT') {
-    _play_sound('alert.wav') if $value;
+    if (defined $value) {
+      my $sound = "alert.wav";
+      if ($value == Queue::Constants::QSTATE__BCKERR ) {
+        $sound = "queuestoppederror.wav";
+      }
+      _play_sound($sound);
+    }
   }
   return $value if not ref($value);
 
