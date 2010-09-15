@@ -89,14 +89,15 @@ use warnings;
 
 use JAC::Setup qw/ omp /;
 
-use Queue::JitDRAMA;
 use Pod::Usage;
 use Getopt::Long;
-use SCUBA::ODF;
-use UKIRT::Sequence;
-use JAC::OCS::Config;
 use File::Basename;
 use File::Spec;
+use FindBin;
+
+use lib "$FindBin::RealBin/lib";
+
+use Queue::JitDRAMA;
 
 my ($man, $help, $tel, $transdir, $awerr);
 my $optstatus = GetOptions("transdir=s"=> \$transdir,
@@ -191,8 +192,9 @@ sub observe {
 
 	# must switch behaviour on suffix
 	if ($fname =~ /\.xml$/) {
-	  # ACSIS
-	  $thing = new JAC::OCS::Config( File => $fname );
+	  # ACSIS or SCUBA-2
+          require JAC::OCS::Config;
+	  $thing = new JAC::OCS::Config( File => $fname, validation => 0 );
 	} else {
 	  # SCUBA
 
@@ -200,12 +202,13 @@ sub observe {
 	  fileparse_set_fstype("VMS");
 	  $fname = basename($fname);
 	  fileparse_set_fstype('');
-
+          require SCUBA::ODF;
 	  $thing = new SCUBA::ODF( File => $fname);
 
 	}
 
       } elsif ($tel eq 'UKIRT') {
+        require UKIRT::Sequence;
 	$thing = new UKIRT::Sequence( File => $fname );
       } else {
 	seterr( $status, "Unrecognized telescope $tel");
