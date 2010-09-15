@@ -729,6 +729,8 @@ sub _play_sound {
   # horrible hack
   if (-e "/usr/bin/play" ) {
     system("/usr/bin/play", $file);
+  } elsif (-e "/usr/bin/afplay" ) {
+    system("/usr/bin/afplay", $file );
   } elsif (-e '/usr/local/bin/qtplay') {
     system("/usr/local/bin/qtplay",'-q',$file);
   }
