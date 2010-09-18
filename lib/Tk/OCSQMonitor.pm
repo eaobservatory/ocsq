@@ -576,7 +576,7 @@ sub cvtsub {
     $w->write_text_messages( 'messages', $value);
 
   } elsif ($param eq 'ALERT') {
-    if (defined $value) {
+    if (defined $value && $value > 0) {
       my $sound = "alert.wav";
       if ($value == Queue::Constants::QSTATE__BCKERR ) {
         $sound = "queuestoppederror.wav";
