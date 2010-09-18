@@ -677,6 +677,14 @@ sub propsrc {
     # if we have a target abort from search
     last if $thisentry->getTarget;
 
+    # if this entry is a "current Az" entry it won't
+    # have a target as such but we should not overwrite
+    # it. We should just skip it
+    if ($thisentry->targetIsCurrentAz()) {
+      $index++;
+      next;
+    }
+
     # if we have a calibrator flag this fact
     # if we did have a calibrator and have now not got one
     # we abort

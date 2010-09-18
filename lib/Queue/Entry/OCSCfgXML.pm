@@ -330,6 +330,23 @@ sub getTarget {
   return;
 }
 
+=item B<targetIsCurrentAz>
+
+Returns true if the target corresponds to the current location of the telescope
+rather than a particular coordinate.
+
+ $iscur = $e->targetIsCurrentAz;
+
+=cut
+
+sub targetIsCurrentAz {
+  my $self = shift;
+  if (defined $self && defined $self->entity && defined $self->entity->tcs) {
+    return $self->entity->targetIsCurrentAz;
+  }
+  return;
+}
+
 =item B<setTarget>
 
 Set target information associated with the entry. Requires an

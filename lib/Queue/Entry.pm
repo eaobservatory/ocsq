@@ -391,6 +391,20 @@ sub getTarget {
   return undef;
 }
 
+=item B<targetIsCurrentAz>
+
+Returns true if the target corresponds to the current location of the telescope
+rather than a particular coordinate.
+
+ $iscur = $e->targetIsCurrentAz;
+
+=cut
+
+sub targetIsCurrentAz {
+  return 0;
+}
+
+
 =item B<setTarget>
 
 Set target information associated with the entry. Requires an C<Astro::Coords>
