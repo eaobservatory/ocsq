@@ -300,9 +300,12 @@ sub _send {
 Extract information from the queue that may help the caller work
 out how to fix the problem associated with the backend failure.
 
-  $be->addFailureContext;
+  $modentry = $be->addFailureContext;
 
 Returns immediately if no C<failure_reason> is stored in the object.
+
+In some failure modes the entry can be fixed by looking in other queue
+entries. If this occurs the modified entry will be returned.
 
 =cut
 
@@ -319,10 +322,8 @@ sub addFailureContext {
   # Set the index of the entry
   $r->index( $q->curindex );
 
-  # Add general details from the entry
-  # Not clear how this is possible since we do not want to publish
-  # full ACSIS OCS details
-  #$r->details->{ENTRY} = $q->curentry->entity->odf;
+  # Get the current entry as reference in case we can fix it
+  my $curentry = $q->curentry;
 
   # Get current time
   my $time = gmtime();
@@ -331,7 +332,7 @@ sub addFailureContext {
   # True if we hit an MSB boundary
   my $boundary = 0;
 
-  if ($r->type eq 'MissingTarget') {
+  if ($r->type eq 'MissingTarget' || $r->type eq 'NeedNextTarget') {
     # Need to go through the queue starting at the current index
     # looking for target information OR an indication that we are
     # interested in a calibrator (in which case we stop since we know
@@ -341,7 +342,9 @@ sub addFailureContext {
     while (defined( my $entry = $q->getentry($index) ) ) {
 
       # Abort if we hit an MSB boundary on the previous loop
-      last if $boundary;
+      # NeedNextTarget does not care about MSB boundaries
+      # so we can continue
+      last if ($boundary && $r->type ne 'NeedNextTarget');
 
       # If this entry is the end of an MSB flag it for next time
       $boundary = 1 if $entry->lastObs;
@@ -367,7 +370,8 @@ sub addFailureContext {
     # since it may be that we should be using the same
     # target as the previous observation
     # Do not go above the firstObs of the MSB though
-    if (!$target && !$iscal) {
+    # Do not do this for NeedNextTarget which needs to look forward
+    if (!$target && !$iscal && $r->type ne 'NeedNextTarget') {
       $boundary = 0;
       $index = $q->curindex - 1;
       while ($index > -1) {
@@ -399,17 +403,23 @@ sub addFailureContext {
       print "REQUEST FOR CALIBRATOR\n";
       $r->details->{CAL} = 1;
     } elsif ($target) {
-      # get the current az and el
-      print "TARGET INFORMATION: ".$target->status ."\n";
-      my $un = $target->usenow;
-      $target->usenow(0);
-      $target->datetime( $time );
-      print "EPOCH TIME: ".$target->datetime->epoch() ."\n";
-      $r->details->{AZ} = $target->az->radians;
-      $r->details->{EL} = $target->el->radians;
-      my $name = $target->name;
-      $r->details->{REFNAME} = $name if defined $name;
-      $target->usenow( $un );
+      if ($r->type eq 'NeedNextTarget') {
+        # we can fix up the entry
+        $curentry->setTarget( $target );
+        return $curentry;
+      } else {
+        # get the current az and el
+        print "TARGET INFORMATION: ".$target->status ."\n";
+        my $un = $target->usenow;
+        $target->usenow(0);
+        $target->datetime( $time );
+        print "EPOCH TIME: ".$target->datetime->epoch() ."\n";
+        $r->details->{AZ} = $target->az->radians;
+        $r->details->{EL} = $target->el->radians;
+        my $name = $target->name;
+        $r->details->{REFNAME} = $name if defined $name;
+        $target->usenow( $un );
+      }
     } else {
       delete $r->details->{FOLLOWING};
     }
@@ -418,6 +428,7 @@ sub addFailureContext {
     croak "Do not understand how to process this Failure object [".
       $r->type."]\n";
   }
+  return;
 }
 
 

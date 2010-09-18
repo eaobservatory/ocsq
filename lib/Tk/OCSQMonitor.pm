@@ -957,7 +957,8 @@ sub respond_to_failure {
 
   #print Dumper($details);
 
-  if ($details->{REASON} eq 'MissingTarget') {
+  if ($details->{REASON} eq 'MissingTarget' ||
+      $details->{REASON} eq 'NeedNextTarget' ) {
 
     # Create telescope object
     my $tel = new Astro::Telescope( $details->{TELESCOPE} );

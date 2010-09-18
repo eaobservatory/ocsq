@@ -401,8 +401,23 @@ sub send_entry {
   # so store it, augment it  and set bad status.
   if ($pstat) {
     $self->failure_reason($pstat);
-    $self->addFailureContext();
-    return 0;
+    $entry = $self->addFailureContext();
+    if (defined $entry) {
+      # we were returned a modified entry based on the failure
+      # condition. Clear the failure and try one more time.
+      $self->failure_reason(undef);
+      $pstat = $entry->prepare;
+      if ($pstat) {
+        # Check out new failure reason but do not trap for a
+        # modified entry second time round
+        $self->failure_reason($pstat);
+        $entry = $self->addFailureContext();
+        return 0;
+      }
+    } else {
+      # have to say we failed
+      return 0;
+    }
   }
 
   # Get the thing that is to be sent

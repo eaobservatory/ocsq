@@ -268,6 +268,20 @@ sub prepare {
 					    INSTRUMENT => $self->instrument,
 					    TELESCOPE => $self->telescope,
 					  );
+  } catch JAC::OCS::Config::Error::NeedNextTarget with {
+    # Very similar to MissingTarget but with the caveat that
+    # we do not need a related nearby target we need the actual
+    # target that will be observed in the next entry. This means
+    # that if an entry is found in the queue we do not need
+    # to ask anyone
+    print colored("Caught NeedNextTarget\n","cyan");
+    $r = new Queue::Backend::FailureReason( 'NeedNextTarget',
+					    MODE => $cfg->obsmode,
+					    WAVEBAND => $cfg->waveband->natural,
+					    INSTRUMENT => $self->instrument,
+					    TELESCOPE => $self->telescope,
+                                          );
+
   } catch JAC::OCS::Config::Error with {
     # all other sequence errors can be dealt with via a fixup [maybe]
     $cfg->fixup;

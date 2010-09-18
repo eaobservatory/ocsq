@@ -78,6 +78,7 @@ sub new {
 Type of failure. Currently supports:
 
   MissingTarget  - entry did not have a target
+  NeedNextTarget - entry needs following target
 
 =cut
 
@@ -85,8 +86,10 @@ sub type {
   my $self = shift;
   if (@_) {
     my $type = shift;
-    croak "Type [$type] is not recognized"
-      unless $type eq 'MissingTarget';
+    if ($type ne 'MissingTarget' &&
+        $type ne 'NeedNextTarget') {
+      croak "Type [$type] is not recognized";
+    }
     $self->{Type} = $type;
   }
   return $self->{Type};
