@@ -707,12 +707,15 @@ sub _toggleq {
   my $w = shift;
   my $priv = $w->privateData;
 
-  if ($priv->{MONITOR}->{STATUS} =~ /^Stop/i) {
-    #    print "Starting Q\n";
-    $priv->{QCONTROL}->startq;
-  } else {
-    #    print "Stopping Q\n";
-    $priv->{QCONTROL}->stopq;
+  if (defined $priv && defined $priv->{MONITOR} &&
+      defined $priv->{MONITOR}->{STATUS}) {
+    if ($priv->{MONITOR}->{STATUS} =~ /^Stop/i) {
+      #    print "Starting Q\n";
+      $priv->{QCONTROL}->startq;
+    } else {
+      #    print "Stopping Q\n";
+      $priv->{QCONTROL}->stopq;
+    }
   }
 }
 
