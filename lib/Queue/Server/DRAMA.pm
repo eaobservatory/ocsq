@@ -2207,8 +2207,15 @@ sub Sds_to_Entry {
   # out of scope.
   # If we are calibrations we do not want an MSB associations
   unless ($iscal) {
+    # The MSB might have cal project IDs in it so first
+    # find the non-cal project ID
+    my $projectid;
+    for my $e (@entries) {
+      $projectid = $e->projectid;
+      last if $projectid !~ /CAL/i;
+    }
     my $msb = new Queue::MSB( entries => \@entries,
-                              projectid => $entries[0]->projectid,
+                              projectid => $projectid,
                               msbid => $entries[0]->msbid,
                             );
 
@@ -2706,10 +2713,6 @@ sub msbtidy {
   # Return immediately if we have no object
   return unless defined $object;
 
-  # Now get the projectid and msbid
-  my $projectid = $object->projectid;
-  my $msbid = $object->msbid;
-
   # create a new drama status
   my $status = new DRAMA::Status;
 
@@ -2737,6 +2740,18 @@ sub msbtidy {
   # we do not want to trigger another one
   # so disable the completion
   $msb->hasBeenObserved( 0 ) if $msb;
+
+  # Get the MSB ID project ID from the MSB object
+  # if possible
+  my ($projectid, $msbid);
+  if ($msb) {
+    $projectid = $msb->projectid;
+    $msbid = $msb->msbid;
+  } else {
+    # try the entry
+    $projectid = $object->projectid;
+    $msbid = $object->msbid;
+  }
 
   # Collect the information we need to send the qmonitor
   # The REQUEST key is not really required since we never
