@@ -580,6 +580,8 @@ sub cvtsub {
       my $sound = "alert.wav";
       if ($value == Queue::Constants::QSTATE__BCKERR ) {
         $sound = "queuestoppederror.wav";
+      } elsif ($value == Queue::Constants::QSTATE__EMPTY) {
+        $sound = "queueisempty.wav";
       }
       _play_sound($sound);
     }

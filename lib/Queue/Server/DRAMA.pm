@@ -2784,6 +2784,18 @@ sub msbtidy {
   }
 }
 
+=item B<queue_empty>
+
+Callback to use when the queue enters an empty state. The alert parameter
+is set to EMPTY.
+
+=cut
+
+sub queue_empty {
+    # Register a empty-queue handler
+  update_alert_param( Queue::Constants::QSTATE__EMPTY, new DRAMA::Status);
+}
+
 =item B<_pending_msb_filename>
 
 Retrieve the name of the filename being used for the pending MSB information.

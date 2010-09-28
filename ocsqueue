@@ -259,8 +259,9 @@ if ($TRANS_DIR) {
   Queue::Entry->outputdir( $TRANS_DIR );
 }
 
-# Register this routine with the backend class
+# Register these routines with the backend class
 $QUEUE->backend->msbcomplete( \&Queue::Server::DRAMA::msbtidy );
+$QUEUE->backend->qcomplete( \&Queue::Server::DRAMA::queue_empty );
 
 # Store the queue information
 $DQUEUE->queue( $QUEUE );
