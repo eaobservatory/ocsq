@@ -86,7 +86,7 @@ use Astro::Telescope;
 use Tk::AstroCatalog;
 use Astro::SourcePlot qw/ sourceplot /;
 use JAC::OCS::Config::TCS::BASE;
-
+use JAC::Audio;
 
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use Queue::JitDRAMA;
@@ -731,14 +731,7 @@ sub _play_sound {
   $file = File::Spec->catfile($AUDIO_DIR, $file);
   return unless -e $file;
 
-  # horrible hack
-  if (-e "/usr/bin/play" ) {
-    system("/usr/bin/play", $file);
-  } elsif (-e "/usr/bin/afplay" ) {
-    system("/usr/bin/afplay", $file );
-  } elsif (-e '/usr/local/bin/qtplay') {
-    system("/usr/local/bin/qtplay",'-q',$file);
-  }
+  JAC::Audio::play( $file );
   return;
 }
 
