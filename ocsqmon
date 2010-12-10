@@ -50,7 +50,7 @@ use vars qw/$VERSION/;
 
 # Load local software
 
-use JAC::Setup qw/ omp its /;
+use JAC::Setup qw/ omp drama its /;
 
 use FindBin;
 use File::Spec;
