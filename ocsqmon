@@ -56,6 +56,9 @@ use FindBin;
 use File::Spec;
 use lib "$FindBin::RealBin/lib";
 
+# Pick up local JAC::OCS::Config classes if available
+use lib "/jac_sw/hlsroot/OCScfg/lib";
+
 use Queue::JitDRAMA;
 use Tk;
 use Tk::OCSQMonitor;
