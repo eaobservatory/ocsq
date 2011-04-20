@@ -88,6 +88,9 @@ use Astro::SourcePlot qw/ sourceplot /;
 use JAC::OCS::Config::TCS::BASE;
 use JAC::Audio;
 
+use OMP::General;
+use OMP::DateTools;
+
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use Queue::JitDRAMA;
 use Queue::Control::DRAMA;
@@ -1033,7 +1036,7 @@ sub respond_to_failure {
       $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
 
       # convert ISO date to Time::Piece object
-      my $refdate = OMP::General->parse_date( $details->{TIME} );
+      my $refdate = OMP::DateTools->parse_date( $details->{TIME} );
       $refcoord->datetime( $refdate );
 
       # register the reference position
