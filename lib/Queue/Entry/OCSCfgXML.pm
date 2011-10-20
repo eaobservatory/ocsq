@@ -39,7 +39,7 @@ use Carp;
 use Time::Seconds;
 
 use Queue::Backend::FailureReason;
-use JAC::OCS::Config;
+use JAC::OCS::Config 1.04;
 use JAC::OCS::Config::Error qw/ :try /;
 
 use base qw/Queue::Entry/;
@@ -343,6 +343,23 @@ sub targetIsCurrentAz {
   my $self = shift;
   if (defined $self && defined $self->entity && defined $self->entity->tcs) {
     return $self->entity->targetIsCurrentAz;
+  }
+  return;
+}
+
+=item B<targetIsFollowingAz>
+
+Returns true if the target indicates that the queue should be using
+the azimuth of the next target.
+
+ $iscur = $e->targetIsFollowingAz;
+
+=cut
+
+sub targetIsFollowingAz {
+  my $self = shift;
+  if (defined $self && defined $self->entity && defined $self->entity->tcs) {
+    return $self->entity->targetIsFollowingAz;
   }
   return;
 }

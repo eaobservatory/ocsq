@@ -404,6 +404,19 @@ sub targetIsCurrentAz {
   return 0;
 }
 
+=item B<targetIsFollowingAz>
+
+Returns true if the target corresponds to an entry referring to the coordinates
+of a following entry.
+
+ $iscur = $e->targetIsFollowingAz;
+
+=cut
+
+sub targetIsFollowingAz {
+  return 0;
+}
+
 
 =item B<setTarget>
 
