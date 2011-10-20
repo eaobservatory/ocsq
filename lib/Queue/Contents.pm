@@ -680,7 +680,10 @@ sub propsrc {
     # if this entry is a "current Az" entry it won't
     # have a target as such but we should not overwrite
     # it. We should just skip it
-    if ($thisentry->targetIsCurrentAz()) {
+    # Similarly if this is a FollowingAz target because
+    # we don't want to mess with it now since it will fill
+    # itself in later based on the next target.
+    if ($thisentry->targetIsCurrentAz() || $thisentry->targetIsFollowingAz()) {
       $index++;
       next;
     }
