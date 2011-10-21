@@ -338,7 +338,7 @@ sub addFailureContext {
     # interested in a calibrator (in which case we stop since we know
     # the list of calibrators)
     my $index = $q->curindex;
-    my ($target,$iscal);
+    my ($target,$iscal,$havemissing);
     while (defined( my $entry = $q->getentry($index) ) ) {
 
       # Abort if we hit an MSB boundary on the previous loop
@@ -360,6 +360,12 @@ sub addFailureContext {
       $iscal = $entry->iscal;
       last if $iscal;
 
+      # if we have got this far and have found a missing target
+      # we can't stop because we need to look for some context
+      # for the missing target. Do not override an earlier "miss"
+      $havemissing = $entry->isMissingTarget
+        unless $havemissing;
+
       $index++;
     }
 
@@ -371,7 +377,9 @@ sub addFailureContext {
     # target as the previous observation
     # Do not go above the firstObs of the MSB though
     # Do not do this for NeedNextTarget which needs to look forward
-    if (!$target && !$iscal && $r->type ne 'NeedNextTarget') {
+    # unless we found a missing target going forward
+    if (!$target && !$iscal &&
+        ($r->type ne 'NeedNextTarget' || ($r->type eq 'NeedNextTarget' && $havemissing))) {
       $boundary = 0;
       $index = $q->curindex - 1;
       while ($index > -1) {
@@ -388,7 +396,7 @@ sub addFailureContext {
 	last if $target;
 
 	# See if we have a calibrator
-	$iscal = $entry->iscal;
+       $iscal = $entry->iscal;
 	last if $iscal;
 
 	$index--;
@@ -403,8 +411,10 @@ sub addFailureContext {
       print "REQUEST FOR CALIBRATOR\n";
       $r->details->{CAL} = 1;
     } elsif ($target) {
-      if ($r->type eq 'NeedNextTarget') {
-        # we can fix up the entry
+      if ($r->type eq 'NeedNextTarget' && !$havemissing) {
+        # we can fix up the entry unless we found
+        # an entry with a missing target and need to fill
+        # that in first
         $curentry->setTarget( $target );
         return $curentry;
       } else {
