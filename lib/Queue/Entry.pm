@@ -469,6 +469,26 @@ sub iscal {
   }
 }
 
+=item B<isMissingTarget>
+
+Indicates the entry should have a target but does not have
+one set.
+
+ $ismiss = $e->isMissingTarget;
+
+=cut
+
+sub isMissingTarget {
+  my $self = shift;
+  my $entity = $self->entity;
+  if (defined $entity && $entity->can("isMissingTarget")) {
+    return $entity->isMissingTarget;
+  } else {
+    warn "isMissingTarget is not implemented. Assuming false.";
+    return 0;
+  }
+}
+
 =item B<isGenericCal>
 
 Returns true if the entry seems to be associated with a
