@@ -299,6 +299,43 @@ sub be_object {
   return $self->{BE};
 }
 
+=item B<getWarningMessages>
+
+Retrieves any warning messages associated with this entry
+as a list of strings.
+
+  do_something($_) foreach $entry->getWarningMessages();
+
+=cut
+
+sub getWarningMessages {
+  my $self = shift;
+  return () unless exists $self->{'warning_messages'}
+                && ref $self->{'warning_messages'};
+  return @{$self->{'warning_messages'}};
+}
+
+=item B<addWarningMessage>
+
+Associates a warning message with this entry.
+
+  $self->addWarningMessage('Some warning message');
+
+=cut
+
+sub addWarningMessage {
+  my $self = shift;
+  my $message = shift;
+
+  if (! exists $self->{'warning_messages'}) {
+    $self->{'warning_messages'} = [];
+  }
+  elsif (! ref $self->{'warning_messages'}) {
+    print "UNABLE TO STORE WARNING MESSAGE\n", $message, "\n";
+  }
+
+  push @{$self->{'warning_messages'}}, $message;
+}
 
 =back
 

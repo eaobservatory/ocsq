@@ -252,7 +252,8 @@ sub prepare {
   print colored("About to prepare\n","red");
   my $r;
   try {
-    $cfg->fixup;
+    my @messages = $cfg->fixup;
+    $self->addWarningMessage(colored('FIXUP: ', 'red') . $_) foreach @messages;
     $cfg->verify;
   } catch JAC::OCS::Config::Error::MissingTarget with {
     # if the target is missing we cannot send this ODF
@@ -284,7 +285,8 @@ sub prepare {
 
   } catch JAC::OCS::Config::Error with {
     # all other sequence errors can be dealt with via a fixup [maybe]
-    $cfg->fixup;
+    my @messages = $cfg->fixup;
+    $self->addWarningMessage(colored('FIXUP: ', 'red') . $_) foreach @messages;
 
     # Just in case that did not work
     $cfg->verify;

@@ -420,6 +420,12 @@ sub send_entry {
     }
   }
 
+  # Check whether the entry has any warnings which we should display.
+  if (UNIVERSAL::can($entry, 'getWarningMessages')) {
+    $self->_pushmessage($self->_good(), $_)
+      foreach $entry->getWarningMessages();
+  }
+
   # Get the thing that is to be sent
   my $entity = $entry->be_object;
 
