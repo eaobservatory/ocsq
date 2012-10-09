@@ -1124,6 +1124,18 @@ sub respond_to_failure {
                                               },
                                               -catalog => $cat,
                                               -transient => 1,
+                                              -customColumns => [{
+                                                title     => 'Flux',
+                                                width     => 5,
+                                                generator => sub {
+                                                  my $item = shift;
+                                                  my $misc = $item->misc();
+                                                  return ' --- ' unless $misc
+                                                                 and 'HASH' eq ref $misc
+                                                                 and defined $misc->{'flux850'};
+                                                  return sprintf('%5.1f', $misc->{'flux850'});
+                                                }},
+                                              ],
                                             );
 
   } else {
