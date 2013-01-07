@@ -416,6 +416,13 @@ sub addFailureContext {
         # an entry with a missing target and need to fill
         # that in first
         $curentry->setTarget( $target );
+
+        # Is this a SCUBA-2 setup observation?  If so, try
+        # to adjust the slew time.
+        $self->_trackFollowingObservation($curentry, $q)
+            if $curentry->instrument() eq 'SCUBA2'
+            and $curentry->entity()->obsmode() =~ /^setup/;
+
         return $curentry;
       } else {
         # get the current az and el
@@ -441,6 +448,70 @@ sub addFailureContext {
   return;
 }
 
+=item B<_trackFollowingObservation>
+
+Helper method for addFailureContext to look forward through
+the queue for observations with the same target in the same
+MSB, and add their slew tracking time to that of the current
+observation.
+
+This is useful for SCUBA-2 setup observations:
+
+Setup observations are short which means that the SLEW component in the
+TCS indicates that the source only has to be accessible for a short
+time. This sometimes leads to the setup being followed by a science
+observation that can not be completed without a big slew. The fix is to
+include the following science observation in the slew estimate.
+
+The fixup system can be used to do this because setup observations
+which are automatically added by the translator will trigger the
+'NeedNextTarget' event.
+
+However we need to make sure that the setup time is not repeatedly
+increased if the TSS moves back up the queue and resubmits the setup
+observation, therefore we use the original track time stored in
+the queue entry object.
+
+=cut
+
+sub _trackFollowingObservation {
+  my $self = shift;
+  my ($curentry, $q) = @_;
+
+  my $index = $q->curindex() + 1;
+  my $reftarget = $curentry->getTarget();
+  my $total = 0;
+  my $num_obs = 0;
+
+  while (defined (my $entry = $q->getentry($index))) {
+    # Check that the target didn't change;
+    my $target = $entry->getTarget();
+    last if "$target" ne "$reftarget";
+
+    my $time = $entry->getSlewTrackTime();
+    if ($time) {
+      $total += $time;
+      $num_obs ++;
+    }
+
+    # If this entry is the end of an MSB do not go further.
+    last if $entry->lastObs;
+
+    $index++;
+  }
+
+  if ($total) {
+    my $time = $curentry->getOriginalTrackTime();
+    if ($time) {
+      my $newtime = $time + $total;
+      $curentry->setSlewTrackTime($newtime);
+      $curentry->addWarningMessage(colored('SLEW:', 'yellow')
+        . ' adjusted tracking time from ' . $time . ' to ' . $newtime
+        . colored(' covering ' . $num_obs . ' observation'
+        . ($num_obs == 1 ? '' : 's'), 'yellow'));
+    }
+  }
+}
 
 =back
 

@@ -147,6 +147,87 @@ sub telescope {
 
 =back
 
+=item B<getSlewTrackTime>
+
+This method provides a simplified interface to the slew time
+in the case that the TRACK_TIME option is used.
+
+Returns the tracking time if TRACK_TIME is used, or undef otherwise.
+
+  my $time = $entry->getSlewTrackTime();
+
+The purpose of this method is to aid the queue in adjusting
+track times, e.g. for a SCUBA-2 setup you want to include the
+time of the following observation.
+
+=cut
+
+sub getSlewTrackTime {
+  my $self = shift;
+
+  return undef unless defined $self->entity()
+                  and defined $self->entity()->tcs();
+
+  my %opt = $self->entity()->tcs()->slew();
+
+  return undef if exists $opt{'CYCLE'} && ! exists $opt{'OPTION'}
+               or exists $opt{'OPTION'} && $opt{'OPTION'} ne 'TRACK_TIME';
+
+  return $opt{'TRACK_TIME'};
+}
+
+
+=item B<setSlewTrackTime>
+
+This method provides a simplified interface to the slew time
+in the case that the TRACK_TIME option is used.
+
+Sets the tracking time if TRACK_TIME is used, otherwise does nothing.
+
+  $entry->setSlewTrackTime($time);
+
+The purpose of this method is to aid the queue in adjusting
+track times, e.g. for a SCUBA-2 setup you want to include the
+time of the following observation.
+
+The original tracking time is stored in the object unless
+a value is already present.
+
+=cut
+
+sub setSlewTrackTime {
+  my $self = shift;
+
+  return undef unless defined $self->entity()
+                  and defined $self->entity()->tcs();
+
+  my %opt = $self->entity()->tcs()->slew();
+
+  return undef if exists $opt{'CYCLE'} && ! exists $opt{'OPTION'}
+               or exists $opt{'OPTION'} && $opt{'OPTION'} ne 'TRACK_TIME';
+
+  $self->{'OriginalTrackTime'} = $opt{'TRACK_TIME'}
+    unless exists $self->{'OriginalTrackTime'};
+
+  $opt{'TRACK_TIME'} = shift;
+  $self->entity()->tcs()->slew(%opt);
+}
+
+=item B<getOriginalTrackTime>
+
+Returns the slew track time, or a saved original version
+of it if present.
+
+=cut
+
+sub getOriginalTrackTime {
+  my $self = shift;
+
+  return $self->{'OriginalTrackTime'} if exists $self->{'OriginalTrackTime'};
+
+  return $self->getSlewTrackTime();
+}
+
 =head2 Configuration
 
 =over 4
