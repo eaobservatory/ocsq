@@ -984,7 +984,7 @@ sub respond_to_failure {
         # need to add the planets to this list
 	
         my @planets = map { new Astro::Coords(planet => $_) }
-          qw/ mars uranus saturn jupiter venus neptune /;
+          qw/ mars uranus saturn jupiter venus neptune mercury /;
         for (@planets) {
           $_->telescope($tel);
         }
