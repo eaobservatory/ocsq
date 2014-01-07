@@ -118,9 +118,12 @@ if (defined $tel && !$sim) {
 
 # Ask for the OMP user ID [but do not put up a popup]
 # The widget will ask for a user id when needed.
-my $OMP_User_Obj = OMP::General->determine_user();
+# Use an eval block to trap database errors.
 my $OMP_User;
-$OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+eval {
+  my $OMP_User_Obj = OMP::General->determine_user();
+  $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+};
 
 
 # Create simple GUI with exit button and the ocsq monitor itself

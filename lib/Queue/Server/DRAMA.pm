@@ -2785,7 +2785,10 @@ sub msbtidy {
 
       # the queue monitor wants the MSB title and rather than asking each client to 
       # query the database for it we query it once here
-      my $msbtitle = OMP::MSBServer->titleMSB( $msbid );
+      my $msbtitle;
+      eval {
+        $msbtitle = OMP::MSBServer->titleMSB( $msbid );
+      };
       $data{MSBTITLE} = $msbtitle if $msbtitle;
 
       # And now store it in the parameter
