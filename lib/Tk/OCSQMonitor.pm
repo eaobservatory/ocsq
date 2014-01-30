@@ -69,6 +69,10 @@ this item.
 
 =back
 
+=head1 SUBROUTINES
+
+=over 4
+
 =cut
 
 use strict;
@@ -1005,6 +1009,14 @@ sub respond_to_failure {
         $cat = new Astro::Catalog( Format => 'JCMT',
                                    File => $pcat );
 
+        # If we can recognise the type of instrument then
+        # filter the catalog to only include suitable sources.
+        if ($details->{'INSTRUMENT'} eq 'SCUBA2') {
+          $cat->filter_by_cb(source_is_type('c'));
+        }
+        elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
+          $cat->filter_by_cb(source_is_type('l'));
+        }
       }
 
     } elsif ($details->{TELESCOPE} eq 'UKIRT') {
@@ -1361,6 +1373,46 @@ sub scuba_2cals {
   return @c;
 }
 
+=item source_is_type($type_code)
+
+Return a "callback" subroutine reference suitable for use with
+C<Astro::Catalog::filter_by_cb> which can be used to select only
+sources with the given type code.  The type code is a single
+character enclosed in square brackets at the start of
+the comment string.
+
+For example, in the JCMT pointing catalog, a continuum source
+might have a comment like:
+
+    [c] [S1] 0.6 - 0.8 Jy (2004 Dec)
+
+And a line source might have a comment like:
+
+    [l] L1+ 2-1 31.7 2-1 IRAM 66.2
+
+These could be selected using C<source_is_type('c')> and
+C<source_is_type('l')> respectively.
+
+=cut
+
+sub source_is_type {
+    my $type = shift;
+
+    return sub {
+        my $comment = shift->coords()->comment();
+
+        unless ($comment =~ /^\[(\w)\]/) {
+            print STDERR "Cannot extract source type from: $comment\n";
+            return 0;
+        }
+
+        my $code = $1;
+
+        return $code eq $type;
+    };
+}
+
+=back
 
 =head1 ADVERTISED WIDGETS
 
