@@ -64,6 +64,12 @@ use Tk;
 use Tk::OCSQMonitor;
 use OMP::General;
 
+# Set a shorter-than-default database timeout for the OMP database so that
+# database issues do not prevent the TSS from being able to operate the
+# queue.
+use OMP::DBbackend;
+OMP::DBbackend->timeout(10);
+
 # Work out where the audio files are located
 our $AUDIO_DIR = File::Spec->catdir($FindBin::RealBin,"audio");
 
