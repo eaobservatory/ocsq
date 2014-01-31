@@ -1393,6 +1393,10 @@ And a line source might have a comment like:
 These could be selected using C<source_is_type('c')> and
 C<source_is_type('l')> respectively.
 
+Currently returns true if the comment doesn't seem to include
+a type code.  This ensures that planets will appear in the
+pointing catalog for both types of instrument.
+
 =cut
 
 sub source_is_type {
@@ -1402,8 +1406,7 @@ sub source_is_type {
         my $comment = shift->coords()->comment();
 
         unless ($comment =~ /^\[(\w)\]/) {
-            print STDERR "Cannot extract source type from: $comment\n";
-            return 0;
+            return 1;
         }
 
         my $code = $1;
