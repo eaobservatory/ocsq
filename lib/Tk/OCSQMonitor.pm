@@ -1265,10 +1265,13 @@ sub msbcompletion {
   my $accept = shift;
   my $rw = shift;
 
-  # Attempt to get a user id but non fatal if we do not get it
+  # Attempt to get a user id but non fatal if we do not get it.
+  # Use an eval block to trap database errors.
   if (!defined $$userid || $$userid !~ /\w/) {
-    my $OMP_User_Obj = OMP::General->determine_user( $w );
-    $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+    eval {
+      my $OMP_User_Obj = OMP::General->determine_user( $w );
+      $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+    };
   }
 
   # read the widget
