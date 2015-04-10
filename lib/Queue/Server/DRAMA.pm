@@ -2027,9 +2027,9 @@ sub MSBCOMPLETE {
           use SOAP::Lite;
           my $msbserv =  new SOAP::Lite();
 
-          $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
+          $msbserv->uri('http://www.eao.hawaii.edu/OMP::MSBServer');
 
-          $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 6);
+          $msbserv->proxy('http://omp-private.eao.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 6);
 
           $msg = '';
           # You can not use a SOAP call from within a DRAMA callback
@@ -2129,9 +2129,9 @@ sub SOAPTEST {
     use SOAP::Lite;
     my $msbserv =  new SOAP::Lite();
 
-    $msbserv->uri('http://www.jach.hawaii.edu/OMP::MSBServer');
+    $msbserv->uri('http://www.eao.hawaii.edu/OMP::MSBServer');
 
-    $msbserv->proxy('http://omp-private.jach.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
+    $msbserv->proxy('http://omp-private.eao.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
 
     $msg = '';
 
