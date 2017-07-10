@@ -94,6 +94,7 @@ use JAC::Audio;
 
 use OMP::General;
 use OMP::DateTools;
+use OMP::UserServer;
 
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use Queue::JitDRAMA;
@@ -1187,9 +1188,10 @@ sub respond_to_qcomplete {
   # to create our onw top level rather than a dialog box
   my $gui = $w->Toplevel(-title => "MSB Accept/Reject");
 
+  my $userid_gui = (defined $$userid) ? $$userid : '';
   my $entry = $gui->LabEntry( -label => "OMP User ID:",
                               -width => 10,
-                              -textvariable => $userid,
+                              -textvariable => \$userid_gui,
                             )->pack(-fill => 'x', -expand => 1);
 
   # Tabbed notebook
@@ -1204,7 +1206,7 @@ sub respond_to_qcomplete {
                         -label => "MSB".$details->{$tstamp}->{QUEUEID});
 
     # create the tab contents
-    &create_msbcomplete_tab( $tab, $Q, $userid, $tstamp, 
+    &create_msbcomplete_tab( $tab, $Q, $userid, \$userid_gui, $tstamp,
                              %{$details->{$tstamp}});
   }
 
@@ -1221,6 +1223,7 @@ sub create_msbcomplete_tab {
   my $w = shift;
   my $Q = shift;
   my $userid = shift;
+  my $userid_gui = shift;
   my $tstamp = shift;
   my %details = @_;
 
@@ -1240,15 +1243,15 @@ sub create_msbcomplete_tab {
   my $butframe = $w->Frame->pack;
   $butframe->Button(-text => "Accept",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $tstamp, 1, $Reason]
+                                  $userid, $userid_gui, $tstamp, 1, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Reject",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $tstamp, 0, $Reason]
+                                  $userid, $userid_gui, $tstamp, 0, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Took no Data",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $tstamp, -1, $Reason]
+                                  $userid, $userid_gui, $tstamp, -1, $Reason]
                    )->pack(-side =>'left');
 }
 
@@ -1261,9 +1264,27 @@ sub msbcompletion {
   my $w = shift;
   my $Q = shift;
   my $userid = shift;
+  my $userid_gui = shift;
   my $tstamp = shift;
   my $accept = shift;
   my $rw = shift;
+
+  # Did the user alter the OMP user ID via the GUI?
+  if ($$userid_gui ne $$userid) {
+    # Clear the stored user ID so that if validation fails, we will
+    # open the normal prompt at the next step.
+    $$userid = undef;
+
+    # Did we get a non-empty user ID?
+    if ($$userid_gui =~ /\w/) {
+      eval {
+        # Do what OMP::General::determine_user would do to validate the
+        # newly supplied OMP user ID.
+        my $omp_user_obj = OMP::UserServer->getUser($$userid_gui);
+        $$userid = $omp_user_obj->userid() if defined $omp_user_obj;
+      };
+    }
+  }
 
   # Attempt to get a user id but non fatal if we do not get it.
   # Use an eval block to trap database errors.
