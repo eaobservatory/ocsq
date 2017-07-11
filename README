@@ -37,6 +37,36 @@ To run up the queue monitor GUI:
 This can be run on any machine. It will look for the queue on 
 kiki. [need to fix]
 
+Running the Queue in Simulation Mode
+------------------------------------
+
+Setup:
+
+    starlink
+    source /jac_sw/itsroot/etc/cshrc
+    source /jac_sw/itsroot/etc/login
+
+JCMT:
+
+    perl jac_inst -tel jcmt -transdir ... &
+    perl ocsqueue -tel jcmt -sim -transdir ... &
+    perl ocsqmon -sim -tel jcmt &
+
+    jcmttranslator -cwd -verbose file.xml
+    ditscmd OCSQUEUE ADDBACK manifest.xml
+    ditscmd OCSQUEUE REPORT 2
+
+UKIRT:
+
+    perl -I lib -I ../perl-UKIRT-Sequence/lib jac_inst -tel ukirt -transdir ... &
+    perl -I lib -I ../perl-UKIRT-Sequence/lib ocsqueue -tel ukirt -sim -transdir ... &
+    perl -I lib ocsqmon -sim -tel ukirt &
+
+Ending:
+
+    ditscmd UKIRT_INST EXIT
+    ditscmd OCSQUEUE EXIT
+
 Author
 ------
 
