@@ -50,14 +50,11 @@ use vars qw/$VERSION/;
 
 # Load local software
 
-use JAC::Setup qw/ omp drama its /;
+use JAC::Setup qw/ omp drama its ocscfg /;
 
 use FindBin;
 use File::Spec;
 use lib "$FindBin::RealBin/lib";
-
-# Pick up local JAC::OCS::Config classes if available
-use lib "/jac_sw/hlsroot/OCScfg/lib";
 
 use Queue::JitDRAMA;
 use Tk;

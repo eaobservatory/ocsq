@@ -140,10 +140,7 @@ use 5.006;
 use strict;
 use warnings;
 
-# Pick up local JAC::OCS::Config classes if available
-use lib "/jac_sw/hlsroot/OCScfg/lib";
-
-use JAC::Setup qw/ drama its omp sybase/;
+use JAC::Setup qw/ drama its omp sybase ocscfg /;
 
 use File::Spec;
 use Data::Dumper;
