@@ -9,6 +9,7 @@ use warnings;
 use Test; # Not really needed since we don't use ok()
 
 use File::Find;
+use JAC::Setup qw/omp/;
 
 our @modules;
 
