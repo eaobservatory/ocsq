@@ -58,12 +58,6 @@ use OMP::MSBServer;
 use OMP::Info::Comment;
 use OMP::Error qw/ :try /;
 
-# Set a shorter-than-default database timeout for the OMP database so that
-# database issues do not prevent the TSS from being able to operate the
-# queue.
-use OMP::DBbackend;
-OMP::DBbackend->timeout(10);
-
 use vars qw/ $VERSION /;
 $VERSION = '0.01';
 
