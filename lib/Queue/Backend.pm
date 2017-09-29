@@ -527,7 +527,7 @@ sub poll {
     $msg = [];
   }
 
-  #print "QStatus: $status, SCUCD status: $bestatus ";
+  #print "QStatus: $status, backend status: $bestatus ";
   #print "QRunning: ". $self->qrunning . " Accepting: ". $self->accepting;
   #print " Index: " . $self->qcontents->curindex;
   #print   "\n";

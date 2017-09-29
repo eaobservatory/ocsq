@@ -24,8 +24,8 @@ callback for the drama obey, assuming we are running in non-blocking
 mode, must set a state variable in the object when the obey has
 completed (the C<poll> method will then simply check that variable).
 
-Messages from SCUCD will be intercepted and stored in the object for
-retrieval by the C<messages> method.
+Messages from the instrument task will be intercepted and stored in the object
+for retrieval by the C<messages> method.
 
 The entry is sent using a non-blocking OBEY and returns immediately to
 the queue main loop which will reschedule (querying this class) until
@@ -62,7 +62,7 @@ use Term::ANSIColor qw/ colored /;
 Name of the task to be controlled. Defaults to "JAC_INST" but can be
 set to other values for testing.
 
-  $task = Queue::Backend::SCUCD->TASK;
+  $task = Queue::Backend::JACInst->TASK;
 
 =cut
 
@@ -90,7 +90,7 @@ initiated since it is always assumed to be active (the system must be
 loaded as part of the queue runup). - C<accepting> is
 set to true immediately.
 
-  $be = new Queue::Backend::SCUCD;
+  $be = new Queue::Backend::JACInst;
 
 No arguments are required.
 

@@ -524,7 +524,7 @@ sub verbose {
 
 The underlying C<Queue> object that is being manipulated by the backend.
 
-  $Q->queue( new Queue::SCUCD );
+  $Q->queue( new Queue::JCMT );
   $queue = $Q->queue;
 
 =cut
