@@ -58,13 +58,16 @@ JCMT:
 
 UKIRT:
 
-    perl -I lib -I ../perl-UKIRT-Sequence/lib jac_inst -tel ukirt -transdir ... &
-    perl -I lib -I ../perl-UKIRT-Sequence/lib ocsqueue -tel ukirt -sim -transdir ... &
-    perl -I lib ocsqmon -sim -tel ukirt &
+    perl -I ../perl-UKIRT-Sequence/lib jac_inst -tel ukirt -transdir ... &
+    perl -I ../perl-UKIRT-Sequence/lib ocsqueue -tel ukirt -sim -transdir ... &
+    perl ocsqmon -sim -tel ukirt &
 
 Ending:
 
     ditscmd UKIRT_INST EXIT
+    or
+    ditscmd JCMT_INST EXIT
+
     ditscmd OCSQUEUE EXIT
 
 Author
