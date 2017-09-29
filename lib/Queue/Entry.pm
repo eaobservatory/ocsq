@@ -399,8 +399,7 @@ entity() to a disk and store the filename in be_object().
 
 This should be called just before sending the entry to the backend.
 Note that this does require that the Entry class has to know what the
-Backend class is expecting to send to the Queue backend. For example,
-using ODFs will probably only work with a TODD backend.
+Backend class is expecting to send to the Queue backend.
 
 Returns undef if everything worked okay. Returns a
 C<Queue::Backend::FailureReason> object if there was a problem that

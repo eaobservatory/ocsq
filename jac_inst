@@ -139,7 +139,7 @@ Dits::MainLoop( $status );
 
 # ACTIONS
 
-# OBSERVE - read the supplied ODF and reschedule a pseudo-random
+# OBSERVE - read the supplied file and reschedule a pseudo-random
 # time in the future.
 
 # Once resheduled, send a success
@@ -164,7 +164,7 @@ sub observe {
 
     unless ($argID) {
       # No argument specified, this is an error
-      seterr( $status, "Please supply an ODF name as Argument1");
+      seterr( $status, "Please supply a file name as Argument1");
       return $status;
 
     }
@@ -185,28 +185,12 @@ sub observe {
       }
     }
 
-    #print "None drama: Reading ODF $odfname\n";
+    #print "None drama: Reading file $fname\n";
     my $thing;
     eval {
       if ($tel eq 'JCMT') {
-
-	# must switch behaviour on suffix
-	if ($fname =~ /\.xml$/) {
-	  # ACSIS or SCUBA-2
-          require JAC::OCS::Config;
-	  $thing = new JAC::OCS::Config( File => $fname, validation => 0 );
-	} else {
-	  # SCUBA
-
-	  # The odf name must be converted from VAX format
-	  fileparse_set_fstype("VMS");
-	  $fname = basename($fname);
-	  fileparse_set_fstype('');
-          require SCUBA::ODF;
-	  $thing = new SCUBA::ODF( File => $fname);
-
-	}
-
+	require JAC::OCS::Config;
+	$thing = new JAC::OCS::Config( File => $fname, validation => 0 );
       } elsif ($tel eq 'UKIRT') {
         require UKIRT::Sequence;
 	$thing = new UKIRT::Sequence( File => $fname );
@@ -219,7 +203,7 @@ sub observe {
     if ($thing) {
       DRAMA::MsgOut($status, "File has been opened");
     } else {
-      # Failed to read the ODF
+      # Failed to read the file
       seterr( $status, "Error opening file $fname : $@");
     }
 

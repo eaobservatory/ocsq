@@ -59,7 +59,7 @@ argument to see whether it is already a C<UKIRT::Sequence> object or
 if one needs to be created from a file name (if unblessed).
 
   $entry = new Queue::Entry::UKIRTSeq( $label, $filename);
-  $entry = new Queue::Entry::UKIRTSeq( $label, $odf_object);
+  $entry = new Queue::Entry::UKIRTSeq( $label, $seq_object);
 
 Once the filename has been converted into a C<UKIRT::Sequence> object
 the constructor in the base class is called.
@@ -95,8 +95,8 @@ sub new {
 This method stores or retrieves the C<UKIRT::Sequence> object associated with
 the entry.
 
-  $odf = $entry->entity;
-  $entry->entity($odf);
+  $seq = $entry->entity;
+  $entry->entity($seq);
 
 =cut
 
@@ -196,7 +196,7 @@ sub write_entry {
   my $self = shift;
   my $dir = shift;
 
-  # Get the ODF itself
+  # Get the sequence itself
   my $seq = $self->entity;
   return () unless defined $seq;
 
@@ -249,7 +249,7 @@ sub prepare {
   # Should return a reason here
   return unless defined $seq;
 
-  # Now verify that the ODF is okay and catch the exception
+  # Now verify that the sequence is okay and catch the exception
   # We do a fixup and a verify here. Note that fixup tries to correct
   # stuff that can be fixed without asking for more information
   my $r;
@@ -257,7 +257,7 @@ sub prepare {
     $seq->fixup;
     $seq->verify;
   } catch UKIRT::SequenceError::MissingTarget with {
-    # if the target is missing we cannot send this ODF
+    # if the target is missing we cannot send this sequence
     # so we need to package up the relevant information
     # and pass it higher up
     # The information we need from the sequence is just
@@ -287,7 +287,7 @@ sub prepare {
   # if we ended up with a failure object we need to return it here
   return $r if $r;
 
-  # Write the ODF
+  # Write the sequence
   my @files = $self->write_entry();
   return unless @files;
 

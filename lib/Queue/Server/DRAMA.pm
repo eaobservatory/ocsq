@@ -360,7 +360,7 @@ sub init_pars {
   $queue_sds->Create("Contents",undef,Sds::CHAR,
                      [$maxwidth,$nentries],$status);
 
-  # This contains any information on ODFs that need more information
+  # This contains any information on entries that need more information
   my $failure_sds = Sds->Create("FAILURE",undef, Sds::STRUCT,0,$status);
 
   # This contains queue completion triggers
@@ -1183,7 +1183,7 @@ sub CLEARQ {
 
 =item B<LOADQ>
 
-Clear the queue and load the specified ODFs onto it.
+Clear the queue and load the specified entries onto it.
 Accepts a single argument that specifies the XML content
 description of the entries. See C<Sds_to_Entry>.
 
@@ -1206,7 +1206,7 @@ sub LOADQ {
     return $status;
   }
 
-  # Extract the ODF entries from the argument
+  # Extract the entries from the argument
   my @entries = &Sds_to_Entry( $argId );
 
   $Q->queue->contents->loadq( @entries );
@@ -1219,7 +1219,7 @@ sub LOADQ {
   #  print Dumper($grp);
   #  print Dumper(\@entries);
   #  print Dumper($Q->queue);
-  #  print "Found " . scalar(@entries) . " ODFs\n";
+  #  print "Found " . scalar(@entries) . " entries\n";
 
   Jit::ActionExit( $status );
   return $status;
@@ -1306,7 +1306,7 @@ sub ADDFRONT {
     return $status;
   }
 
-  # Retrieve the ODF entries associated with the args
+  # Retrieve the entries associated with the args
   my @entries = &Sds_to_Entry($argId);
 
   if ($#entries > -1) {
@@ -1382,7 +1382,7 @@ sub INSERTQ {
   #  print Dumper($grp);
   #  print Dumper(\@entries);
   #  print Dumper($Q->queue);
-  #  print "Found " . scalar(@entries) . " ODFs\n";
+  #  print "Found " . scalar(@entries) . " entries\n";
 
   Jit::ActionExit( $status );
   return $status;
@@ -2179,10 +2179,10 @@ objects suitable for placing on the queue.
 
   @entries = Sds_to_Entry( $argid );
 
-Currently assumes that the macro odf file name is in the sds structure
-as Argument1. Can not yet accept the ODF itself as an SDS structure.
+Currently assumes that the XML file name is in the sds structure
+as Argument1.
 
-An optional argument can be used to indicate that the ODFs
+An optional argument can be used to indicate that the entries
 correspond to CAL observations and should not be grouped
 as MSBs. Default is to group into MSBs.
 

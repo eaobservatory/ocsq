@@ -12,7 +12,7 @@ OCSQUEUE - DRAMA-based queue for controlling observing
 =head1 DESCRIPTION
 
 This is the DRAMA-based Queue used to simplify the sequencing of
-observations (ODFs, instrument sequences, XML configures).
+observations (instrument sequences, XML configures).
 It is a layer on top of the Queue::* perl modules (Queue,
 Queue::Contents, Queue::Entry and Queue::Backend) and the  shared
 DRAMA infrastructure (Queue::DRAMA).
@@ -59,9 +59,7 @@ be used for user name translation.
 
 =item B<-transdir>
 
-The directory in which translated ODFs will appear. It is also
-the directory  used to write rewritten ODFs prior to sending
-them to SCUBA. Default is to use C</observe/ompodf>.
+The directory in which translated observations will appear.
 
 =item B<-rhost>
 
@@ -251,8 +249,6 @@ print "Using remote task '$REMOTE_TASK'\n";
 $QUEUE->backend->TASK( $REMOTE_TASK );
 
 # override translator directory
-# This should really be a global independent of SCUBAODFs.
-# Maybe a config parameter using a shared config object
 if ($TRANS_DIR) {
   print "Overriding translation output directory: $TRANS_DIR\n";
   Queue::Entry->outputdir( $TRANS_DIR );

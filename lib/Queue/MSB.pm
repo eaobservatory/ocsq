@@ -17,9 +17,9 @@ Queue::MSB - A collection of entries that form a single observing block
 =head1 DESCRIPTION
 
 This class provides a mean of grouping entries in a Queue::Contents
-object into a single MSB (an MSB is defined as consisting of all ODFs
+object into a single MSB (an MSB is defined as consisting of all entries
 added to the queue front or back in a single operation except for
-those ODFs added as part of an insert into the middle of the queue).
+those entries added as part of an insert into the middle of the queue).
 
 =cut
 
@@ -265,7 +265,7 @@ sub refentry {
 
 =item B<hasBeenObserved>
 
-Indicate that at least one ODF in the MSB has been successfully observed.
+Indicate that at least one entry in the MSB has been successfully observed.
 This is important when deciding what to do when the MSB is cut or
 the last observation has been cut.
 
@@ -329,7 +329,7 @@ sub msbcomplete {
 
 =item B<update>
 
-Ensure that the first ODF in the MSB is marked as the first
+Ensure that the first entry in the MSB is marked as the first
 observation and that the last is marked as the last observation
 (this can change when entries are cut or when the object entries
 have been updated).
@@ -502,7 +502,7 @@ sub cut {
   my @indices;
   for my $i (0.. scalar(@$all)-1 ) {
     # We are comparing data references directly not the content
-    # since we can have identical ODFs (in terms of content) in
+    # since we can have identical entries (in terms of content) in
     # multiple places in a single MSB. This does assume that each
     # entry object is unique and not a clone
     # Since there is no == overload that will cause problems

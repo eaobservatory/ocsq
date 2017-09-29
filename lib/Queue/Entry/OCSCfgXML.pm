@@ -59,7 +59,7 @@ argument to see whether it is already a C<JAC::OCS::Config> object or
 if one needs to be created from a file name (if unblessed).
 
   $entry = new Queue::Entry::OCSCfgXML( $label, $filename);
-  $entry = new Queue::Entry::OCSCfgXML( $label, $odf_object);
+  $entry = new Queue::Entry::OCSCfgXML( $label, $ocs_cfg_object);
 
 Once the filename has been converted into a C<JAC::OCS::Config> object
 the constructor in the base class is called.
@@ -95,8 +95,8 @@ sub new {
 This method stores or retrieves the C<JAC::OCS::Config> object associated with
 the entry.
 
-  $odf = $entry->entity;
-  $entry->entity($odf);
+  $cfg = $entry->entity;
+  $entry->entity($cfg);
 
 =cut
 
@@ -276,7 +276,7 @@ sub write_entry {
   my $self = shift;
   my $dir = shift;
 
-  # Get the ODF itself
+  # Get the configuration itself
   my $cfg = $self->entity;
   return () unless defined $cfg;
 
@@ -326,7 +326,7 @@ sub prepare {
   # Should return a reason here
   return unless defined $cfg;
 
-  # Now verify that the ODF is okay and catch the exception
+  # Now verify that the configuration is okay and catch the exception
   # We do a fixup and a verify here. Note that fixup tries to correct
   # stuff that can be fixed without asking for more information
   use Term::ANSIColor;
@@ -337,10 +337,10 @@ sub prepare {
     $self->addWarningMessage(colored('FIXUP: ', 'red') . $_) foreach @messages;
     $cfg->verify;
   } catch JAC::OCS::Config::Error::MissingTarget with {
-    # if the target is missing we cannot send this ODF
+    # if the target is missing we cannot send this configuration
     # so we need to package up the relevant information
     # and pass it higher up
-    # The information we need from the ODF is just
+    # The information we need from the configuration is just
     #    MODE
     #    FILTER
     print colored("Caught MissingTarget\n","cyan");
@@ -381,7 +381,7 @@ sub prepare {
   # if we ended up with a failure object we need to return it here
   return $r if $r;
 
-  # Write the ODF
+  # Write the configuration
   my @files = $self->write_entry();
   return unless @files;
 

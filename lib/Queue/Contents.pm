@@ -374,7 +374,7 @@ entry at the specified index position.
   @removed = $q->cutmsb( $index );
 
 Calibrations that have been inserted into the MSB are also removed.
-If the specified index position does not correspond to an MSB ODF
+If the specified index position does not correspond to an MSB entry
 then only that entry is removed.
 
 Returns all the entries that were removed.

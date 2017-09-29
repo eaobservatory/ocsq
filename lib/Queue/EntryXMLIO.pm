@@ -139,11 +139,7 @@ sub readXML {
     if ($tel eq 'UKIRT') {
       $class .= "::UKIRTSeq";
     } elsif ($tel eq 'JCMT') {
-      if ($inst eq 'SCUBA') {
-        $class .= "::SCUBAODF";
-      } else {
-        $class .= "::OCSCfgXML";
-      }
+      $class .= "::OCSCfgXML";
     } else {
       croak "Unrecognized telescope $tel";
     }
@@ -382,7 +378,6 @@ element using a C<Entry> element.
 
   <?xml version="1.0" encoding="ISO-8859-1"?>
   <QueueEntries telescope="JCMT">
-    <Entry totalDuration="123" instrument="SCUBA">blah.odf</Entry>
     <Entry totalDuration="456" instrument="ACSIS">conf.xml</Entry>
   </QueueEntries>
 

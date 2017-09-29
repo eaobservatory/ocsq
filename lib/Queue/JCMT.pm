@@ -13,8 +13,7 @@ Queue::JCMT - JCMT version of the basic queue
 =head1 DESCRIPTION
 
 This is the JCMT specific queue. It uses C<Queue::Backend::JACInst> as
-the backend and expects entries of class C<Queue::Entry::SCUBAODF> and
-C<Queue::Entry::OCSCfgXML>.
+the backend and expects entries of class C<Queue::Entry::OCSCfgXML>.
 
 =cut
 

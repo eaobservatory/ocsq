@@ -616,10 +616,10 @@ sub cvtsub {
     return \%queue;
 
   } elsif ($param eq 'FAILURE') {
-    # When FAILURE triggers we should obtain the ODF, see what the problem
+    # When FAILURE triggers we should obtain the entry, see what the problem
     # is, pop up a gui to request help.
     # Problem is that you can not do this until the monitor has completed.
-    # If you try to do an obey to retrieve the ODF (if we decide not to publish
+    # If you try to do an obey to retrieve the entry (if we decide not to publish
     # it as part of the FAILURE Sds parameter) you cannot use an "obeyw"
     # you can also not do any Tk event handling. The problem is the monitor
     # must complete before you go into any other event handling. This implies
@@ -630,7 +630,7 @@ sub cvtsub {
     print _param_log($param)."\n";
     print Dumper(\%tie);
 
-    # if we are prompting for changes to the ODF we
+    # if we are prompting for changes to the entry we
     # need to destroy that widget here because this may
     # indicate that someone else has responded or that another
     # problem is requested
@@ -949,9 +949,9 @@ sub ContentsMenu {
 
 
 
-# GUI dealing with responding to a failure of an ODF to load
+# GUI dealing with responding to a failure of an entry to load
 # because it is missing information
-# Arguments are: The ODF, the failure details
+# Arguments are: The entry, the failure details
 
 sub respond_to_failure {
   my $w = shift;

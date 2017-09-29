@@ -21,7 +21,7 @@ This module provides methods for controlling the DRAMA based queue.
 Access is provided through an object interface to support the [unlikely]
 event of a single programme talking to multiple queues.
 
-Routines are provided for adding ODFs to the queue, stopping, starting
+Routines are provided for adding entries to the queue, stopping, starting
 and clearing the queue. There should be a method for each ACTION in the
 DRAMA queue.
 
