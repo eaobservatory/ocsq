@@ -60,7 +60,6 @@ sub new {
 
   $q->{Contents} = new Queue::Contents;
   $q->{Backend}  = new Queue::Backend;
-  $q->{EntryClass} = 'Queue::Entry';
 
   # Make sure that the backend knows about the contents
   $q->backend->qcontents($q->{Contents});
@@ -111,23 +110,6 @@ sub backend {
   }
   return $self->{Backend};
 }
-
-=item entryClass
-
-Returns the class of entries required by this queue. The base class
-simply uses Queue::Entry objects. This method can be used to create
-the correct type of object for the queue.
-
-  $class = $Q->entryClass;
-
-=cut
-
-sub entryClass {
-  my $self = shift;
-  $self->{EntryClass} = shift if @_;
-  return $self->{EntryClass};
-}
-
 
 =back
 

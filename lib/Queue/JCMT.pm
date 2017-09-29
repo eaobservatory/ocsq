@@ -59,27 +59,6 @@ sub new {
 
 =back
 
-=head1 ACCESSOR METHODS
-
-=over 4
-
-=item B<entryClass>
-
-For JCMT the entryClass is multi-valued since it can support both
-SCUBA ODFs and OCS configuration XML.
-
-Not actually used any more now that the queue is populated using an
-XML format.
-
-=cut
-
-sub entryClass {
-  croak "EntryClass is many valued for the JCMT queue";
-}
-
-
-=back
-
 =head1 SEE ALSO
 
 L<Queue>, L<Queue::Backend>, L<Queue::Contents>, L<Queue::Entry>

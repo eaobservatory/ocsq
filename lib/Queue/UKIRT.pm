@@ -13,8 +13,7 @@ Queue::UKIRT - UKIRT version of the basic queue
 =head1 DESCRIPTION
 
 This is the UKIRT specific queue. It uses Queue::Backend::JACInst
-as the backend and expects entries of class Queue::Entry::UKIRTSeq
-(as specified in the entryClass() method).
+as the backend and expects entries of class Queue::Entry::UKIRTSeq.
 
 =cut
 
@@ -51,7 +50,6 @@ sub new {
   # Initialise
   $q->contents(new Queue::Contents::Indexed);
   $q->backend(new Queue::Backend::JACInst);
-  $q->entryClass('Queue::Entry::UKIRTSeq');
 
   # Make sure that the backend knows about the contents
   $q->backend->qcontents($q->contents);
