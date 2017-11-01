@@ -54,6 +54,7 @@ use Queue::EntryXMLIO qw/ readXML /;
 
 use JAC::OCS::Config::TCS;
 
+use OMP::Config;
 use OMP::MSBServer;
 use OMP::Info::Comment;
 use OMP::Error qw/ :try /;
@@ -2022,7 +2023,10 @@ sub MSBCOMPLETE {
 
           $msbserv->uri('http://www.eao.hawaii.edu/OMP::MSBServer');
 
-          $msbserv->proxy('http://omp-private.eao.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 6);
+          $msbserv->proxy(
+              OMP::Config->getData('omp-private') .
+                  OMP::Config->getData('cgidir') . '/msbsrv.pl',
+              timeout => 6);
 
           $msg = '';
           # You can not use a SOAP call from within a DRAMA callback
