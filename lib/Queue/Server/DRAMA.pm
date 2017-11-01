@@ -233,7 +233,6 @@ sub init_msgsys {
   Dits::DperlPutActions("EXIT",       \&EXIT,    undef,0,undef,$status);
   Dits::DperlPutActions("STARTQ",     \&STARTQ,  undef,$flag,undef,$status);
   Dits::DperlPutActions("STOPQ",      \&STOPQ,   undef,$flag,undef,$status);
-  Dits::DperlPutActions("SOAPTEST",   \&SOAPTEST,   undef,$flag,undef,$status);
 
   # Put stuff in the queue
   Dits::DperlPutActions("LOADQ",      \&LOADQ,  undef,$flag,undef,$status);
@@ -2100,56 +2099,6 @@ sub MSBCOMPLETE {
 
   }
   Jit::ActionExit( $status );
-  return $status;
-}
-
-sub SOAPTEST {
-  my $status = shift;
-
-  my $projectid = "TEST";
-  my $msbid = "XXX";
-  my $userid = '';
-  my $reason = '';
-
-  #  try {
-  my $msg;
-  # Need to mark it as done [unless we are in simulate mode]
-  if ($Q->simdb) {
-    # Simulation so do nothing
-    $msg = "[in simulation without modifying the DB]";
-  } else {
-    # Reality - blank message and update DB
-    # SOAP message
-    use SOAP::Lite;
-    my $msbserv =  new SOAP::Lite();
-
-    $msbserv->uri('http://www.eao.hawaii.edu/OMP::MSBServer');
-
-    $msbserv->proxy('http://omp-private.eao.hawaii.edu/cgi-bin/msbsrv.pl', timeout => 120);
-
-    $msg = '';
-
-    local $SIG{ALRM} = 'IGNORE';
-    local $SIG{PIPE} = 'IGNORE';
-
-    my $reply = $msbserv->rejectMSB($projectid, $msbid, $userid,
-                                    $reason);
-
-    if ($reply->fault) {
-      croak $reply->faultcode . ": ".$reply->faultstring;
-    }
-
-  }
-  $Q->addmessage($status,
-                 "MSB marked as done for project $projectid $msg");
-  #  } otherwise {
-  # Big problem with OMP system
-  #    my $E = shift;
-  #    $status->SetStatus( Dits::APP_ERROR );
-  #    $status->ErsRep(0,"Error marking msb $msbid as done: $E");
-  #    $Q->addmessage($status, "Error marking msb $msbid as done: $E");
-  #  };
-
   return $status;
 }
 
