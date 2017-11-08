@@ -9,6 +9,7 @@ Queue::MSB - A collection of entries that form a single observing block
   use Queue::MSB;
 
   $msb = new Queue::MSB( msbid => $id,
+			 msbtitle => $title,
 			 projectid => $proj,
 			 entries => \@entries );
 
@@ -46,6 +47,7 @@ form part of the MSB.
 
   $msb = new Queue::MSB( projectid => 'm02bu105',
 			 msbid => '00af',
+			 msbtitle => 'Title of the MSB',
 			 entries => \@entries
 		       );
 
@@ -62,6 +64,7 @@ sub new {
   my $msb = bless {
                    ProjectID => undef,
                    MSBID => undef,
+                   MSBTITLE => undef,
                    Entries => [],
                    HasBeenObserved => 0,
                    HasBeenCompleted => 0,
@@ -130,6 +133,20 @@ sub msbid {
     $self->{MSBID} = shift;
   }
   return $self->{MSBID};
+}
+
+=item B<msbtitle>
+
+The title of this MSB.
+
+=cut
+
+sub msbtitle {
+  my $self = shift;
+  if (@_) {
+    $self->{'MSBTITLE'} = shift;
+  }
+  return $self->{'MSBTITLE'};
 }
 
 =item B<transid>

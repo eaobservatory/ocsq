@@ -367,6 +367,19 @@ sub msbid {
   return $self->entity->getMSBID;
 }
 
+=item B<msbtitle>
+
+Return the MSB title assicated with this entry.
+
+  my $msbtitle = $entry->msbtitle();
+
+=cut
+
+sub msbtitle {
+  my $self = shift;
+  return $self->entity()->getMSBTitle();
+}
+
 =back
 
 =head2 Display methods

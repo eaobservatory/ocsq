@@ -2170,6 +2170,7 @@ sub Sds_to_Entry {
     my $msb = new Queue::MSB( entries => \@entries,
                               projectid => $projectid,
                               msbid => $entries[0]->msbid,
+                              msbtitle => $entries[0]->msbtitle(),
                             );
 
     # Register a completion handler
@@ -2696,14 +2697,16 @@ sub msbtidy {
 
   # Get the MSB ID project ID from the MSB object
   # if possible
-  my ($projectid, $msbid);
+  my ($projectid, $msbid, $msbtitle);
   if ($msb) {
     $projectid = $msb->projectid;
     $msbid = $msb->msbid;
+    $msbtitle = $msb->msbtitle();
   } else {
     # try the entry
     $projectid = $object->projectid;
     $msbid = $object->msbid;
+    $msbtitle = $object->msbtitle();
   }
 
   # Collect the information we need to send the qmonitor
@@ -2735,13 +2738,6 @@ sub msbtidy {
       $data{MSBID} = $msbid;
       $data{PROJECTID} = $projectid;
       $data{TIMESTAMP} = time(); # so that the gui can report the completion time
-
-      # the queue monitor wants the MSB title and rather than asking each client to 
-      # query the database for it we query it once here
-      my $msbtitle;
-      eval {
-        $msbtitle = OMP::MSBServer->titleMSB( $msbid );
-      };
       $data{MSBTITLE} = $msbtitle if $msbtitle;
 
       # And now store it in the parameter

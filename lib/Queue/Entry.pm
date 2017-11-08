@@ -630,6 +630,21 @@ sub msbtid {
   return;
 }
 
+=item B<msbtitle>
+
+Return the MSB title assicated with this entry.
+
+  my $msbtitle = $entry->msbtitle();
+
+The base class always returns undef.
+
+=cut
+
+sub msbtitle {
+  my $self = shift;
+  return ();
+}
+
 =back
 
 =head2 Display methods
