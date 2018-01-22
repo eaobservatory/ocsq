@@ -155,6 +155,8 @@ sub Populate {
   $w->configure('-msgwidth' => $args->{'-msgwidth'});
   $w->configure('-msbcompletecb' => $args->{'-msbcompletecb'});
   $w->configure('-user' => $args->{'-user'});
+  _log_user_id('Tk::OCSQMonitor::Populate', undef, ${$args->{'-user'}})
+      if exists $args->{'-user'};
 
   # Get the internal hash data
   my $priv = $w->privateData();
@@ -673,6 +675,7 @@ sub cvtsub {
         my $null = '';
         $w->configure('-user', \$null);
         $userid = $w->cget('-user');
+        _log_user_id('Tk::OCSQMonitor::cvtsub', undef, $$userid);
       }
 
       # Run callback
@@ -1282,6 +1285,7 @@ sub msbcompletion {
         # newly supplied OMP user ID.
         my $omp_user_obj = OMP::UserServer->getUser($$userid_gui);
         $$userid = $omp_user_obj->userid() if defined $omp_user_obj;
+        _log_user_id('Tk::OCSQMonitor::msbcompletion - userid changed', $$userid_gui, $$userid);
       };
     }
   }
@@ -1292,6 +1296,7 @@ sub msbcompletion {
     eval {
       my $OMP_User_Obj = OMP::General->determine_user( $w );
       $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+      _log_user_id('Tk::OCSQMonitor::msbcompletion - userid undefined', undef, $$userid);
     };
   }
 
@@ -1437,6 +1442,26 @@ sub source_is_type {
 
         return $code eq $type;
     };
+}
+
+=item _log_user_id($event, $input, $userid)
+
+Output a debugging log message regarding the user's OMP user identifier.
+
+=cut
+
+sub _log_user_id {
+    my $event = shift;
+    my $input = shift;
+    my $userid = shift;
+
+    printf(
+        "%s %s: %s -> %s\n",
+        colored('OMP userid:', 'blue'),
+        $event,
+        (defined $input ? "'$input'" : colored('<none>', 'red')),
+        (defined $userid ? "'$userid'" : colored('<undefined>', 'red')),
+    );
 }
 
 =back
