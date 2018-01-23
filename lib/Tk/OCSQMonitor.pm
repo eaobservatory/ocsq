@@ -1276,7 +1276,7 @@ sub msbcompletion {
   if ($$userid_gui ne $$userid) {
     # Clear the stored user ID so that if validation fails, we will
     # open the normal prompt at the next step.
-    $$userid = undef;
+    $$userid = '';
 
     # Did we get a non-empty user ID?
     if ($$userid_gui =~ /\w/) {
