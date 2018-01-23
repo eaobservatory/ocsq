@@ -1274,6 +1274,8 @@ sub msbcompletion {
 
   # Did the user alter the OMP user ID via the GUI?
   if ($$userid_gui ne $$userid) {
+    _log_user_id('Tk::OCSQMonitor::msbcompletion - accept userid changed', $$userid, $$userid_gui);
+
     # Clear the stored user ID so that if validation fails, we will
     # open the normal prompt at the next step.
     $$userid = '';
@@ -1285,8 +1287,16 @@ sub msbcompletion {
         # newly supplied OMP user ID.
         my $omp_user_obj = OMP::UserServer->getUser($$userid_gui);
         $$userid = $omp_user_obj->userid() if defined $omp_user_obj;
-        _log_user_id('Tk::OCSQMonitor::msbcompletion - userid changed', $$userid_gui, $$userid);
+        _log_user_id('Tk::OCSQMonitor::msbcompletion - accept userid looked up', $$userid_gui, $$userid);
       };
+      printf(
+          "%s: %s: %s\n",
+          colored('ERROR getting user ID from accept window', 'red'),
+          (defined $$userid_gui
+              ? ("'" . $$userid_gui . "'")
+              : colored('<none>', 'red')),
+          $@
+      ) if $@;
     }
   }
 
@@ -1296,8 +1306,13 @@ sub msbcompletion {
     eval {
       my $OMP_User_Obj = OMP::General->determine_user( $w );
       $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
-      _log_user_id('Tk::OCSQMonitor::msbcompletion - userid undefined', undef, $$userid);
+      _log_user_id('Tk::OCSQMonitor::msbcompletion - OMP prompt', undef, $$userid);
     };
+    printf(
+        "%s: %s\n",
+        colored('ERROR getting user ID from OMP prompt', 'red'),
+        $@
+    ) if $@;
   }
 
   # read the widget
@@ -1307,7 +1322,9 @@ sub msbcompletion {
 
   print "*****************************\n";
   print "** TSTAMP  $tstamp\n";
-  print "** USER    $$userid\n";
+  print "** USER    " .
+    (defined $$userid ? ("'" . $$userid . "'") : '<undef>') .
+    "\n";
   print "** ACCEPT  $accept\n";
   print "*****************************\n";
 
