@@ -1664,6 +1664,8 @@ sub SUSPENDMSB {
       if ($Q->simdb) {
         $msg = "[in simulation without modifying the DB]";
       } else {
+        # Check database connection.
+        OMP::MSBServer->dbConnection()->handle_checked();
         OMP::MSBServer->suspendMSB($proj, $msbid, $label, $msbtid);
         $msg = '';
       }
@@ -2067,6 +2069,8 @@ sub MSBCOMPLETE {
           $msg = "[in simulation without modifying the DB]";
         } else {
           $msg = '';
+          # Check database connection.
+          OMP::MSBServer->dbConnection()->handle_checked();
           # This can be a local call since MSBID is not recalculated
           OMP::MSBServer->rejectMSB( $projectid, $msbid, $donemsb->{userid},
                                      $donemsb->{reason}, $msbtid);
