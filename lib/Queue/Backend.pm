@@ -72,6 +72,7 @@ sub new {
   $be->{FailReason} = undef;
   $be->{QComplete} = undef;
   $be->{MSBComplete} = undef;
+  $be->{'ShiftType'} = undef;
 
   bless($be, $class);
 
@@ -239,6 +240,19 @@ sub msbcomplete {
   return $self->{MSBComplete};
 }
 
+=item B<shift_type>
+
+Set or retrieve the shift type.
+
+=cut
+
+sub shift_type {
+  my $self = shift;
+  if (@_) {
+    $self->{'ShiftType'} = shift;
+  }
+  return $self->{'ShiftType'};
+}
 
 =back
 
@@ -394,8 +408,12 @@ sub send_entry {
   # Return if there was no entry
   return 1 unless defined $entry;
 
+  my %info = (
+    shift_type => $self->shift_type(),
+  );
+
   # Prepare for transmission
-  my $pstat = $entry->prepare;
+  my $pstat = $entry->prepare(\%info);
 
   # if we got a reason object back then we failed
   # so store it, augment it  and set bad status.
@@ -406,7 +424,7 @@ sub send_entry {
       # we were returned a modified entry based on the failure
       # condition. Clear the failure and try one more time.
       $self->failure_reason(undef);
-      $pstat = $entry->prepare;
+      $pstat = $entry->prepare(\%info);
       if ($pstat) {
         # Check out new failure reason but do not trap for a
         # modified entry second time round

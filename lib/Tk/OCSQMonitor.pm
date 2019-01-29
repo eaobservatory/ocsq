@@ -196,6 +196,31 @@ sub Populate {
                 -command => sub { $priv->{QCONTROL}->cutmsb }
               )->pack(-side => 'left');
 
+  my $shiftmenubutton = $Fr3->Menubutton(
+    -bitmap => '@' . Tk->findINC('cbxarrow.xbm'),
+    -relief => 'raised',
+  );
+  $shiftmenubutton->pack(-side => 'right');
+  my $shiftmenu = $shiftmenubutton->Menu(-tearoff => 0, -menuitems => [
+    map {
+      my $type = $_;
+      [command => $type, -command => sub {
+        $priv->{'QCONTROL'}->set_shift_type($type);
+      }]}
+    qw/Regular EO Daytime/
+  ]);
+  $shiftmenubutton->configure(-menu => $shiftmenu);
+
+  $Fr3->Label(
+    -textvariable => \$priv->{'MONITOR'}->{'SHIFTTYPE'},
+    -relief => 'sunken',
+    -padx => 5,
+  )->pack(-side => 'right');
+
+  $Fr3->Label(
+    -text => 'Shift type:',
+  )->pack(-side => 'right');
+
   #  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 
   # Create a label for Queue status
@@ -325,7 +350,7 @@ sub Populate {
   # Finally, pack frames into top frame
   $Fr1->grid(-row => 0, -column =>0, -sticky=>'w');
   $Fr2->grid(-row => 1, -column =>0, -sticky=>'ewns', -columnspan=>2);
-  $Fr3->grid(-row => 2, -column =>0);
+  $Fr3->grid(-row => 2, -column =>0, -sticky => 'enws', -columnspan => 2);
   $Fr4->grid(-row => 3, -column =>0, -sticky=>'ewns',-columnspan=>2);
 
   # And configure the grid weighting for resize events
@@ -486,6 +511,7 @@ sub init_queue_monitor {
   monitor($w->cget("-qtask"), "START", 
           "STATUS", "Queue", "CURRENT", "INDEX", "FAILURE","MSBCOMPLETED",
           "TIMEONQUEUE", "JIT_MSG_OUT", "JIT_ERS_OUT", "ALERT",
+          'SHIFTTYPE',
           {
            -monitorvar => $priv->{MONITOR},
            -sendcur    => 1,

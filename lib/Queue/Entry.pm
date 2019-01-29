@@ -13,7 +13,7 @@ Queue::Entry - Class describing a Queue entry
   $entry->label($label);
   $entry->configure($thing);
   $text = $entry->string;
-  $entry->prepare;
+  $entry->prepare(\%info);
 
 =head1 DESCRIPTION
 

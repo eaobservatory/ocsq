@@ -305,7 +305,7 @@ Stores the name of this temporary file in the C<be_object()>.
 
 =back
 
-  $status = $entry->prepare;
+  $status = $entry->prepare(\%info);
 
 Returns undef if everything is okay. Returns a
 C<Queue::Backend::FailureReason> object if there was a problem that
@@ -320,11 +320,15 @@ Otherwise we need to add exception handling throughout the queue.
 
 sub prepare {
   my $self = shift;
+  my $info = shift || {};
 
   my $cfg = $self->entity;
 
   # Should return a reason here
   return unless defined $cfg;
+
+  # Set miscellaneous header information.
+  $cfg->shift_type($info->{'shift_type'});
 
   # Now verify that the configuration is okay and catch the exception
   # We do a fixup and a verify here. Note that fixup tries to correct

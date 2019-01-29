@@ -254,6 +254,9 @@ sub init_msgsys {
   Dits::DperlPutActions("GETENTRY",   \&GETENTRY,    undef,0,undef,$status);
   Dits::DperlPutActions("CLEARTARG",  \&CLEARTARG,    undef,0,undef,$status);
 
+  # Setting of miscellaneous information
+  Dits::DperlPutActions("SETSHIFTTYPE", \&SETSHIFTTYPE, undef,0,undef,$status);
+
 
   # Check status
   if (!$status->Ok) {
@@ -349,6 +352,7 @@ sub init_pars {
   $sdp->Create("INDEX","INT",0);
   $sdp->Create("TIMEONQUEUE","INT",0);
   $sdp->Create("CURRENT","STRING",'None');
+  $sdp->Create('SHIFTTYPE', 'STRING', '');
 
   my $queue_sds = Sds->Create("Queue",undef,Sds::STRUCT,0,$status);
   $queue_sds->Create("Contents",undef,Sds::CHAR,
@@ -1743,6 +1747,7 @@ sub POLL {
   update_index_param($status);
   update_status_param($status);
   update_alert_param(0, $status);
+  update_shift_type_param($status);
 
   # If pstat is false (perl bad status), set status to bad
   # If be_status is bad also set status to bad.
@@ -2106,6 +2111,56 @@ sub MSBCOMPLETE {
     }
 
   }
+  Jit::ActionExit( $status );
+  return $status;
+}
+
+=item B<SETSHIFTTYPE>
+
+Set shift information.
+
+=cut
+
+sub SETSHIFTTYPE {
+  my $status = shift;
+  Jit::ActionEntry( $status );
+  return $status unless $status->Ok;
+
+  $Q->addmessage($status, "Running SETSHIFTTYPE") if $Q->verbose;
+
+  my $argId = Dits::GetArgument;
+
+  # If no argument simply return
+  if (!defined $argId) {
+    $status->SetStatus( Dits::APP_ERROR );
+    $status->ErsRep( 0, "Error obtaining Action Argument structure. This should be impossible!");
+    Jit::ActionExit( $status );
+    return $status;
+  }
+
+  # Retrieve the INDEX integer from the Args
+  my %sds;
+  tie %sds, 'Sds::Tie', $argId;
+
+  print 'Argument to SETSHIFTTYPE: ' . Dumper(\%sds);
+
+  # index can be undefined
+  my $type;
+  if (exists $sds{'VALUE'}) {
+    $type = $sds{'VALUE'};
+  } elsif (exists $sds{'Argument1'}) {
+    $type = $sds{'Argument1'};
+  }
+
+  if (defined $type) {
+    $Q->addmessage($status, "Setting shift type: $type");
+  }
+
+  $Q->queue()->backend()->shift_type($type);
+
+  # Update the DRAMA parameters
+  update_shift_type_param($status);
+
   Jit::ActionExit( $status );
   return $status;
 }
@@ -2488,6 +2543,29 @@ sub update_current_param {
     $sdp->PutString('CURRENT',$now,$_[0]);
   }
 
+}
+
+=item B<update_shift_type_param>
+
+Update the SHIFTTYPE parameter.
+
+  update_shift_type_param($status);
+
+=cut
+
+sub update_shift_type_param {
+  return unless $_[0]->Ok;
+
+  my $sdp = $Q->_params;
+  my $current = $sdp->GetString('SHIFTTYPE', $_[0]);
+
+  my $new = $Q->queue()->backend()->shift_type();
+
+  $new = 'Undefined' unless defined $new;
+
+  if ($new ne $current) {
+    $sdp->PutString('SHIFTTYPE', $new, $_[0]);
+  }
 }
 
 =item B<clear_failure_parameter>

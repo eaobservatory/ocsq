@@ -452,6 +452,36 @@ sub modentry {
 
 }
 
+=item B<set_shift_type>
+
+Sets the shift type.
+
+=cut
+
+sub set_shift_type {
+  my $self = shift;
+  my $type = shift;
+
+  DRAMA::ErsPush();
+  my $arg = Arg->Create;
+  my $status = new DRAMA::Status;
+  $arg->PutString('VALUE', $type, $status);
+
+  my %args;
+  $args{'-deletearg'} = 0;
+  $args{'-error'} = $self->error if defined $self->error;
+
+  if ($status->Ok) {
+    obeyw $self->qtask, 'SETSHIFTTYPE', $arg, \%args;
+  }
+  else {
+    $status->Flush();
+    DRAMA::ErsPop();
+    croak 'Error in set_shift_type';
+  }
+  DRAMA::ErsPop();
+}
+
 =back
 
 =head1 REQUIREMENTS
