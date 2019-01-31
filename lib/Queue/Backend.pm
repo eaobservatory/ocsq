@@ -408,12 +408,21 @@ sub send_entry {
   # Return if there was no entry
   return 1 unless defined $entry;
 
+  # Set miscellaneous header information.
   my %info = (
     shift_type => $self->shift_type(),
   );
 
+  while (my ($key, $value) = each %info) {
+    if ((defined $value)
+        and (defined $entry->entity())
+        and ($entry->entity()->can($key))) {
+      $entry->entity()->$key($value);
+    }
+  }
+
   # Prepare for transmission
-  my $pstat = $entry->prepare(\%info);
+  my $pstat = $entry->prepare;
 
   # if we got a reason object back then we failed
   # so store it, augment it  and set bad status.
@@ -424,7 +433,7 @@ sub send_entry {
       # we were returned a modified entry based on the failure
       # condition. Clear the failure and try one more time.
       $self->failure_reason(undef);
-      $pstat = $entry->prepare(\%info);
+      $pstat = $entry->prepare;
       if ($pstat) {
         # Check out new failure reason but do not trap for a
         # modified entry second time round

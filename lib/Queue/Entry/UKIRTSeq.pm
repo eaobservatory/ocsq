@@ -243,15 +243,11 @@ backend object to retrieve it when it notices there was a problem.
 
 sub prepare {
   my $self = shift;
-  my $info = shift || {};
 
   my $seq = $self->entity;
 
   # Should return a reason here
   return unless defined $seq;
-
-  # Set miscellaneous header information.
-  $seq->shift_type($info->{'shift_type'}) if defined $info->{'shift_type'};
 
   # Now verify that the sequence is okay and catch the exception
   # We do a fixup and a verify here. Note that fixup tries to correct
