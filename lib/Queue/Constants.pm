@@ -40,6 +40,14 @@ Queue will soon be empty.
 
 use constant QSTATE__EMPTY => 2;
 
+=item B<QSTATE__FNTERR >
+
+Queue stopped due to internal error situation.
+
+=cut
+
+use constant QSTATE__FNTERR => 3;
+
 =back
 
 =head1 AUTHOR

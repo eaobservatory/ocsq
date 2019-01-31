@@ -1078,6 +1078,30 @@ sub process_pending_msbcomplete {
   }
 }
 
+=item B<_check_for_start_problems>
+
+Looks for problems which would prevent the queue being started.
+Returns a list of problems, which is empty in the event of
+there not being any.
+
+    my @problems = _check_for_start_problems();
+
+    unless (scalar @problems) {
+      # ...
+    }
+
+=cut
+
+sub _check_for_start_problems {
+  my @problems = ();
+
+  unless (defined $Q->queue()->backend()->shift_type()) {
+    push @problems, "The shift type has not been selected.";
+  }
+
+  return @problems;
+}
+
 =back
 
 =head1 CALLBACKS
@@ -1122,13 +1146,25 @@ Start the queue. ALERT parameter is reset.
 sub STARTQ {
   Jit::ActionEntry( $_[0] );
   return $_[0] unless $_[0]->Ok;
+
+  my $alert_status = 0;
+
   unless ($Q->queue->backend->qrunning) {
-    $Q->queue->startq;
-    $Q->addmessage($_[0], "Queue is running");
+    my @problems = _check_for_start_problems();
+
+    unless (scalar @problems) {
+      $Q->queue->startq;
+      $Q->addmessage($_[0], "Queue is running");
+    }
+    else {
+      $alert_status = Queue::Constants::QSTATE__FNTERR;
+      $Q->addmessage(Dits::APP_ERROR, $_) foreach @problems;
+    }
   }
+
   # still sync parameters even if we do not print the message
   update_status_param($_[0]);
-  update_alert_param(0, $_[0]);
+  update_alert_param($alert_status, $_[0]);
   clear_failure_parameter($_[0]);
   Jit::ActionExit( $_[0] );
   return $_[0];
