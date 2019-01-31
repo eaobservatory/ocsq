@@ -207,7 +207,7 @@ sub Populate {
       [command => $type, -command => sub {
         $priv->{'QCONTROL'}->set_shift_type($type);
       }]}
-    qw/Regular EO Daytime/
+    qw/NIGHT EO DAY OTHER/
   ]);
   $shiftmenubutton->configure(-menu => $shiftmenu);
 
