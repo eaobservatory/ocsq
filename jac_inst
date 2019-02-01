@@ -46,6 +46,10 @@ Force the default state of the ALWAYSERR parameter to be true
 such that the OBSERVE action always returns an error. This is
 useful for testing error conditions.
 
+=item B<-nevererr>
+
+Never generate random errors.
+
 =item B<-help>
 
 Print a small help message.
@@ -99,11 +103,12 @@ use lib "$FindBin::RealBin/lib";
 
 use Queue::JitDRAMA;
 
-my ($man, $help, $tel, $transdir, $awerr);
+my ($man, $help, $tel, $transdir, $awerr, $neerr);
 my $optstatus = GetOptions("transdir=s"=> \$transdir,
                         "help"    => \$help,
                         "man"     => \$man,
 			"alwayserr" => \$awerr,
+                        'nevererr' => \$neerr,
                         "telescope=s" => \$tel,
                        );
 
@@ -131,6 +136,7 @@ my $sdp = Dits::GetParId();
 # If true, the OBSERVE action always triggers an error
 my $state = ($awerr ? 1 : 0);
 $sdp->Create("ALWAYSERR","UBYTE",$state);
+$sdp->Create('NEVERERR', 'UBYTE', ($neerr ? 1 : 0));
 
 
 # Enter the main loop
@@ -216,7 +222,8 @@ sub observe {
   } else {
     # This is a reschedule - just finish with a message
     # good or bad
-    if (rand(10) > 1) {
+    my $neerrstate = $sdp->Getu('NEVERERR', $status);
+    if ($neerrstate or rand(10) > 1) {
       DRAMA::MsgOut($status, "Observation complete");
     } else {
       seterr( $status, "Observation aborted due to error");
