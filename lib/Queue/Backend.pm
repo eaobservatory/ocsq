@@ -72,7 +72,7 @@ sub new {
   $be->{FailReason} = undef;
   $be->{QComplete} = undef;
   $be->{MSBComplete} = undef;
-  $be->{'ShiftType'} = undef;
+  $be->{'Attributes'} = {};
 
   bless($be, $class);
 
@@ -240,18 +240,22 @@ sub msbcomplete {
   return $self->{MSBComplete};
 }
 
-=item B<shift_type>
+=item B<attribute>
 
-Set or retrieve the shift type.
+Set or retrieve a miscellaneous attribute.
+
+Attributes will be passed to the corresponding method (if it exists)
+of queue entry entities before they are prepared for execution.
 
 =cut
 
-sub shift_type {
+sub attribute {
   my $self = shift;
+  my $attr = shift;
   if (@_) {
-    $self->{'ShiftType'} = shift;
+    $self->{'Attributes'}->{$attr} = shift;
   }
-  return $self->{'ShiftType'};
+  return $self->{'Attributes'}->{$attr};
 }
 
 =back
@@ -409,11 +413,7 @@ sub send_entry {
   return 1 unless defined $entry;
 
   # Set miscellaneous header information.
-  my %info = (
-    shift_type => $self->shift_type(),
-  );
-
-  while (my ($key, $value) = each %info) {
+  while (my ($key, $value) = each %{$self->{'Attributes'}}) {
     if ((defined $value)
         and (defined $entry->entity())
         and ($entry->entity()->can($key))) {

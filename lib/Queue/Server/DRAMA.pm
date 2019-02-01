@@ -1095,7 +1095,7 @@ there not being any.
 sub _check_for_start_problems {
   my @problems = ();
 
-  unless (defined $Q->queue()->backend()->shift_type()) {
+  unless (defined $Q->queue()->backend()->attribute('shift_type')) {
     push @problems, "The shift type has not been selected.";
   }
 
@@ -2192,7 +2192,7 @@ sub SETSHIFTTYPE {
     $Q->addmessage($status, "Setting shift type: $type");
   }
 
-  $Q->queue()->backend()->shift_type($type);
+  $Q->queue()->backend()->attribute('shift_type', $type);
 
   # Update the DRAMA parameters
   update_shift_type_param($status);
@@ -2595,7 +2595,7 @@ sub update_shift_type_param {
   my $sdp = $Q->_params;
   my $current = $sdp->GetString('SHIFTTYPE', $_[0]);
 
-  my $new = $Q->queue()->backend()->shift_type();
+  my $new = $Q->queue()->backend()->attribute('shift_type');
 
   $new = 'Undefined' unless defined $new;
 
