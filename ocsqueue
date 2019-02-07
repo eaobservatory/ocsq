@@ -236,7 +236,7 @@ if (defined $tel) {
   } elsif ($tel eq 'UKIRT') {
     require Queue::UKIRT;
     $QUEUE = new Queue::UKIRT;
-    $QUEUE->backend()->shift_type('NIGHT');
+    $QUEUE->backend()->attribute('shift_type', 'NIGHT');
     $REMOTE_TASK = 'UKIRT_INST' . (defined $rhost ? $rhost : '@ohi' );
   } else {
     die "Do not recognize telescope $tel";
