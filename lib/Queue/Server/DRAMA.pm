@@ -1157,7 +1157,7 @@ sub STARTQ {
       $Q->addmessage($_[0], "Queue is running");
     }
     else {
-      $alert_status = Queue::Constants::QSTATE__FNTERR;
+      $alert_status = Queue::Constants::QSTATE__CANNAESTART;
       $Q->addmessage(Dits::APP_ERROR, $_) foreach @problems;
     }
   }

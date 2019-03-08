@@ -48,6 +48,14 @@ Queue stopped due to internal error situation.
 
 use constant QSTATE__FNTERR => 3;
 
+=item B<QSTATE__CANNAESTART>
+
+Queue unable to start.
+
+=cut
+
+use constant QSTATE__CANNAESTART => 4;
+
 =back
 
 =head1 AUTHOR
