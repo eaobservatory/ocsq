@@ -2021,12 +2021,13 @@ sub MSBCOMPLETE {
     my $msbid     = $details{MSBID};
     my $msb       = $details{MSB};
     my $msbtid    = $details{MSBTID};
+    my $shift_type = $details{'SHIFT_TYPE'};
 
     print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
-      " MSBID: ".(defined $msbid ? $msbid : "<undef>").
-        " Transaction: ". (defined $msbtid ? 
-                           $msbtid : "<undef>").
-                             "\n";
+        " MSBID: ".(defined $msbid ? $msbid : "<undef>").
+        " Transaction: ". (defined $msbtid ?  $msbtid : "<undef>").
+        " Shift: ". (defined $shift_type ? $shift_type : "<undef>").
+        "\n";
 
     # Ooops if we have nothing
     if (!$donemsb->{compkey}) {
@@ -2084,7 +2085,7 @@ sub MSBCOMPLETE {
           # which always fails.
           eval {
             $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-                              $donemsb->{reason}, $msbtid);
+                              $donemsb->{reason}, $msbtid, $shift_type);
           };
           $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
             if $@;
@@ -2815,16 +2816,29 @@ sub msbtidy {
 
   # Get the MSB ID project ID from the MSB object
   # if possible
-  my ($projectid, $msbid, $msbtitle);
+  my ($projectid, $msbid, $msbtitle, @entries);
   if ($msb) {
     $projectid = $msb->projectid;
     $msbid = $msb->msbid;
     $msbtitle = $msb->msbtitle();
+    push @entries, $msb->entries();
   } else {
     # try the entry
     $projectid = $object->projectid;
     $msbid = $object->msbid;
     $msbtitle = $object->msbtitle();
+    push @entries, $object;
+  }
+
+  # Extract the shift type from the entry so that we get the value
+  # which was in effect when the entry was sent for execution.
+  my $shift_type = 'UNKNOWN';
+  foreach my $entry (@entries) {
+    if ((defined $entry->entity())
+        and ($entry->entity()->can('shift_type'))) {
+      $shift_type = $entry->entity()->shift_type();
+      last;
+    }
   }
 
   # Collect the information we need to send the qmonitor
@@ -2835,6 +2849,7 @@ sub msbtidy {
   $data{MSB}     = $msb;
   $data{QUEUEID} = $msb->queueid;
   $data{QUEUEID} = 0 unless defined $data{QUEUEID};
+  $data{'SHIFT_TYPE'} = $shift_type;
 
   # if we do not have an MSBID and project then we cant do anything else
   # so do not change the parameter
