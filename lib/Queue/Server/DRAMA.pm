@@ -2830,14 +2830,20 @@ sub msbtidy {
     push @entries, $object;
   }
 
-  # Extract the shift type from the entry so that we get the value
-  # which was in effect when the entry was sent for execution.
-  my $shift_type = 'UNKNOWN';
+  # Extract the shift type from the entry so that we get the value which was
+  # in effect when the entry was sent for execution.  However default to the
+  # current type, if set, in preference to "UNKNOWN".
+  my $shift_type = $Q->queue()->backend()->attribute('shift_type');
+  $shift_type = 'UNKNOWN' unless defined $shift_type;
+
   foreach my $entry (@entries) {
     if ((defined $entry->entity())
         and ($entry->entity()->can('shift_type'))) {
-      $shift_type = $entry->entity()->shift_type();
-      last;
+      my $entry_shift_type = $entry->entity()->shift_type();
+      if ($entry_shift_type) {
+        $shift_type = $entry_shift_type;
+        last;
+      }
     }
   }
 
