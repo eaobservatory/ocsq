@@ -2022,9 +2022,11 @@ sub MSBCOMPLETE {
     my $msb       = $details{MSB};
     my $msbtid    = $details{MSBTID};
     my $shift_type = $details{'SHIFT_TYPE'};
+    my $msbtitle  = $details{'MSBTITLE'};
 
     print "ProjectID: ".(defined $projectid ? $projectid : "<undef>") .
         " MSBID: ".(defined $msbid ? $msbid : "<undef>").
+        " Title: ".(defined $msbtitle ? $msbtitle : "<undef>").
         " Transaction: ". (defined $msbtid ?  $msbtid : "<undef>").
         " Shift: ". (defined $shift_type ? $shift_type : "<undef>").
         "\n";
@@ -2049,7 +2051,7 @@ sub MSBCOMPLETE {
     } else {
       $martxt = 'UNKNOWN';
     }
-    $Q->addmessage($status,"Attempting to mark MSB with completion key ".$donemsb->{compkey}." (transaction $msbtid) as complete [$martxt]");
+    $Q->addmessage($status,"Attempting to mark MSB '$msbtitle' with completion key ".$donemsb->{compkey}." (transaction $msbtid) as complete [$martxt]");
 
     if ($mark > 0) {
 
@@ -2085,7 +2087,8 @@ sub MSBCOMPLETE {
           # which always fails.
           eval {
             $msbserv->doneMSB($projectid, $msbid, $donemsb->{userid},
-                              $donemsb->{reason}, $msbtid, $shift_type);
+                              $donemsb->{reason}, $msbtid, $shift_type,
+                              $msbtitle);
           };
           $Q->addmessage($status, "Got bit by timeout bug in ACCEPT: $@")
             if $@;
