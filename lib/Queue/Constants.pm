@@ -56,6 +56,15 @@ Queue unable to start.
 
 use constant QSTATE__CANNAESTART => 4;
 
+=item B<QSTATE_IDLETIMEOUT>
+
+Queue has been idle for an excessive length of time.  This alert should
+inform the operator in case the queue was inadvertently left stopped.
+
+=cut
+
+use constant QSTATE__IDLETIMEOUT => 5;
+
 =back
 
 =head1 AUTHOR

@@ -622,6 +622,8 @@ sub cvtsub {
         # Use the default sound (alert.wav).
       } elsif ($value == Queue::Constants::QSTATE__CANNAESTART) {
         $sound = "queueunablestart.wav";
+      } elsif ($value == Queue::Constants::QSTATE__IDLETIMEOUT) {
+        $sound = "queueidle.wav";
       }
       _play_sound($sound);
     }

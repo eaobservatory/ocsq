@@ -169,6 +169,7 @@ sub new {
                  taskname => TASKNAME,
                  maxwidth => MAXWIDTH,
                  nentries => NENTRIES,
+                 last_active => undef,
                );
 
   # Now read the arguments and merge with default parameters
@@ -568,6 +569,37 @@ go, it just adds an array of entries.
 
 sub queueid {
 
+}
+
+=item B<last_active>
+
+Time at which the queue was last active.
+
+=cut
+
+sub last_active {
+  my $self = shift;
+  if (@_) {
+    $self->{'LAST_ACTIVE'} = shift;
+  }
+  return $self->{'LAST_ACTIVE'};
+}
+
+=item B<idle_time>
+
+Time (in seconds) before warning that the queue is idle.
+
+Defaults to 300 seconds.
+
+=cut
+
+sub idle_time {
+  my $self = shift;
+  if (@_) {
+    $self->{'IDLE_TIME'} = shift;
+  }
+  return 300 unless defined $self->{'IDLE_TIME'};
+  return $self->{'IDLE_TIME'};
 }
 
 =item B<_params>
@@ -1855,6 +1887,21 @@ sub POLL {
         &STOPQ( $status, Queue::Constants::QSTATE__BCKERR );
       }
       $Q->addmessage( $bestat, @$chunk);
+    }
+
+    unless ($err_found) {
+      if ($Q->queue->backend->qrunning) {
+        $Q->last_active(time);
+      }
+      else {
+        my $last_active = $Q->last_active;
+        my $idle_time = $Q->idle_time;
+        if ((defined $last_active) and ((time - $last_active) > $idle_time)) {
+          $Q->last_active(undef);
+          update_alert_param(Queue::Constants::QSTATE__IDLETIMEOUT, $status);
+          $Q->addmessage($status, "The queue has been idle for $idle_time seconds.");
+        }
+      }
     }
   }
 
