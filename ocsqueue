@@ -68,6 +68,11 @@ UKIRT_INST tasks. Default is to use localhost in simulation
 mode and the actual summit hosts in live mode. This host name will
 override the location in both sim and non-sim mode.
 
+=item B<-idletimeout>
+
+Time (seconds) before the idle queue timeout alert is triggered.
+[Default: 3000 seconds.]
+
 =item B<-help>
 
 Print a small help message.
@@ -164,7 +169,7 @@ use constant NENTRIES => 200;
 use Getopt::Long;
 use Pod::Usage;
 
-my ($man,$help, $verbose, $sim, $tel, $rhost, $ompsim, $local);
+my ($man,$help, $verbose, $sim, $tel, $rhost, $ompsim, $local, $idletimeout);
 my $status = GetOptions("verbose" => \$verbose,
 			"sim"     => \$sim,
 			"transdir=s"=> \$TRANS_DIR, # override translator dir
@@ -174,6 +179,7 @@ my $status = GetOptions("verbose" => \$verbose,
 			"telescope=s" => \$tel,
 			"ompsim"  => \$ompsim,
 			"local"   => \$local,
+			"idletimeout=i" => \$idletimeout,
 		       );
 
 pod2usage(1)  if ($help);
@@ -209,6 +215,10 @@ my $DQUEUE = new Queue::Server::DRAMA( taskname => TASKNAME,
 				     );
 
 $DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
+
+if (defined $idletimeout) {
+  $DQUEUE->idle_time($idletimeout);
+}
 
 # THIS SHOULD BE USING THE OMP::Config class for setting up clever
 # defaults.
