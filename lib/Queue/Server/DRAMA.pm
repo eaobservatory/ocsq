@@ -2537,7 +2537,7 @@ sub verify_time_remaining {
     && $curindex == $maxindex;
 
   # Set the threshold
-  my $TIME_THRESHOLD = 40.0;
+  my $TIME_THRESHOLD = 60.0;
 
   my $qtime = int($Q->queue->contents->remaining_time->minutes);
 
