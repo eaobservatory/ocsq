@@ -2119,7 +2119,10 @@ sub MSBCOMPLETE {
           $msbserv->proxy(
               OMP::Config->getData('omp-private') .
                   OMP::Config->getData('cgidir') . '/msbsrv.pl',
-              timeout => 6);
+              timeout => 6,
+              ssl_opts => {
+                  verify_hostname => 0,
+              });
 
           $msg = '';
           # You can not use a SOAP call from within a DRAMA callback
