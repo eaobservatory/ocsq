@@ -2124,6 +2124,8 @@ sub MSBCOMPLETE {
                   verify_hostname => 0,
               });
 
+          $msbserv->{'_transport'}->{'_proxy'}->{'ssl_opts'}->{'verify_hostname'} = 0;
+
           $msg = '';
           # You can not use a SOAP call from within a DRAMA callback
           # since they both share the same alarm system. You will find that
