@@ -119,12 +119,6 @@ eval {
   $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
 };
 
-
-# Create simple GUI with exit button and the ocsq monitor itself
-$MW->Button( -text => 'EXIT', -command => sub { $MW->destroy;
-                                                print "goodbye\n"; }
-           )->pack(-side => 'top',-anchor=>'n');
-
 my $QM = $MW->OCSQMonitor(
                           -qtask => 'OCSQUEUE'.$host,
 			  -user => \$OMP_User,
