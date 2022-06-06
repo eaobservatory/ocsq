@@ -1231,6 +1231,7 @@ sub respond_to_qcomplete {
 
   my $userid_gui = (defined $$userid) ? $$userid : '';
   my $entry = $gui->LabEntry( -label => "OMP User ID:",
+                              -labelPack => [qw/-side left -anchor w/],
                               -width => 10,
                               -textvariable => \$userid_gui,
                             )->pack(-fill => 'x', -expand => 0);
