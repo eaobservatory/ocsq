@@ -1233,11 +1233,11 @@ sub respond_to_qcomplete {
   my $entry = $gui->LabEntry( -label => "OMP User ID:",
                               -width => 10,
                               -textvariable => \$userid_gui,
-                            )->pack(-fill => 'x', -expand => 1);
+                            )->pack(-fill => 'x', -expand => 0);
 
   # Tabbed notebook
   my $NB = $gui->NoteBook();
-  $NB->pack(-fill => 'x', -expand=>1);
+  $NB->pack(-fill => 'both', -expand=>1);
 
   # A tab per MSB request
   foreach my $tstamp (keys %$details) {
@@ -1283,9 +1283,9 @@ sub create_msbcomplete_tab {
       " Please either accept or reject it and enter a reason (if desired)";
 
   $w->Label( -text => $text,
-             -wraplength=>400)->pack(-side =>'top',-expand => 1,-fill=>'both');
+             -wraplength=>400)->pack(-side =>'top',-expand => 0,-fill=>'x');
 
-  my $Reason = $w->Text(-height => 5, -width => 50)->pack(-side => 'top');
+  my $Reason = $w->Text(-height => 5, -width => 50)->pack(-side => 'top', -fill => 'both', -expand => 1);
 
   # Now add on the buttons on the bottom
   my $butframe = $w->Frame->pack;
