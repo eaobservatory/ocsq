@@ -118,7 +118,8 @@ sub Populate {
   my ($w, $args) = @_;
 
   # Provide defaults for width and height
-  my %def = ( -qwidth => 110, -qheight => 10, -msgwidth => 100 );
+  my %def = ( -qwidth => 110, -qheight => 10, -msgwidth => 100,
+              -qcompletegeometryref => undef );
 
   # Default for msbcomplete callback
   $def{'-msbcompletecb'} = \&respond_to_qcomplete;
@@ -139,6 +140,7 @@ sub Populate {
                    -msgwidth => ['PASSIVE'],
                    -user => ['PASSIVE'],
                    -msbcompletecb => ['PASSIVE'],
+                   -qcompletegeometryref => ['PASSIVE'],
                  );
 
   # Generic widget options
@@ -157,6 +159,7 @@ sub Populate {
   $w->configure('-user' => $args->{'-user'});
   _log_user_id('Tk::OCSQMonitor::Populate', undef, ${$args->{'-user'}})
       if exists $args->{'-user'};
+  $w->configure('-qcompletegeometryref' => $args->{'-qcompletegeometryref'});
 
   # Get the internal hash data
   my $priv = $w->privateData();
@@ -1223,6 +1226,9 @@ sub respond_to_qcomplete {
   # to create our onw top level rather than a dialog box
   my $gui = $w->Toplevel(-title => "MSB Accept/Reject");
 
+  my $geometry = $w->cget('-qcompletegeometryref');
+  $gui->geometry($$geometry) if defined $geometry;
+
   my $userid_gui = (defined $$userid) ? $$userid : '';
   my $entry = $gui->LabEntry( -label => "OMP User ID:",
                               -width => 10,
@@ -1241,7 +1247,7 @@ sub respond_to_qcomplete {
                         -label => "MSB".$details->{$tstamp}->{QUEUEID});
 
     # create the tab contents
-    &create_msbcomplete_tab( $tab, $Q, $userid, \$userid_gui, $tstamp,
+    &create_msbcomplete_tab( $tab, $Q, $userid, \$userid_gui, $geometry, $tstamp,
                              %{$details->{$tstamp}});
   }
 
@@ -1251,6 +1257,12 @@ sub respond_to_qcomplete {
 
   # Store the gui reference
   $QCOMP_GUI = $gui;
+
+  $gui->protocol('WM_DELETE_WINDOW', sub {
+    $$geometry = $gui->geometry() if defined $geometry;
+    destroy $gui;
+    undef $QCOMP_GUI;
+  });
 }
 
 # Create the tab for each MSB in turn
@@ -1259,6 +1271,7 @@ sub create_msbcomplete_tab {
   my $Q = shift;
   my $userid = shift;
   my $userid_gui = shift;
+  my $geometry = shift;
   my $tstamp = shift;
   my %details = @_;
 
@@ -1278,15 +1291,15 @@ sub create_msbcomplete_tab {
   my $butframe = $w->Frame->pack;
   $butframe->Button(-text => "Accept",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $userid_gui, $tstamp, 1, $Reason]
+                                  $userid, $userid_gui, $geometry, $tstamp, 1, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Reject",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $userid_gui, $tstamp, 0, $Reason]
+                                  $userid, $userid_gui, $geometry, $tstamp, 0, $Reason]
                    )->pack(-side =>'left');
   $butframe->Button(-text => "Took no Data",
                     -command => [ \&msbcompletion, $w, $Q,
-                                  $userid, $userid_gui, $tstamp, -1, $Reason]
+                                  $userid, $userid_gui, $geometry, $tstamp, -1, $Reason]
                    )->pack(-side =>'left');
 }
 
@@ -1300,6 +1313,7 @@ sub msbcompletion {
   my $Q = shift;
   my $userid = shift;
   my $userid_gui = shift;
+  my $geometry = shift;
   my $tstamp = shift;
   my $accept = shift;
   my $rw = shift;
@@ -1365,7 +1379,10 @@ sub msbcompletion {
 
   # need to undefine the gui variable
   # Note that this is strange when we have multiple MSBs
-  destroy $QCOMP_GUI if defined $QCOMP_GUI && Exists($QCOMP_GUI);
+  if (defined $QCOMP_GUI && Exists($QCOMP_GUI)) {
+    $$geometry = $QCOMP_GUI->geometry() if defined $geometry;
+    destroy $QCOMP_GUI;
+  }
   undef $QCOMP_GUI;
 
 }

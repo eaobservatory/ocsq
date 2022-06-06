@@ -70,6 +70,27 @@ $DRAMA::BUFSIZE = 500_000;
 $DRAMA::REPLYBYTES   = 150_000;
 $DRAMA::MAXREPLIES   = 1;
 
+# Read options early so that we can choose targets
+# Really Need to be able to preempt the GUI building if we choose -h and -sim
+# Get the options
+use Getopt::Long;
+use Pod::Usage;
+my ($man, $help, $tel, $sim, $geometry);
+my $geometry_accept = '';
+my $status = GetOptions(
+    "help"      => \$help,
+    "man"       => \$man,
+    "tel=s"     => \$tel,
+    "sim"       => \$sim,
+    "geometry=s" => \$geometry,
+    "geometry-accept=s" => \$geometry_accept,
+);
+
+if ($help || $man) {
+  pod2usage(1)  if ($help);
+  pod2usage(-verbose => 2)  if ($man);
+}
+
 # Start up DRAMA
 my $TASK_ROOT = "OCSQMON";
 my $dtask = $TASK_ROOT . "_$$";
@@ -80,25 +101,7 @@ Jit::TkInit( $dtask );
 my $MW = MainWindow->new;
 $MW->title("JAC OCS Queue monitor ($dtask)");
 $MW->iconname($TASK_ROOT);
-
-# Read options early so that we can choose targets
-# Really Need to be able to preempt the GUI building if we choose -h and -sim
-# Get the options
-use Getopt::Long;
-use Pod::Usage;
-my ($man,$help,$tel,$sim);
-my $status = GetOptions(
-			"help"    => \$help,
-			"man"     => \$man,
-			"tel=s"   => \$tel,
-			"sim"     => \$sim,
-		       );
-
-if ($help || $man) {
-  $MW->withdraw;
-  pod2usage(1)  if ($help);
-  pod2usage(-verbose => 2)  if ($man);
-}
+$MW->geometry($geometry) if defined $geometry;
 
 # Queue host (could be config file driven)
 my $host = '';
@@ -122,6 +125,7 @@ eval {
 my $QM = $MW->OCSQMonitor(
                           -qtask => 'OCSQUEUE'.$host,
 			  -user => \$OMP_User,
+                          -qcompletegeometryref => \$geometry_accept,
                          )->pack( -side => 'bottom', -expand => 1, -fill => 'both',-anchor=>'w');
 
 MainLoop;
