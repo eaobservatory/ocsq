@@ -245,11 +245,6 @@ sub Populate {
   my $TimeOnQueue = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{TIMEONQUEUE},
                                )->grid(-row=>4,-column=>1,-sticky=>'w');
 
-
-  # Create listbox in frame 2
-  $Fr2->Label(-text => 'Queue contents')->pack(-side => 'top');
-
-
   my $ContentsBox = $Fr2->Scrolled('Text',
                                    -scrollbars => 'e',
                                    -wrap => 'none',
