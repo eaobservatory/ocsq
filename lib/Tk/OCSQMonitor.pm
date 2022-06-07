@@ -982,59 +982,29 @@ sub respond_to_failure {
   if ($details->{REASON} eq 'MissingTarget' ||
       $details->{REASON} eq 'NeedNextTarget' ) {
 
-    # Create telescope object
-    my $tel = new Astro::Telescope( $details->{TELESCOPE} );
-
-
-    # First need to inform user of the request
-    # (hopefully part of a single window)
-
-    # Now create a catalog object
-
-    # The choice of catalogue depends on the telescope, instrument and whether
-    # we are a calibration observation or not.
-    my $cat;
-
     if ($details->{TELESCOPE} eq 'JCMT') {
+      # play sound
+      _play_sound('chime.wav');
 
-      # if we are a POINTING or FOCUS then we need the pointing catalog
-      if ($details->{CAL}) {
-        # We want calibrators only
-        $cat = new Astro::Catalog;
+      # and put up the GUI
+      create_fail_gui(
+        $w,
+        details => $details,
+        on_select => sub {
+          my $c = shift;
 
-        # need to add the planets to this list
-	
-        my @planets = map { new Astro::Coords(planet => $_) }
-          qw/ mars uranus saturn jupiter venus neptune mercury /;
-        for (@planets) {
-          $_->telescope($tel);
-        }
-
-        # Now need to add either the SCUBA secondary calibrators or the
-        # heterodyne standards
-        $cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
-	
-      } else {
-        # continuum pointing catalog if not a Calibrator
-        my $pcat = "/local/progs/etc/poi.dat";
-
-        # If that catalogue does not exist fall back to the
-        # full catalogue
-        $pcat = 'default' unless -e $pcat;
-
-        # This will add the planets automatically
-        $cat = new Astro::Catalog( Format => 'JCMT',
-                                   File => $pcat );
-
-        # If we can recognise the type of instrument then
-        # filter the catalog to only include suitable sources.
-        if ($details->{'INSTRUMENT'} eq 'SCUBA2') {
-          $cat->filter_by_cb(source_is_type('c'));
-        }
-        elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
-          $cat->filter_by_cb(source_is_type('l'));
-        }
-      }
+          # update the entry parameters in the queue
+          $Q->modentry(
+            $details->{INDEX},
+            # The modentry method can take an Astro::Coords
+            # object directly if we do not want to specify
+            # a REFERENCE position.
+            TARGET => $c,
+            # add PROPSRC flag
+            PROPAGATE => 1,
+          );
+        },
+      );
 
     } elsif ($details->{TELESCOPE} eq 'UKIRT') {
       die "UKIRT not yet supported\n";
@@ -1043,136 +1013,178 @@ sub respond_to_failure {
       die "Should not happen. Telescope was ". $details->{TELESCOPE} ."\n";
     }
 
-    # Make sure we only generate observable sources
-    $cat->filter_by_observability;
-
-    # Create object based on AZEL
-    # can only do distance if we know where we are now. May require
-    # access to the TCS. If we do not have AZ just give everything
-    if (exists $details->{AZ}) {
-      # The name of the position is either "Ref" or the name supplied
-      # in the REFNAME field
-      my $refname = ( exists $details->{REFNAME} && defined $details->{REFNAME} ?
-                      $details->{REFNAME} ."[Ref]" : "Ref" );
-
-      # Add a reference position if we have one
-      my $refcoord = new Astro::Coords(az=> $details->{AZ},
-                                       el=> $details->{EL},
-                                       units=>'rad',
-                                       name => $refname,
-                                      );
-
-      $refcoord->telescope( new Astro::Telescope( 'JCMT' ));
-
-      # convert ISO date to Time::Piece object
-      my $refdate = OMP::DateTools->parse_date( $details->{TIME} );
-      $refcoord->datetime( $refdate );
-
-      # register the reference position
-      $cat->reference( $refcoord );
-
-      # sort by distance
-      $cat->sort_catalog('distance');
-
-    } else {
-      # simply sort by azimuth
-      $cat->sort_catalog('az');
-    }
-
-    # play sound
-    _play_sound('chime.wav');
-    # and put up the GUI
-    $priv->{FAIL_GUI} = new Tk::AstroCatalog( $w,
-                                              -onDestroy => sub { $priv->{FAIL_GUI} = undef;},
-                                              -addCmd => sub {
-                                                # The actual coordinate (come in as an array)
-                                                my $arr = shift;
-                                                # Get the most recently selected item
-                                                my $c = $arr->[-1];
-
-                                                # if nothing has been selected
-                                                # must simply do nothing
-                                                return unless $c;
-
-                                                # now reset the gui object
-                                                undef $priv->{FAIL_GUI};
-
-                                                print "C is ". $c->status;
-
-                                                my %mods;
-
-                                                # The modentry method can take an Astro::Coords
-                                                # object directly if we do not want to specify
-                                                # a REFERENCE position.
-                                                $mods{TARGET} = $c;
-
-                                                # Add INDEX field
-                                                my $index = $details->{INDEX};
-
-                                                # add PROPSRC flag
-                                                $mods{PROPAGATE} = 1;
-
-                                                # update the entry parameters in the queue
-                                                $Q->modentry( $index, %mods);
-
-                                              },
-                                              # On update we trigger a source plot
-                                              -upDate => sub {
-                                                my $w = shift;
-                                                my $cat = $w->Catalog;
-                                                return if not defined $cat;
-                                                my $curr = $cat->stars;
-                                                return if !defined $curr;
-                                                my @current = @$curr;
-
-                                                # plot no more than 10 tracks including ref posn
-                                                my $max = 9; # this is an index
-                                                my $n = ($#current <= $max ? $#current : $max);
-                                                return if $n == 0;
-
-                                                # convert "stars" to "coords" (and compensate for ref pos)
-                                                @current = map { $_->coords } @current[0..$n-1];
-
-                                                # Must include the reference coordinate if one exists
-                                                my $refc = $cat->reference;
-                                                unshift(@current, $refc) if defined $refc;
-
-                                                # Want to plot the current time and 1 hour in the future
-                                                my $start = gmtime;
-                                                my $end = $start + ONE_HOUR;
-
-                                                # plot on xwindow
-                                                sourceplot( coords => \@current,
-                                                            hdevice => '/xserve', output => '',
-                                                            format => 'AZEL',
-                                                            start => $start, end => $end,
-                                                            objlabel => 'list',
-                                                            annotrack => 0,
-                                                          );
-
-                                              },
-                                              -catalog => $cat,
-                                              -transient => 1,
-                                              -customColumns => [{
-                                                title     => 'Flux',
-                                                width     => 5,
-                                                generator => sub {
-                                                  my $item = shift;
-                                                  my $misc = $item->misc();
-                                                  return ' --- ' unless $misc
-                                                                 and 'HASH' eq ref $misc
-                                                                 and defined $misc->{'flux850'};
-                                                  return sprintf('%5.1f', $misc->{'flux850'});
-                                                }},
-                                              ],
-                                            );
-
   } else {
     print "Unable to deal with reason: " . $details->{REASON}. "\n";
     use Devel::Peek;
     my $var = $details->{REASON};
     Dump($var);
   }
+}
+
+sub create_fail_gui {
+  my $w = shift;
+  my %opt = @_;
+
+  my $priv = $w->privateData();
+  my $details = $opt{'details'};
+
+  # Create telescope object
+  my $tel = new Astro::Telescope( $details->{TELESCOPE} );
+
+  # Now create a catalog object
+
+  # The choice of catalogue depends on the telescope, instrument and whether
+  # we are a calibration observation or not.
+  my $cat;
+
+  # if we are a POINTING or FOCUS then we need the pointing catalog
+  if ($details->{CAL}) {
+    # We want calibrators only
+    $cat = new Astro::Catalog;
+
+    # need to add the planets to this list
+
+    my @planets = map { new Astro::Coords(planet => $_) }
+      qw/ mars uranus saturn jupiter venus neptune mercury /;
+    for (@planets) {
+      $_->telescope($tel);
+    }
+
+    # Now need to add either the SCUBA secondary calibrators or the
+    # heterodyne standards
+    $cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
+
+  } else {
+    # continuum pointing catalog if not a Calibrator
+    my $pcat = "/local/progs/etc/poi.dat";
+
+    # If that catalogue does not exist fall back to the
+    # full catalogue
+    $pcat = 'default' unless -e $pcat;
+
+    # This will add the planets automatically
+    $cat = new Astro::Catalog( Format => 'JCMT',
+                               File => $pcat );
+
+    # If we can recognise the type of instrument then
+    # filter the catalog to only include suitable sources.
+    if ($details->{'INSTRUMENT'} eq 'SCUBA2') {
+      $cat->filter_by_cb(source_is_type('c'));
+    }
+    elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
+      $cat->filter_by_cb(source_is_type('l'));
+    }
+  }
+
+  # Make sure we only generate observable sources
+  $cat->filter_by_observability;
+
+  # Create object based on AZEL
+  # can only do distance if we know where we are now. May require
+  # access to the TCS. If we do not have AZ just give everything
+  my $have_position = exists $details->{AZ};
+  if ($have_position) {
+    # The name of the position is either "Ref" or the name supplied
+    # in the REFNAME field
+    my $refname = ( exists $details->{REFNAME} && defined $details->{REFNAME} ?
+                    $details->{REFNAME} ."[Ref]" : "Ref" );
+
+    # Add a reference position if we have one
+    my $refcoord = new Astro::Coords(az=> $details->{AZ},
+                                     el=> $details->{EL},
+                                     units=>'rad',
+                                     name => $refname,
+                                    );
+
+    $refcoord->telescope($tel);
+
+    # convert ISO date to Time::Piece object
+    my $refdate = OMP::DateTools->parse_date( $details->{TIME} );
+    $refcoord->datetime( $refdate );
+
+    # register the reference position
+    $cat->reference( $refcoord );
+
+    # sort by distance
+    $cat->sort_catalog('distance');
+
+  } else {
+    # simply sort by azimuth
+    $cat->sort_catalog('az');
+  }
+
+  $priv->{FAIL_GUI} = new Tk::AstroCatalog(
+    $w,
+    -onDestroy => sub { $priv->{FAIL_GUI} = undef;},
+    -addCmd => sub {
+      # The actual coordinate (come in as an array)
+      my $arr = shift;
+      # Get the most recently selected item
+      my $c = $arr->[-1];
+
+      # if nothing has been selected
+      # must simply do nothing
+      return unless $c;
+
+      # now reset the gui object
+      undef $priv->{FAIL_GUI};
+
+      print "C is ". $c->status;
+
+      $opt{'on_select'}->($c);
+    },
+    # On update we trigger a source plot
+    -upDate => sub {
+      my $w = shift;
+      return unless $have_position;
+      my $cat = $w->Catalog;
+      return if not defined $cat;
+      my $curr = $cat->stars;
+      return if !defined $curr;
+      my @current = @$curr;
+
+      # plot no more than 10 tracks including ref posn
+      my $max = 9; # this is an index
+      my $n = ($#current <= $max ? $#current : $max);
+      return if $n == 0;
+
+      # convert "stars" to "coords" (and compensate for ref pos)
+      @current = map { $_->coords } @current[0..$n-1];
+
+      # Must include the reference coordinate if one exists
+      my $refc = $cat->reference;
+      unshift(@current, $refc) if defined $refc;
+
+      # Want to plot the current time and 1 hour in the future
+      my $start = gmtime;
+      my $end = $start + ONE_HOUR;
+
+      # plot on xwindow
+      sourceplot(
+        coords => \@current,
+        hdevice => '/xserve', output => '',
+        format => 'AZEL',
+        start => $start, end => $end,
+        objlabel => 'list',
+        annotrack => 0,
+      );
+
+    },
+    -catalog => $cat,
+    -transient => 1,
+    -customColumns => [{
+      title     => 'Flux',
+      width     => 5,
+      generator => sub {
+        my $item = shift;
+        my $misc = $item->misc();
+        return ' --- ' unless $misc
+                       and 'HASH' eq ref $misc
+                       and defined $misc->{'flux850'};
+        return sprintf('%5.1f', $misc->{'flux850'});
+      }},
+    ],
+  );
 }
 
 # Respond to a qompletion request
