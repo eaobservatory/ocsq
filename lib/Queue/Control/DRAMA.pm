@@ -385,6 +385,8 @@ parameters are stored in %mods with the following keys:
            The tag name is assumed to be SCIENCE if an Astro::Coords
            is supplied.
 
+ NOAUTOSTART - If true, do not automatically start the queue afterwards.
+
 The queue is started once the entry is updated.
 
 =cut
@@ -429,7 +431,8 @@ sub modentry {
   $obeyargs{-error} = $self->error if defined $self->error;
 
   # Want to start the queue on success
-  $obeyargs{-success} = sub { $self->startq };
+  my $autostart = ! (exists $mods{'NOAUTOSTART'} and $mods{'NOAUTOSTART'});
+  $obeyargs{-success} = sub { $self->startq if $autostart };
 
   # New error context
   DRAMA::ErsPush();

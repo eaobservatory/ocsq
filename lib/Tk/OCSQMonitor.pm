@@ -926,7 +926,7 @@ sub update_index {
 # Takes arguments of: widget, index number, Xpos, Ypos
 # X and Y are usually calculated with
 sub ContentsMenu {
-  my $wid = shift;
+  my $w = shift;
   my $megawid = shift;
   my $index = shift;
   my $X = shift;
@@ -935,13 +935,33 @@ sub ContentsMenu {
   my $priv = $megawid->privateData;
   my $Q = $priv->{QCONTROL};
 
-  my $menu = $wid->Menu(-tearoff => 0,
+  my $menu = $w->Menu(-tearoff => 0,
                         -menuitems => [
                                        [
                                         "command" => "Modify observation $index",
-                                        -command => sub { # do nothing
+                                        -command => sub {
+                                          if ($priv->{FAIL_GUI}) {
+                                            $priv->{FAIL_GUI}->destroy;
+                                            undef $priv->{FAIL_GUI};
+                                          }
+                                          create_fail_gui(
+                                            $w,
+                                            details => {
+                                              TELESCOPE => 'JCMT',
+                                              CAL => 0,
+                                              INSTRUMENT => undef,
+                                            },
+                                            on_select => sub {
+                                              my $c = shift;
+                                              $Q->modentry(
+                                                $index,
+                                                TARGET => $c,
+                                                PROPAGATE => 0,
+                                                NOAUTOSTART => 1,
+                                              );
+                                            },
+                                          );
                                         },
-                                        -state => 'disabled',
                                        ],
                                        "separator",
                                        ["command" => "Clear target index $index",
@@ -949,6 +969,7 @@ sub ContentsMenu {
                                           $Q->cleartarg( $index );
                                         }
                                        ],
+                                       "separator",
                                        ["command" => "Cut observation at index $index",
                                         -command => sub {
                                           $Q->cutq( $index, 1 );
