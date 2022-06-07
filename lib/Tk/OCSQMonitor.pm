@@ -118,7 +118,7 @@ sub Populate {
   my ($w, $args) = @_;
 
   # Provide defaults for width and height
-  my %def = ( -qwidth => 110, -qheight => 10, -msgwidth => 100,
+  my %def = ( -qwidth => 110, -qheight => 16, -msgwidth => 100,
               -qcompletegeometryref => undef );
 
   # Default for msbcomplete callback
@@ -171,9 +171,7 @@ sub Populate {
   # Dont pack them until we are ready
 
   my $Fr1 = $w->Frame;
-  my $Fr2 = $w->Frame;
   my $Fr3 = $w->Frame;
-  my $Fr4 = $w->Frame;
 
   # Make sure it is deleted correctly
   $w->OnDestroy( [ '_shutdown', $w]);
@@ -245,7 +243,7 @@ sub Populate {
   my $TimeOnQueue = $Fr1->Label(-textvariable => \$priv->{MONITOR}->{TIMEONQUEUE},
                                )->grid(-row=>4,-column=>1,-sticky=>'w');
 
-  my $ContentsBox = $Fr2->Scrolled('Text',
+  my $ContentsBox = $w->Scrolled('Text',
                                    -scrollbars => 'e',
                                    -wrap => 'none',
                                    -height => $args->{'-qheight'},
@@ -259,57 +257,42 @@ sub Populate {
   $w->Advertise( '_qcontents' => $ContentsBox);
 
   # Setup a Text widget that will take all the output sent to MsgOut
-  $priv->{MORE_INFO} = 0;           # is the window visible
-  $priv->{MORE_DISPLAYED_ONCE} = 0; # Has it been visible at least once?
+  $priv->{MORE_INFO} = 1;           # is the window visible
 
-  my $MsgBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_INFO},
+  my $MsgBut = $w->Checkbutton(-variable => \$priv->{MORE_INFO},
                                  -text     => 'Info messages...',
                                  -command => [ 'show_info', $w ],
                                 );
 
-  my $MsgText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
+  my $MsgTextFrame = $w->Frame();
+  my $MsgText = $MsgTextFrame->Scrolled('TextANSIColor',-scrollbars=>'w',
                                -height=>16,
                                -width=>$args->{'-msgwidth'},
                                -background => 'black',
                                -foreground => 'white',
                               );
   BindMouseWheel($MsgText);
+  $MsgText->pack(-side => 'top', -fill => 'both', -expand => 1);
 
-  $priv->{MORE_ERS} = 0;
-  my $ErsBut = $Fr4->Checkbutton(-variable => \$priv->{MORE_ERS},
+  $priv->{MORE_ERS} = 1;
+  my $ErsBut = $w->Checkbutton(-variable => \$priv->{MORE_ERS},
                                  -text     => 'Error messages...',
                                  -command => ['show_ers', $w],
                                 );
 
-  my $ErsText = $Fr4->Scrolled('TextANSIColor',-scrollbars=>'w',
+  my $ErsTextFrame = $w->Frame();
+  my $ErsText = $ErsTextFrame->Scrolled('TextANSIColor',-scrollbars=>'w',
                                -height=>8,
                                -width=>$args->{'-msgwidth'},
                                -background => 'black',
                                -foreground => 'white',
                               );
   BindMouseWheel($ErsText);
-
-  # Pack into frame four - note that the show_info method displays the Msg and ErsText widgets
-  $MsgBut->grid(-row=>0, -column=>1, -sticky=>'w');
-  $ErsBut->grid(-row=>2, -column=>1, -sticky=>'w');
-
-  # Set weights
-  $Fr4->gridRowconfigure(1, -weight => 2);
-  $Fr4->gridRowconfigure(3, -weight => 1);
-  $Fr4->gridColumnconfigure(1, -weight => 1);
-
+  $ErsText->pack(-side => 'top', -fill => 'both', -expand => 1);
 
   # Advertise the messages and error text widgets
   $w->Advertise( 'messages' => $MsgText);
   $w->Advertise( 'errors' => $ErsText );
-
-
-  # Force visibility
-  $priv->{MORE_INFO} = 1;
-  $w->show_info();
-
-  $priv->{MORE_ERS} = 1;        # Force display
-  $w->show_ers();
 
   # print information to this text widget
   my $status = new DRAMA::Status;
@@ -347,14 +330,17 @@ sub Populate {
 
   # Finally, pack frames into top frame
   $Fr1->grid(-row => 0, -column =>0, -sticky=>'w');
-  $Fr2->grid(-row => 1, -column =>0, -sticky=>'ewns', -columnspan=>2);
-  $Fr3->grid(-row => 2, -column =>0, -sticky => 'enws', -columnspan => 2);
-  $Fr4->grid(-row => 3, -column =>0, -sticky=>'ewns',-columnspan=>2);
+  $ContentsBox->grid(-row => 1, -column =>0, -sticky=>'ewns');
+  $Fr3->grid(-row => 2, -column =>0, -sticky => 'enws');
+  $MsgBut->grid(-row => 3, -column => 0, -sticky => 'w');
+  $ErsBut->grid(-row => 5, -column => 0, -sticky => 'w');
 
   # And configure the grid weighting for resize events
-  $w->gridRowconfigure( 3, -weight => 2 );
-  $w->gridRowconfigure( 1, -weight => 1 );
-  $w->gridColumnconfigure( 1, -weight => 1 );
+  $w->gridRowconfigure( 1, -weight => 2 );
+  $w->gridColumnconfigure( 0, -weight => 1 );
+
+  $w->show_info();
+  $w->show_ers();
 
   return;
 }
@@ -473,9 +459,6 @@ sub write_text_messages {
   my $update = 0;
   $update = 1 if $yview == 1.0;
 
-  # Force update to end if we have not yet been displayed
-  $update = 1 unless $priv->{MORE_DISPLAYED_ONCE};
-
   # Insert the text
   $w->insert('end',join("\n",@lines)."\n");
 
@@ -532,12 +515,11 @@ sub show_info {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('messages');
   if ($priv->{MORE_INFO}) {
-    # Span two columns so that grid weights can be applied
-    $w->grid(-row=>1,-column=>1,-columnspan=>2,-sticky=>'nsew');
-    # Indicate that we have been displayed at least once
-    $priv->{MORE_DISPLAYED_ONCE} = 1;
+    $w->parent->grid(-row => 4, -column => 0, -sticky => 'nsew');
+    $w->parent->parent->gridRowconfigure(4, -weight => 1);
   } else {
-    $w->gridForget;
+    $w->parent->gridForget();
+    $w->parent->parent->gridRowconfigure(4, -weight => 0);
   }
 }
 
@@ -548,10 +530,11 @@ sub show_ers {
   my $priv = $mega->privateData;
   my $w = $mega->Subwidget('errors');
   if ($priv->{MORE_ERS}) {
-    # Span two columns so that grid weights can be applied
-    $w->grid(-row=>3,-column=>1,-columnspan=>2,-sticky=>'nsew');
+    $w->parent->grid(-row => 6, -column => 0, -sticky => 'nsew');
+    $w->parent->parent->gridRowconfigure(6, -weight => 1);
   } else {
-    $w->gridForget;
+    $w->parent->gridForget();
+    $w->parent->parent->gridRowconfigure(6, -weight => 0);
   }
 }
 
