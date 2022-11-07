@@ -1092,6 +1092,9 @@ sub create_fail_gui {
     if ($details->{'INSTRUMENT'} eq 'SCUBA2') {
       $cat->filter_by_cb(source_is_type('c'));
     }
+    elsif ($details->{'INSTRUMENT'} eq 'FE_ALAIHI') {
+      $cat->filter_by_cb(source_is_type('w'));
+    }
     elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
       $cat->filter_by_cb(source_is_type('l'));
     }
