@@ -1488,7 +1488,7 @@ sub scuba_2cals {
 Return a "callback" subroutine reference suitable for use with
 C<Astro::Catalog::filter_by_cb> which can be used to select only
 sources with the given type code.  The type code is a single
-character enclosed in square brackets at the start of
+character enclosed (possibly with others) in square brackets at the start of
 the comment string.
 
 For example, in the JCMT pointing catalog, a continuum source
@@ -1496,7 +1496,7 @@ might have a comment like:
 
     [c] [S1] 0.6 - 0.8 Jy (2004 Dec)
 
-And a line source might have a comment like:
+And a (CO) line source might have a comment like:
 
     [l] L1+ 2-1 31.7 2-1 IRAM 66.2
 
@@ -1505,7 +1505,7 @@ C<source_is_type('l')> respectively.
 
 Currently returns true if the comment doesn't seem to include
 a type code.  This ensures that planets will appear in the
-pointing catalog for both types of instrument.
+pointing catalog for all types of instrument.
 
 =cut
 
@@ -1515,13 +1515,13 @@ sub source_is_type {
     return sub {
         my $comment = shift->coords()->comment();
 
-        unless ($comment =~ /^\[(\w)\]/) {
+        unless ($comment =~ /^\[(\w+)\]/) {
             return 1;
         }
 
         my $code = $1;
 
-        return $code eq $type;
+        return -1 != index $code, $type;
     };
 }
 
