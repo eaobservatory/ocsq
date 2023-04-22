@@ -1,0 +1,7 @@
+*~
+.*.swp
+/Makefile
+/blib
+/pm_to_blib
+/MYMETA.*
+/META.*
