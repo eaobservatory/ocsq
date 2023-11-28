@@ -1093,10 +1093,20 @@ sub create_fail_gui {
       $cat->filter_by_cb(source_is_type('c'));
     }
     elsif ($details->{'INSTRUMENT'} eq 'FE_ALAIHI') {
+      # Use W-band (SiO) sources.
       $cat->filter_by_cb(source_is_type('w'));
     }
     elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
-      $cat->filter_by_cb(source_is_type('l'));
+      my $waveband = $details->{'WAVEBAND'};
+
+      if (abs($waveband - 658.0062510) < 0.001) {
+        # Use D-band (H2O) sources.
+        $cat->filter_by_cb(source_is_type('d'));
+      }
+      else {
+        # Use general line (CO) sources.
+        $cat->filter_by_cb(source_is_type('l'));
+      }
     }
   }
 
