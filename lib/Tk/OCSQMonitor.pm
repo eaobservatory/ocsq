@@ -85,6 +85,7 @@ use File::Spec;
 use Data::Dumper;
 
 use Astro::Catalog;
+use Astro::Catalog::Item;
 use Astro::Coords;
 use Astro::Telescope;
 use Tk::AstroCatalog;
@@ -1073,7 +1074,7 @@ sub create_fail_gui {
 
     # Now need to add either the SCUBA secondary calibrators or the
     # heterodyne standards
-    $cat->pushstar( map {new Astro::Catalog::Star( coords => $_)} @planets, scuba_2cals() );
+    $cat->pushstar( map {new Astro::Catalog::Item( coords => $_)} @planets, scuba_2cals() );
 
   } else {
     # continuum pointing catalog if not a Calibrator
