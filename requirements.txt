@@ -16,7 +16,7 @@ indicate the current active entry. This will allow the observer to re-observe
 and ODF if, for example, a fault occurred.
 
 - The queue must be able to accept MACROS or single ODFs (since that is what
-the translator generates at the moment). 
+the translator generates at the moment).
 
 - Boring ASIDE: In principal it should be able to accept an ODF in the form of
 an SDS structure or XML string. This would allow the translator to return an
@@ -39,7 +39,7 @@ eg:
   3  MAP:      TwHya 350/750  10int
   4. POINTING: TBD
 
-- The queue should be able to determine whether the ODF that is 
+- The queue should be able to determine whether the ODF that is
 about to be sent to SCUCD needs more information. Specifically:
 
    = missing target (only allowed for FOCUS, POINTING and CALIBRATOR
@@ -66,7 +66,7 @@ eg for target:
 
     REQUEST:    TARGET
     MODE:       POINTING | FOCUS | MAP | PHOTOM
-    WAVELENGTH: 850 
+    WAVELENGTH: 850
     AZ:         234
     EL:         45
 
@@ -97,7 +97,7 @@ SCUBA queue.
   automatically when the previous entry completes).
 
   = determine when a POINTING observations is waiting for ACCEPT or REFUSE and
-  send the correct response to SCUCD (removing the request widget from 
+  send the correct response to SCUCD (removing the request widget from
   each cloned GUI even if the button was never pressed)
 
   = Allow users to edit odfs that are on the queue. [by fetching it,

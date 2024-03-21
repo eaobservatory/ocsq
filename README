@@ -7,7 +7,7 @@ The following systems are included:
   ocsqueue
 
     This is the queue itself. It is currently a DRAMA task (technically
-    Jit). 
+    Jit).
 
   ocsqmon
 
@@ -34,7 +34,7 @@ To run up the queue monitor GUI:
 
   % ocsqmon -tel ukirt
 
-This can be run on any machine. It will look for the queue on 
+This can be run on any machine. It will look for the queue on
 kiki. [need to fix]
 
 Running the Queue in Simulation Mode
