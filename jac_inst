@@ -6,10 +6,9 @@ jac_inst - DRAMA task emulating the queue functionality of the JAC instrument ta
 
 =head1 SYNOPSIS
 
- jac_inst -tel ukirt -transdir /tmp
+    jac_inst -tel ukirt -transdir /tmp
 
- ditscmd "UKIRT_INST" "xxx.exec"
-
+    ditscmd "UKIRT_INST" "xxx.exec"
 
 =head1 DESCRIPTION
 
@@ -87,7 +86,6 @@ Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
 
-
 use strict;
 use warnings;
 
@@ -104,43 +102,43 @@ use lib "$FindBin::RealBin/lib";
 use Queue::JitDRAMA;
 
 my ($man, $help, $tel, $transdir, $awerr, $neerr);
-my $optstatus = GetOptions("transdir=s"=> \$transdir,
-                        "help"    => \$help,
-                        "man"     => \$man,
-			"alwayserr" => \$awerr,
-                        'nevererr' => \$neerr,
-                        "telescope=s" => \$tel,
-                       );
+my $optstatus = GetOptions(
+    "transdir=s" => \$transdir,
+    "help" => \$help,
+    "man" => \$man,
+    "alwayserr" => \$awerr,
+    'nevererr' => \$neerr,
+    "telescope=s" => \$tel,
+);
 
 die "Unknown option. Aborting\n" unless $optstatus;
-pod2usage(1)  if ($help);
-pod2usage(-verbose => 2)  if ($man);
+pod2usage(1) if ($help);
+pod2usage(-verbose => 2) if ($man);
 
 die "Must supply a telescope" unless defined $tel;
 $tel = uc($tel);
 die "Unrecognized telescope '$tel'"
-  unless ($tel eq 'UKIRT' || $tel eq 'JCMT');
+    unless ($tel eq 'UKIRT' || $tel eq 'JCMT');
 
 my $DTASK = $tel . '_INST';
 
 # Init Jit
-Jit::Init( $DTASK );
+Jit::Init($DTASK);
 
 # Initiate actions
 my $status = new DRAMA::Status;
-Dits::DperlPutActions("OBSERVE",\&observe,undef,0,undef,$status);
+Dits::DperlPutActions("OBSERVE", \&observe, undef, 0, undef, $status);
 
 # Have a parameter for dealing with error modes
 my $sdp = Dits::GetParId();
 
 # If true, the OBSERVE action always triggers an error
 my $state = ($awerr ? 1 : 0);
-$sdp->Create("ALWAYSERR","UBYTE",$state);
+$sdp->Create("ALWAYSERR", "UBYTE", $state);
 $sdp->Create('NEVERERR', 'UBYTE', ($neerr ? 1 : 0));
 
-
 # Enter the main loop
-Dits::MainLoop( $status );
+Dits::MainLoop($status);
 
 
 # ACTIONS
@@ -151,97 +149,101 @@ Dits::MainLoop( $status );
 # Once resheduled, send a success
 
 sub observe {
-  my $status = shift;
-  Jit::ActionEntry( $status );
-  my $seq = Dits::GetSeq();          # Get the sequence number
+    my $status = shift;
+    Jit::ActionEntry($status);
+    my $seq = Dits::GetSeq();  # Get the sequence number
 
-  # If ALWAYSERR is true (non-zero) we always simply trigger
-  # an error
-  my $errstate = $sdp->Getu("ALWAYSERR", $status);
-  if ($errstate) {
-    seterr($status, "Mandatory error");
+    # If ALWAYSERR is true (non-zero) we always simply trigger
+    # an error
+    my $errstate = $sdp->Getu("ALWAYSERR", $status);
+    if ($errstate) {
+        seterr($status, "Mandatory error");
+        return $status;
+    }
+
+    # If this is the first time in the action
+    if ($seq == 0) {
+        my $argID = Dits::GetArgument;
+
+        unless ($argID) {
+            # No argument specified, this is an error
+            seterr($status, "Please supply a file name as Argument1");
+            return $status;
+
+        }
+
+        my $fname = $argID->GetString('Argument1', $status);
+        DRAMA::MsgOut($status, "Attempting to read file $fname");
+
+        # Prepend transdir
+        my ($v, $d, $f) = File::Spec->splitdir($fname);
+        if ($d) {
+            DRAMA::MsgOut($status, "Using directory from path");
+        }
+        else {
+            if ($transdir) {
+                DRAMA::MsgOut($status,
+                    "Using command line directory: $transdir");
+                $fname = File::Spec->catdir($transdir, $fname);
+            }
+            else {
+                DRAMA::MsgOut($status, "Using current directory");
+            }
+        }
+
+        #print "None drama: Reading file $fname\n";
+        my $thing;
+        eval {
+            if ($tel eq 'JCMT') {
+                require JAC::OCS::Config;
+                $thing = new JAC::OCS::Config(File => $fname, validation => 0);
+            }
+            elsif ($tel eq 'UKIRT') {
+                require UKIRT::Sequence;
+                $thing = new UKIRT::Sequence(File => $fname);
+            }
+            else {
+                seterr($status, "Unrecognized telescope $tel");
+            }
+        };
+
+        if ($thing) {
+            DRAMA::MsgOut($status, "File has been opened");
+        }
+        else {
+            # Failed to read the file
+            seterr($status, "Error opening file $fname : $@");
+        }
+
+        # Everything okay. Need to reschedule
+        # Now set up the rescheduling for all actions
+        # Using the code to set the delay
+        Jit::DelayRequest(int(rand(5) + 1), $status);
+        DRAMA::MsgOut($status, "Delaying");
+    }
+    else {
+        # This is a reschedule - just finish with a message
+        # good or bad
+        my $neerrstate = $sdp->Getu('NEVERERR', $status);
+        if ($neerrstate or rand(10) > 1) {
+            DRAMA::MsgOut($status, "Observation complete");
+        }
+        else {
+            seterr($status, "Observation aborted due to error");
+        }
+    }
+    Jit::ActionExit($status);
     return $status;
-  }
-
-  # If this is the first time in the action
-  if ($seq == 0) {
-
-    my $argID = Dits::GetArgument;
-
-    unless ($argID) {
-      # No argument specified, this is an error
-      seterr( $status, "Please supply a file name as Argument1");
-      return $status;
-
-    }
-
-    my $fname = $argID->GetString( 'Argument1', $status);
-    DRAMA::MsgOut($status, "Attempting to read file $fname");
-
-    # Prepend transdir
-    my ($v,$d,$f) = File::Spec->splitdir( $fname);
-    if ($d) {
-      DRAMA::MsgOut($status, "Using directory from path");
-    } else {
-      if ($transdir) {
-	DRAMA::MsgOut($status, "Using command line directory: $transdir");
-	$fname = File::Spec->catdir( $transdir, $fname);
-      } else {
-	DRAMA::MsgOut($status, "Using current directory");
-      }
-    }
-
-    #print "None drama: Reading file $fname\n";
-    my $thing;
-    eval {
-      if ($tel eq 'JCMT') {
-	require JAC::OCS::Config;
-	$thing = new JAC::OCS::Config( File => $fname, validation => 0 );
-      } elsif ($tel eq 'UKIRT') {
-        require UKIRT::Sequence;
-	$thing = new UKIRT::Sequence( File => $fname );
-      } else {
-	seterr( $status, "Unrecognized telescope $tel");
-      }
-
-    };
-
-    if ($thing) {
-      DRAMA::MsgOut($status, "File has been opened");
-    } else {
-      # Failed to read the file
-      seterr( $status, "Error opening file $fname : $@");
-    }
-
-    # Everything okay. Need to reschedule
-    # Now set up the rescheduling for all actions
-    # Using the code to set the delay
-    Jit::DelayRequest( int(rand(5)+1), $status);
-    DRAMA::MsgOut($status, "Delaying");
-
-  } else {
-    # This is a reschedule - just finish with a message
-    # good or bad
-    my $neerrstate = $sdp->Getu('NEVERERR', $status);
-    if ($neerrstate or rand(10) > 1) {
-      DRAMA::MsgOut($status, "Observation complete");
-    } else {
-      seterr( $status, "Observation aborted due to error");
-    }
-  }
-  Jit::ActionExit( $status );
-  return $status;
 }
-
 
 # subroutine to set bad status and attach a message
 sub seterr {
-  my $status = shift;
-  my $msg = shift;
+    my $status = shift;
+    my $msg = shift;
 
-  $status->SetStatus( Dits::APP_ERROR ) # random status value
-    if $status->StatusOk; # if status is good
+    $status->SetStatus(Dits::APP_ERROR)  # random status value
+        if $status->StatusOk;            # if status is good
 
-  $status->ErsRep(0, $msg);
-  return;
+    $status->ErsRep(0, $msg);
+    return;
 }

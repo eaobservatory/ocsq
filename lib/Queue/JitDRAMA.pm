@@ -6,7 +6,7 @@ Queue::JitDRAMA - Load Jit and DRAMA modules in correct order
 
 =head1 SYNOPSIS
 
-  use Queue::JitDRAMA;
+    use Queue::JitDRAMA;
 
 =head1 DESCRIPTION
 
@@ -17,17 +17,21 @@ correct functionality of the Jit overrides.
 
 use strict;
 use warnings;
-use vars qw/ @EXPORT /;
-use base qw/ Exporter /;
+use vars qw/@EXPORT/;
+use base qw/Exporter/;
 
-@EXPORT = qw/ DoDramaEvents monitor obeyw obey pset /;
+@EXPORT = qw/DoDramaEvents monitor obeyw obey pset/;
 
 use Jit;
 use DRAMA;
 
 sub import {
-  Queue::JitDRAMA->export_to_level(1, @_);
+    Queue::JitDRAMA->export_to_level(1, @_);
 }
+
+1;
+
+__END__
 
 =head1 AUTHOR
 
@@ -50,5 +54,3 @@ this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
-
-1;

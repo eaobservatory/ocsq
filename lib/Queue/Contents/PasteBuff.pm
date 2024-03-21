@@ -6,21 +6,21 @@ Queue::Contents::PasteBuff - Manipulate contents of a queue with Paste Buffer
 
 =head1 SYNOPSIS
 
-  use Queue::Contents::PasteBuff;
+    use Queue::Contents::PasteBuff;
 
-  $Q = new Queue::Contents::PasteBuff;
+    $Q = new Queue::Contents::PasteBuff;
 
-  $Q->addback(@entries);
-  $Q->addfront(@entries);
-  @cut = $Q->cutq(5);
-  $Q->pasteq(4,@cut);
+    $Q->addback(@entries);
+    $Q->addfront(@entries);
+    @cut = $Q->cutq(5);
+    $Q->pasteq(4, @cut);
 
-  $Q->clearq;
+    $Q->clearq;
 
-  $top = $Q->popq;
+    $top = $Q->popq;
 
-  @description = $Q->stringified;
-  @pastebuffer = $Q->pastebuffer->stringified;
+    @description = $Q->stringified;
+    @pastebuffer = $Q->pastebuffer->stringified;
 
 =head1 DESCRIPTION
 
@@ -36,7 +36,7 @@ be recalled later.
 
 use strict;
 use Carp;
-use base qw/ Queue::Contents /;
+use base qw/Queue::Contents/;
 
 =head1 METHODS
 
@@ -51,7 +51,7 @@ The following methods are provided:
 This is the Contents constructor. Accepts an array of Queue::Entry
 objects to initialise the Queue contents.
 
-  $queue = new Queue::Contents::PasteBuff(@entries);
+    $queue = new Queue::Contents::PasteBuff(@entries);
 
 The paste buffer is implemented as a normal Queue::Contents
 object.
@@ -59,26 +59,26 @@ object.
 =cut
 
 sub new {
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
 
-  # Check for optional options hash and pre-process it
-  # To extract the PASTE information
-  my %options = ();
-  %options = %{ shift() } if (@_ && ref($_[0]) eq 'HASH');
+    # Check for optional options hash and pre-process it
+    # To extract the PASTE information
+    my %options = ();
+    %options = %{shift()} if (@_ && ref($_[0]) eq 'HASH');
 
-  # Delete PASTE and replace with PasteBuffer
-  # creating a new queue if PASTE is false (if it is false
-  # than we are the primary queue and we need a pastebuffer)
-  # The paste buffer itself must be a normal queue (which means we
-  # can get rid of all the $ispaste stuff.
-  $options{PasteBuffer} = new Queue::Contents();
+    # Delete PASTE and replace with PasteBuffer
+    # creating a new queue if PASTE is false (if it is false
+    # than we are the primary queue and we need a pastebuffer)
+    # The paste buffer itself must be a normal queue (which means we
+    # can get rid of all the $ispaste stuff.
+    $options{PasteBuffer} = new Queue::Contents();
 
-  # Use base class constructor
-  my $q = $class->SUPER::new(\%options, @_);
+    # Use base class constructor
+    my $q = $class->SUPER::new(\%options, @_);
 
-  # Return the blessed reference
-  return $q;
+    # Return the blessed reference
+    return $q;
 }
 
 =back
@@ -92,22 +92,22 @@ sub new {
 Returns the object associated with the current paste buffer. The
 paste buffer is used by the cutq() and pasteq() methods.
 
-  $buffer_object = $queue->pastebuffer;  
+    $buffer_object = $queue->pastebuffer;
 
 Accepts a Queue::Contents object as argument (or undef).
 
 =cut
 
 sub pastebuffer {
-  my $self = shift;
-  if (@_) {
-    my $paste = shift;
-    croak "pastebuffer must be of class Queue::Contents not '$paste'" 
-      unless UNIVERSAL::isa($paste, "Queue::Contents")
-	or not defined $paste;
-    $self->{PasteBuffer} = $paste;
-  }
-  return $self->{PasteBuffer};
+    my $self = shift;
+    if (@_) {
+        my $paste = shift;
+        croak "pastebuffer must be of class Queue::Contents not '$paste'"
+            unless UNIVERSAL::isa($paste, "Queue::Contents")
+            or not defined $paste;
+        $self->{PasteBuffer} = $paste;
+    }
+    return $self->{PasteBuffer};
 }
 
 
@@ -121,7 +121,7 @@ sub pastebuffer {
 
 Cut entries from the queue and store them in the paste buffer.
 
-  @cut_entries = $queue->cutq($start, $num)
+    @cut_entries = $queue->cutq($start, $num)
 
 The entries cut from the queue are returned to the caller as well as being
 stored in the paste buffer. The supplied arguments are the start position
@@ -131,15 +131,14 @@ queue. This command is similar to the Perl splice() command.
 =cut
 
 sub cutq {
-  my $self = shift;
-  my @cut = $self->SUPER::cutq(@_);
+    my $self = shift;
+    my @cut = $self->SUPER::cutq(@_);
 
-  # Set the paste buffer
-  $self->pastebuffer->contents(@cut);
+    # Set the paste buffer
+    $self->pastebuffer->contents(@cut);
 
-  return @cut;
+    return @cut;
 }
-
 
 =item B<pasteq>
 
@@ -150,8 +149,8 @@ are supplied, they are used rather than the paste buffer (which is
 left unchanged; see also the C<insertq> method). This command is
 similar to the Perl splice() command.
 
-  $queue->pasteq(4);
-  $queue->pasteq(5,@entries);
+    $queue->pasteq(4);
+    $queue->pasteq(5, @entries);
 
 There are no return arguments.
 
@@ -160,28 +159,33 @@ The paste buffer is cleared.
 =cut
 
 sub pasteq {
-  my $self = shift;
+    my $self = shift;
 
-  croak 'Usage: $queue->pasteq(pos,[entries])' unless @_;
+    croak 'Usage: $queue->pasteq(pos,[entries])' unless @_;
 
-  # Read the first arg
-  my $pos = shift;
+    # Read the first arg
+    my $pos = shift;
 
-  # Get the paste buffer (or the remaining args)
-  my @paste;
-  if (@_) {
-    @paste = @_;
-  } else {
-    # Read the paste buffer and clear it
-    @paste = $self->pastebuffer->contents;
-    $self->pastebuffer->clearq;
-  }
+    # Get the paste buffer (or the remaining args)
+    my @paste;
+    if (@_) {
+        @paste = @_;
+    }
+    else {
+        # Read the paste buffer and clear it
+        @paste = $self->pastebuffer->contents;
+        $self->pastebuffer->clearq;
+    }
 
-  # Insert
-  $self->insertq( $pos, @paste );
+    # Insert
+    $self->insertq($pos, @paste);
 
-  return;
+    return;
 }
+
+1;
+
+__END__
 
 =back
 
@@ -196,6 +200,3 @@ Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 All Rights Reserved.
 
 =cut
-
-
-1;

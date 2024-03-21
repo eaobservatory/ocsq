@@ -6,7 +6,7 @@ ocsqmon - GUI to monitor the status of the JAC OCS queue
 
 =head1 SYNOPSIS
 
-  ocsqmon
+    ocsqmon
 
 =head1 DESCRIPTION
 
@@ -67,8 +67,8 @@ $DRAMA::BUFSIZE = 500_000;
 
 # Override the space for receiving parameters
 # This limits replies to 150kB
-$DRAMA::REPLYBYTES   = 150_000;
-$DRAMA::MAXREPLIES   = 1;
+$DRAMA::REPLYBYTES = 150_000;
+$DRAMA::MAXREPLIES = 1;
 
 # Read options early so that we can choose targets
 # Really Need to be able to preempt the GUI building if we choose -h and -sim
@@ -78,23 +78,23 @@ use Pod::Usage;
 my ($man, $help, $tel, $sim, $geometry);
 my $geometry_accept = '';
 my $status = GetOptions(
-    "help"      => \$help,
-    "man"       => \$man,
-    "tel=s"     => \$tel,
-    "sim"       => \$sim,
+    "help" => \$help,
+    "man" => \$man,
+    "tel=s" => \$tel,
+    "sim" => \$sim,
     "geometry=s" => \$geometry,
     "geometry-accept=s" => \$geometry_accept,
 );
 
 if ($help || $man) {
-  pod2usage(1)  if ($help);
-  pod2usage(-verbose => 2)  if ($man);
+    pod2usage(1) if ($help);
+    pod2usage(-verbose => 2) if ($man);
 }
 
 # Start up DRAMA
 my $TASK_ROOT = "OCSQMON";
 my $dtask = $TASK_ROOT . "_$$";
-Jit::TkInit( $dtask );
+Jit::TkInit($dtask);
 
 # Start up Tk early and put up a status bar
 # Create a new main window
@@ -106,11 +106,12 @@ $MW->geometry($geometry) if defined $geometry;
 # Queue host (could be config file driven)
 my $host = '';
 if (defined $tel && !$sim) {
-  if ($tel =~ /jcmt/i) {
-    $host = '@palila';
-  } elsif ($tel =~ /ukirt/i) {
-    $host = '@ohi';
-  }
+    if ($tel =~ /jcmt/i) {
+        $host = '@palila';
+    }
+    elsif ($tel =~ /ukirt/i) {
+        $host = '@ohi';
+    }
 }
 
 # Ask for the OMP user ID [but do not put up a popup]
@@ -118,20 +119,20 @@ if (defined $tel && !$sim) {
 # Use an eval block to trap database errors.
 my $OMP_User;
 eval {
-  my $OMP_User_Obj = OMP::General->determine_user();
-  $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
+    my $OMP_User_Obj = OMP::General->determine_user();
+    $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
 };
 
 my $QM = $MW->OCSQMonitor(
-                          -qtask => 'OCSQUEUE'.$host,
-			  -user => \$OMP_User,
-                          -qcompletegeometryref => \$geometry_accept,
-                         )->pack( -side => 'bottom', -expand => 1, -fill => 'both',-anchor=>'w');
+    -qtask => 'OCSQUEUE' . $host,
+    -user => \$OMP_User,
+    -qcompletegeometryref => \$geometry_accept,
+)->pack(-side => 'bottom', -expand => 1, -fill => 'both', -anchor => 'w');
 
 MainLoop;
 $QM = undef;
 
-
+__END__
 
 =head1 NOTES
 
@@ -165,4 +166,3 @@ this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
-

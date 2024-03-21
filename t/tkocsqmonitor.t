@@ -12,8 +12,10 @@ use Astro::Catalog;
 require_ok('Tk::OCSQMonitor');
 
 my $cat = new Astro::Catalog(
-    Format => 'JCMT', Data => \*DATA,
-    ReadOpt => {incplanets => 0});
+    Format => 'JCMT',
+    Data => \*DATA,
+    ReadOpt => {incplanets => 0}
+);
 
 cat_names($cat, [qw/PVCep UUPeg CRL2688 oCeti XPav/]);
 
@@ -33,13 +35,11 @@ $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('w'));
 
 cat_names($cat, [qw/UUPeg oCeti XPav/]);
 
-
 sub cat_names {
     my $cat = shift;
     my $names = shift;
     is((join ',', map {$_->id} $cat->stars), (join ',', @$names));
 }
-
 
 __DATA__
 PVCep           20 45 53.943 + 67 57 38.66 RJ    n/a     1.35    n/a  LSR  RADIO [c]    [S2] 1.0 Jy Sandell 2011

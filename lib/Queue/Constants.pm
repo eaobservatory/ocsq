@@ -6,9 +6,9 @@ Queue::Constants - Constants defined for use in the queue system
 
 =head1 SYNOPSIS
 
-  use Queue::Constants;
+    use Queue::Constants;
 
-  $qstate = Queue::Constants::QSTATE__EMPTY
+    $qstate = Queue::Constants::QSTATE__EMPTY
 
 =head1 DESCRIPTION
 
@@ -18,7 +18,6 @@ Global constants to be shared by the queue and the queue monitor.
 
 use strict;
 use warnings;
-
 
 =head1 CONSTANTS
 
@@ -40,7 +39,7 @@ Queue will soon be empty.
 
 use constant QSTATE__EMPTY => 2;
 
-=item B<QSTATE__FNTERR >
+=item B<QSTATE__FNTERR>
 
 Queue stopped due to internal error situation.
 
@@ -64,6 +63,10 @@ inform the operator in case the queue was inadvertently left stopped.
 =cut
 
 use constant QSTATE__IDLETIMEOUT => 5;
+
+1;
+
+__END__
 
 =back
 
@@ -90,5 +93,3 @@ Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 MA 02111-1307, USA
 
 =cut
-
-1;

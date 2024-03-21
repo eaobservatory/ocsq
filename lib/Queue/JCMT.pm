@@ -6,9 +6,9 @@ Queue::JCMT - JCMT version of the basic queue
 
 =head1 SYNOPSIS
 
-  use Queue::JCMT;
+    use Queue::JCMT;
 
-  $q = new Queue::JCMT;
+    $q = new Queue::JCMT;
 
 =head1 DESCRIPTION
 
@@ -40,22 +40,26 @@ objects when creating the C<Queue::JCMT> object.
 =cut
 
 sub new {
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
 
-  my $q = {};
+    my $q = {};
 
-  bless $q, $class;
+    bless $q, $class;
 
-  # Initialise
-  $q->contents(new Queue::Contents::Indexed);
-  $q->backend(new Queue::Backend::JACInst);
+    # Initialise
+    $q->contents(new Queue::Contents::Indexed);
+    $q->backend(new Queue::Backend::JACInst);
 
-  # Make sure that the backend knows about the contents
-  $q->backend->qcontents($q->contents);
+    # Make sure that the backend knows about the contents
+    $q->backend->qcontents($q->contents);
 
-  return $q;
+    return $q;
 }
+
+1;
+
+__END__
 
 =back
 
@@ -84,5 +88,3 @@ this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
-
-1;

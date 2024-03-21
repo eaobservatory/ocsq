@@ -6,11 +6,11 @@ Queue::Backend::FailureReason - Why did an entry fail to prepare?
 
 =head1 SYNOPSIS
 
-  use Queue::Backend::FailureReason;
+    use Queue::Backend::FailureReason;
 
-  $r = new Queue::Backend::FailureReason("MissingTarget");
+    $r = new Queue::Backend::FailureReason("MissingTarget");
 
-  $reason_string = $
+    $reason_string = $
 
 =head1 DESCRIPTION
 
@@ -42,29 +42,29 @@ C<type> method.
 
 The first argument is required.
 
-  $r = new Queue::Backend::FailureReason( "MissingTarget" );
+    $r = new Queue::Backend::FailureReason("MissingTarget");
 
 =cut
 
 sub new {
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
 
-  # look at the arguments
-  my $type = shift;
-  croak "Must provide a type to constructor"
-    unless $type;
+    # look at the arguments
+    my $type = shift;
+    croak "Must provide a type to constructor"
+        unless $type;
 
-  my $r = {
-	   Type => undef,
-	   Details => {@_},
-	  };
+    my $r = {
+        Type => undef,
+        Details => {@_},
+    };
 
-  bless $r, $class;
+    bless $r, $class;
 
-  $r->type( $type );
+    $r->type($type);
 
-  return $r;
+    return $r;
 }
 
 =back
@@ -77,57 +77,56 @@ sub new {
 
 Type of failure. Currently supports:
 
-  MissingTarget  - entry did not have a target
-  NeedNextTarget - entry needs following target
+    MissingTarget  - entry did not have a target
+    NeedNextTarget - entry needs following target
 
 =cut
 
 sub type {
-  my $self = shift;
-  if (@_) {
-    my $type = shift;
-    if ($type ne 'MissingTarget' &&
-        $type ne 'NeedNextTarget') {
-      croak "Type [$type] is not recognized";
+    my $self = shift;
+    if (@_) {
+        my $type = shift;
+        if ($type ne 'MissingTarget'
+                && $type ne 'NeedNextTarget') {
+            croak "Type [$type] is not recognized";
+        }
+        $self->{Type} = $type;
     }
-    $self->{Type} = $type;
-  }
-  return $self->{Type};
+    return $self->{Type};
 }
 
 =item B<index>
 
 Index of the entry that has problems.
 
-  $r->index( $curindex );
+    $r->index($curindex);
 
 =cut
 
 sub index {
-  my $self = shift;
-  if (@_) {
-    $self->{Index} = shift;
-  }
-  return $self->{Index};
+    my $self = shift;
+    if (@_) {
+        $self->{Index} = shift;
+    }
+    return $self->{Index};
 }
-
 
 =item B<details>
 
 Detailed data on how to fix the problem. For MissingTarget this
 will hopefully include keys:
 
-  AZ - reference AZ of related target
-  EL - reference EL of related target
-  MODE - observing mode
-  FILTER - filter used for observations
-  TIME   - time of failure in ISO date format
-  ENTRY - Additional information from the entry (optional)
-  FOLLOWING - whether the coordinate come from a following
-    observation or a previous observation
-  CAL - indicates that rather than knowing the coordinates
-    of a related observation we know that it is meant to be
-    a calibrator (this reduces the choices)
+    AZ - reference AZ of related target
+    EL - reference EL of related target
+    MODE - observing mode
+    FILTER - filter used for observations
+    TIME   - time of failure in ISO date format
+    ENTRY - Additional information from the entry (optional)
+    FOLLOWING - whether the coordinate come from a following
+        observation or a previous observation
+    CAL - indicates that rather than knowing the coordinates
+        of a related observation we know that it is meant to be
+        a calibrator (this reduces the choices)
 
 Returns hash reference in scalar context, hash in list context.
 If a hash is provided as an argument, all content will be overwritten.
@@ -135,16 +134,21 @@ If a hash is provided as an argument, all content will be overwritten.
 =cut
 
 sub details {
-  my $self = shift;
-  if (@_) {
-    %{ $self->{Details} } = @_;
-  }
-  if (wantarray) {
-    return %{ $self->{Details} };
-  } else {
-    return $self->{Details};
-  }
+    my $self = shift;
+    if (@_) {
+        %{$self->{Details}} = @_;
+    }
+    if (wantarray) {
+        return %{$self->{Details}};
+    }
+    else {
+        return $self->{Details};
+    }
 }
+
+1;
+
+__END__
 
 =back
 
@@ -163,5 +167,3 @@ Copyright (C) 2002 Particle Physics and Astronomy Research Council.
 All Rights Reserved.
 
 =cut
-
-1;

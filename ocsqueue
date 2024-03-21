@@ -6,8 +6,8 @@ OCSQUEUE - DRAMA-based queue for controlling observing
 
 =head1 SYNOPSIS
 
-  ocsqueue -tel jcmt &
-  ocsqueue -tel ukirt -sim -transdir /tmp
+    ocsqueue -tel jcmt &
+    ocsqueue -tel ukirt -sim -transdir /tmp
 
 =head1 DESCRIPTION
 
@@ -56,7 +56,6 @@ Do not connect to the OMP database when accepting or rejecting MSBs.
 This switch is enabled when C<-sim> is used. The OMP database may still
 be used for user name translation.
 
-
 =item B<-transdir>
 
 The directory in which translated observations will appear.
@@ -95,12 +94,10 @@ This contains the information on the current contents of the
 queue. This is an SDS structure stored in the parameter containing a
 single array labelled "Contents".
 
-
 =item STATUS
 
 A string indicating whether the queue is running or not. (value is
 RUNNING or STOPPED).
-
 
 =item INDEX
 
@@ -156,7 +153,7 @@ use lib "$FindBin::RealBin/lib";
 use Queue::Server::DRAMA;
 
 # Declare global vars
-use vars qw/ $TRANS_DIR /;
+use vars qw/$TRANS_DIR/;
 
 # The task name
 use constant TASKNAME => 'OCSQUEUE';
@@ -169,55 +166,56 @@ use constant NENTRIES => 200;
 use Getopt::Long;
 use Pod::Usage;
 
-my ($man,$help, $verbose, $sim, $tel, $rhost, $ompsim, $local, $idletimeout);
-my $status = GetOptions("verbose" => \$verbose,
-			"sim"     => \$sim,
-			"transdir=s"=> \$TRANS_DIR, # override translator dir
-			"help"    => \$help,
-			"man"     => \$man,
-			"rhost=s"   => \$rhost,
-			"telescope=s" => \$tel,
-			"ompsim"  => \$ompsim,
-			"local"   => \$local,
-			"idletimeout=i" => \$idletimeout,
-		       );
+my ($man, $help, $verbose, $sim, $tel, $rhost, $ompsim, $local, $idletimeout);
+my $status = GetOptions(
+    "verbose" => \$verbose,
+    "sim" => \$sim,
+    "transdir=s" => \$TRANS_DIR,  # override translator dir
+    "help" => \$help,
+    "man" => \$man,
+    "rhost=s" => \$rhost,
+    "telescope=s" => \$tel,
+    "ompsim" => \$ompsim,
+    "local" => \$local,
+    "idletimeout=i" => \$idletimeout,
+);
 
-pod2usage(1)  if ($help);
-pod2usage(-verbose => 2)  if ($man);
+pod2usage(1) if ($help);
+pod2usage(-verbose => 2) if ($man);
 
 die "Must supply a telescope" unless defined $tel;
 
-
 # Make sure that $rhost is not defined when $local is set
 if ($local && defined $rhost) {
-  die "Can not use the -local and -rhost options simultaneously\n";
+    die "Can not use the -local and -rhost options simultaneously\n";
 }
 
 # Simulate database if OMP is simulated or global simulation flag
 my $simdb;
 if ($sim || $ompsim) {
-  $simdb = 1;
+    $simdb = 1;
 }
 
 # Local host name can be enabled with -local or -sim
 my $localhost;
 if ($sim || $local) {
-  $localhost = 1;
+    $localhost = 1;
 }
 
 # Start the DRAMA system and associate callbacks with actions
-my $DQUEUE = new Queue::Server::DRAMA( taskname => TASKNAME,
-				       nentries => NENTRIES,
-				       maxwidth => MAXWIDTH,
-				       simdb => $simdb,
-				       nocomplete => $simdb,
-				       verbose => $verbose,
-				     );
+my $DQUEUE = new Queue::Server::DRAMA(
+    taskname => TASKNAME,
+    nentries => NENTRIES,
+    maxwidth => MAXWIDTH,
+    simdb => $simdb,
+    nocomplete => $simdb,
+    verbose => $verbose,
+);
 
-$DQUEUE->addmessage(0, "Queue created at ".gmtime . "UT");
+$DQUEUE->addmessage(0, "Queue created at " . gmtime . "UT");
 
 if (defined $idletimeout) {
-  $DQUEUE->idle_time($idletimeout);
+    $DQUEUE->idle_time($idletimeout);
 }
 
 # THIS SHOULD BE USING THE OMP::Config class for setting up clever
@@ -230,47 +228,50 @@ if (defined $idletimeout) {
 # For -sim mode and no rhost we should default to no host
 
 if ($localhost || defined $rhost) {
-  $rhost = "@" . ( defined $rhost ? $rhost : "localhost" );
-  $rhost =~ s/\@localhost//;
+    $rhost = "@" . (defined $rhost ? $rhost : "localhost");
+    $rhost =~ s/\@localhost//;
 }
 
 my $QUEUE;
 my $REMOTE_TASK;
 if (defined $tel) {
-  # case-insensitive match
-  $tel = uc($tel);
-  if ($tel eq 'JCMT') {
-    require Queue::JCMT;
-    $QUEUE = new Queue::JCMT;
-    $REMOTE_TASK = 'JCMT_INST' . (defined $rhost ? $rhost : '@ocsmaster' );
-  } elsif ($tel eq 'UKIRT') {
-    require Queue::UKIRT;
-    $QUEUE = new Queue::UKIRT;
-    $QUEUE->backend()->attribute('shift_type', 'NIGHT');
-    $REMOTE_TASK = 'UKIRT_INST' . (defined $rhost ? $rhost : '@ohi' );
-  } else {
-    die "Do not recognize telescope $tel";
-  }
-} else {
-  die "Telescope not specified.";
+    # case-insensitive match
+    $tel = uc($tel);
+    if ($tel eq 'JCMT') {
+        require Queue::JCMT;
+        $QUEUE = new Queue::JCMT;
+        $REMOTE_TASK = 'JCMT_INST' . (defined $rhost ? $rhost : '@ocsmaster');
+    }
+    elsif ($tel eq 'UKIRT') {
+        require Queue::UKIRT;
+        $QUEUE = new Queue::UKIRT;
+        $QUEUE->backend()->attribute('shift_type', 'NIGHT');
+        $REMOTE_TASK = 'UKIRT_INST' . (defined $rhost ? $rhost : '@ohi');
+    }
+    else {
+        die "Do not recognize telescope $tel";
+    }
+}
+else {
+    die "Telescope not specified.";
 }
 
 print "Using remote task '$REMOTE_TASK'\n";
 # Set the task name
-$QUEUE->backend->TASK( $REMOTE_TASK );
+$QUEUE->backend->TASK($REMOTE_TASK);
 
 # override translator directory
 if ($TRANS_DIR) {
-  print "Overriding translation output directory: $TRANS_DIR\n";
-  Queue::Entry->outputdir( $TRANS_DIR );
+    print "Overriding translation output directory: $TRANS_DIR\n";
+    Queue::Entry->outputdir($TRANS_DIR);
 }
 
 # Register these routines with the backend class
-$QUEUE->backend->msbcomplete( \&Queue::Server::DRAMA::msbtidy );
-$QUEUE->backend->qcomplete( \&Queue::Server::DRAMA::queue_empty );
+$QUEUE->backend->msbcomplete(\&Queue::Server::DRAMA::msbtidy);
+$QUEUE->backend->qcomplete(\&Queue::Server::DRAMA::queue_empty);
 
 # Store the queue information
-$DQUEUE->queue( $QUEUE );
+$DQUEUE->queue($QUEUE);
 
 # Start running
 $DQUEUE->mainloop;
@@ -278,6 +279,8 @@ $DQUEUE->mainloop;
 # Shut down - note that the automatic shut down does not use
 # the inherited status...
 exit;
+
+__END__
 
 =head1 SEE ALSO
 

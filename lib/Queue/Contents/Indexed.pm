@@ -6,9 +6,9 @@ Queue::Contents::Indexed - Manipulate contents of an indexed queue
 
 =head1 SYNOPSIS
 
-  use Queue::Contents::Indexed;
+    use Queue::Contents::Indexed;
 
-  $q->curindex( 4 );
+    $q->curindex(4);
 
 =head1 DESCRIPTION
 
@@ -22,7 +22,7 @@ simply assuming that the first element is the current entry.
 use 5.006;
 use strict;
 use warnings;
-use base qw/ Queue::Contents /;
+use base qw/Queue::Contents/;
 
 =head1 METHODS
 
@@ -37,7 +37,7 @@ The following methods are provided:
 This is the Contents constructor. Accepts an array of Queue::Entry
 objects to initialise the Queue contents.
 
-  $queue = new Queue::Contents::Indexed(@entries);
+    $queue = new Queue::Contents::Indexed(@entries);
 
 If an optional hash reference is supplied for the first argument,
 this is deemed to contain options for the constructor.
@@ -57,8 +57,8 @@ If arguments are supplied the current index is set to 0
 
 Index of the active entry.
 
-  my $i = $q->curindex;
-  $q->curindex( 4 );
+    my $i = $q->curindex;
+    $q->curindex(4);
 
 When a new index is provided, it must lay in the range 0 to max index
 (total number of elements minus 1). If it lies outside this range the
@@ -90,41 +90,42 @@ to C<undef> (since lastindex() still refers to a valid entry).
 =cut
 
 sub curindex {
-  my $self = shift;
-  if (@_) {
-    my $new = shift;
-    if (defined $new) {
-      # Check we have a number
-      if ($new =~ /^\d+$/) {
-
-	if ($self->indexwithin($new) ) {
-	  # it is in range - just set it
-	  $self->{CurIndex} = $new;
-	} elsif (defined $self->{CurIndex} && $new >= 0 &&
-		 $new < $self->{CurIndex} ) {
-	  # it is out of range but less than the current value
-	  $self->{CurIndex} = $new
-	}
-      }
+    my $self = shift;
+    if (@_) {
+        my $new = shift;
+        if (defined $new) {
+            # Check we have a number
+            if ($new =~ /^\d+$/) {
+                if ($self->indexwithin($new)) {
+                    # it is in range - just set it
+                    $self->{CurIndex} = $new;
+                }
+                elsif (defined $self->{CurIndex}
+                        && $new >= 0
+                        && $new < $self->{CurIndex}) {
+                    # it is out of range but less than the current value
+                    $self->{CurIndex} = $new;
+                }
+            }
+        }
     }
-  } else {
-    # if we were run without arguments and the queue has entry
-    # but the index is undef, set it to zero
-    if ($self->countq > 0 && ! defined $self->{CurIndex}) {
-      $self->{CurIndex} = 0;
-      $self->lastindex(undef);
+    else {
+        # if we were run without arguments and the queue has entry
+        # but the index is undef, set it to zero
+        if ($self->countq > 0 && ! defined $self->{CurIndex}) {
+            $self->{CurIndex} = 0;
+            $self->lastindex(undef);
+        }
     }
-  }
 
-  # undefine the index if needs be
-  # (we have nothing on the queue)
-  if ($self->countq == 0) {
-    $self->{CurIndex} = undef;
-    $self->lastindex(undef);
-  }
+    # undefine the index if needs be
+    # (we have nothing on the queue)
+    if ($self->countq == 0) {
+        $self->{CurIndex} = undef;
+        $self->lastindex(undef);
+    }
 
-
-  return $self->{CurIndex};
+    return $self->{CurIndex};
 }
 
 =back
@@ -135,8 +136,8 @@ sub curindex {
 
 =item B<incindex>
 
-  $q->incindex;
-  $q->incindex(4);
+    $q->incindex;
+    $q->incindex(4);
 
 Increment the current queue index by the specified amount (1 by
 default).  Returns true if the index was incremented.  The resultant
@@ -157,56 +158,57 @@ behaviour allows C<addback> and C<addfront> to work as expected.
 =cut
 
 sub incindex {
-  my $self = shift;
-  my $request = shift;
+    my $self = shift;
+    my $request = shift;
 
-  # Get the current index and abort if the queue is empty
-  my $cur = $self->curindex;
-  my $countq = $self->countq;
-  return 0 unless $countq > 0;
+    # Get the current index and abort if the queue is empty
+    my $cur = $self->curindex;
+    my $countq = $self->countq;
+    return 0 unless $countq > 0;
 
-  # Queue is not empty but we have an undefined index
-  # so set it to -1
-  $cur = -1 unless defined $cur;
+    # Queue is not empty but we have an undefined index
+    # so set it to -1
+    $cur = -1 unless defined $cur;
 
-  # Default value if none supplied
-  $request = 1 unless defined $request;
+    # Default value if none supplied
+    $request = 1 unless defined $request;
 
-  # Return false if the increment is negative or zero
-  return 0 if $request < 1;
+    # Return false if the increment is negative or zero
+    return 0 if $request < 1;
 
-  # We need to distinguish between the case where we
-  # are already at the maxindex and can go no higher (return false)
-  # AND the current index is not at the max but the
-  # addition of the new increment will push the
-  # index over the top (in which case the curindex should
-  # be set to maxindex and we return true).
-  # This ruins the compactness of this method since it forces
-  # a load of index testing into here which was normally left
-  # to curindex itself.
-  my $max = $self->maxindex;
-  my $new = $cur + $request;
-  if ($cur == $max) {
-    # Already at max value
-    # No point going any further
-    return 0;
-  } elsif ($new - $max > 0) {
-    # Adopt the new value
-    $new = $max;
-  }
+    # We need to distinguish between the case where we
+    # are already at the maxindex and can go no higher (return false)
+    # AND the current index is not at the max but the
+    # addition of the new increment will push the
+    # index over the top (in which case the curindex should
+    # be set to maxindex and we return true).
+    # This ruins the compactness of this method since it forces
+    # a load of index testing into here which was normally left
+    # to curindex itself.
+    my $max = $self->maxindex;
+    my $new = $cur + $request;
+    if ($cur == $max) {
+        # Already at max value
+        # No point going any further
+        return 0;
+    }
+    elsif ($new - $max > 0) {
+        # Adopt the new value
+        $new = $max;
+    }
 
-  # Set the new value and check the return value
-  # If the return value matches the new value
-  # then we were successful
-  # This test is pretty meaningless with the new index
-  # range tests above but it doesnt hurt
-  return ( $self->curindex($new) == $new ? 1 : 0);
+    # Set the new value and check the return value
+    # If the return value matches the new value
+    # then we were successful
+    # This test is pretty meaningless with the new index
+    # range tests above but it doesnt hurt
+    return ($self->curindex($new) == $new ? 1 : 0);
 }
 
 =item B<decindex>
 
-  $q->decindex;
-  $q->decindex(10);
+    $q->decindex;
+    $q->decindex(10);
 
 Decrement the current queue index by the specified amount (by 1 if no
 argument specified). It can not be made smaller than zero. Returns
@@ -223,45 +225,46 @@ is not modified (and the method returns false).
 =cut
 
 sub decindex {
-  my $self = shift;
-  my $request = shift;
+    my $self = shift;
+    my $request = shift;
 
-  # Get the current index and abort if it is not defined
-  my $cur = $self->curindex;
-  return 0 unless defined $cur;
+    # Get the current index and abort if it is not defined
+    my $cur = $self->curindex;
+    return 0 unless defined $cur;
 
-  # Default value if none supplied
-  $request = 1 unless defined $request;
+    # Default value if none supplied
+    $request = 1 unless defined $request;
 
-  # Return false if the decrement is negative or zero
-  return 0 if $request < 1;
+    # Return false if the decrement is negative or zero
+    return 0 if $request < 1;
 
-  # We need to distinguish between the case where we
-  # are already at the minindex and can go no lower (return false)
-  # AND the current index is not at the min but the
-  # subtraction of the new decrement will push the
-  # index too low (in which case the curindex should
-  # be set to minindex and we return true).
-  # This ruins the compactness of this method since it forces
-  # a load of index testing into here which was normally left
-  # to curindex itself.
-  my $min = 0;
-  my $new = $cur - $request;
-  if ($cur == $min) {
-    # Already at min value
-    # No point going any further
-    return 0;
-  } elsif ($min - $new > 0) {
-    # Adopt the new value
-    $new = $min;
-  }
+    # We need to distinguish between the case where we
+    # are already at the minindex and can go no lower (return false)
+    # AND the current index is not at the min but the
+    # subtraction of the new decrement will push the
+    # index too low (in which case the curindex should
+    # be set to minindex and we return true).
+    # This ruins the compactness of this method since it forces
+    # a load of index testing into here which was normally left
+    # to curindex itself.
+    my $min = 0;
+    my $new = $cur - $request;
+    if ($cur == $min) {
+        # Already at min value
+        # No point going any further
+        return 0;
+    }
+    elsif ($min - $new > 0) {
+        # Adopt the new value
+        $new = $min;
+    }
 
-  # Set the new value and check the return value
-  # If the return value matches the new value
-  # then we were successful
-  # This test is pretty meaningless with the new index
-  # range tests above but it doesnt hurt
-  return ( $self->curindex($new) == $new ? 1 : 0);
+    # Set the new value and check the return value
+    # If the return value matches the new value
+    # then we were successful
+    # This test is pretty meaningless with the new index
+    # range tests above but it doesnt hurt
+    return ($self->curindex($new) == $new ? 1 : 0);
 
 }
 
@@ -274,11 +277,11 @@ index is itself undefined.
 =cut
 
 sub nextindex {
-  my $self = shift;
-  my $index = $self->curindex;
-  return undef unless defined $index;
-  $index++;
-  return ( $self->indexwithin($index) ? $index : undef);
+    my $self = shift;
+    my $index = $self->curindex;
+    return undef unless defined $index;
+    $index ++;
+    return ($self->indexwithin($index) ? $index : undef);
 }
 
 =item B<previndex>
@@ -290,18 +293,18 @@ index is itself undefined.
 =cut
 
 sub previndex {
-  my $self = shift;
-  my $index = $self->curindex;
-  return undef unless defined $index;
-  $index--;
-  return ( $self->indexwithin($index) ? $index : undef);
+    my $self = shift;
+    my $index = $self->curindex;
+    return undef unless defined $index;
+    $index --;
+    return ($self->indexwithin($index) ? $index : undef);
 }
 
 =item B<cmpindex>
 
 Compare the supplied index with the current position of the index.
 
-  $cmp = $q->cmpindex( $index );
+    $cmp = $q->cmpindex($index);
 
 Returns 1 (if the supplied index is greater than the current index), 0
 (if the indexes are the same) or -1 (if the supplied index is smaller
@@ -312,29 +315,28 @@ Returns C<undef> if the current index is not defined.
 =cut
 
 sub cmpindex {
-  my $self = shift;
-  my $index = shift;
-  my $cur = $self->curindex;
-  return undef unless (defined $index && defined $cur);
-  return ( $index <=> $cur );
+    my $self = shift;
+    my $index = shift;
+    my $cur = $self->curindex;
+    return undef unless (defined $index && defined $cur);
+    return ($index <=> $cur);
 }
-
 
 =item B<curentry>
 
 Retrieve the currently selected entry.
 
-  $entry = $q->curentry;
+    $entry = $q->curentry;
 
 Returns C<undef> if the queue is empty.
 
 =cut
 
 sub curentry {
-  my $self = shift;
-  my $index = $self->curindex;
-  return undef unless defined $index;
-  return $self->contents->[$index];
+    my $self = shift;
+    my $index = $self->curindex;
+    return undef unless defined $index;
+    return $self->contents->[$index];
 }
 
 =item B<nextentry>
@@ -345,9 +347,9 @@ Returns C<undef> if no more entries are available.
 =cut
 
 sub nextentry {
-  my $self = shift;
-  my $index = $self->nextindex;
-  return ($index ? $self->contents->[$index] : undef);
+    my $self = shift;
+    my $index = $self->nextindex;
+    return ($index ? $self->contents->[$index] : undef);
 }
 
 =item B<preventry>
@@ -358,18 +360,17 @@ Returns C<undef> if no more entries are available.
 =cut
 
 sub preventry {
-  my $self = shift;
-  my $index = $self->previndex;
-  return ($index ? $self->contents->[$index] : undef);
+    my $self = shift;
+    my $index = $self->previndex;
+    return ($index ? $self->contents->[$index] : undef);
 }
-
 
 =item B<loadq>
 
 Load entries onto the queue. Always overwrites previous
 entries.
 
-  $q->loadq( @entries );
+    $q->loadq(@entries);
 
 Method checks that each element in the array is a C<Queue::Entry>
 object. If an element is not of the correct class a warning
@@ -380,22 +381,22 @@ The current index is always reset to 0.
 =cut
 
 sub loadq {
-  my $self = shift;
+    my $self = shift;
 
-  # Add the entries
-  $self->SUPER::loadq(@_);
+    # Add the entries
+    $self->SUPER::loadq(@_);
 
-  # And reset the index
-  $self->curindex(0);
+    # And reset the index
+    $self->curindex(0);
 
-  return;
+    return;
 }
 
 =item B<clearq>
 
 Clear the queue and set the current index to C<undef>.
 
-  $q->clearq;
+    $q->clearq;
 
 =cut
 
@@ -406,7 +407,7 @@ Clear the queue and set the current index to C<undef>.
 
 Permanently remove entries from the queue.
 
-  @cut_entries = $q->cutq($startindex, $num);
+    @cut_entries = $q->cutq($startindex, $num);
 
 Removes C<$num> entries starting at position C<$startindex>.
 If the current index is less than C<$startindex> the
@@ -429,71 +430,72 @@ current index will be set to a value outside of the queue.
 =cut
 
 sub cutq {
-  my $self = shift;
-  my $startindex = shift;
-  my $num = shift;
+    my $self = shift;
+    my $startindex = shift;
+    my $num = shift;
 
-  # Get the current index value
-  # before the cut
-  my $cur = $self->curindex;
+    # Get the current index value
+    # before the cut
+    my $cur = $self->curindex;
 
-  # We need to go through each MSB that will be affected 
-  # and register the current entry with it. This requires that
-  # we duplicate the code for defaulting $num...
-  # Problem is that the base class does the actual MSB cut
-  $num = 1 unless defined $num;
-  if ($num > 0) {
-    my $max = $self->maxindex;
-    # If max is not defined we probably have an empty queue
-    if (defined $max) {
-      my $end = $startindex + $num - 1;
-      $end = ( $end > $max ? $max : $end  );
-      my %msbs;
-      for my $i ($startindex .. $end) {
-	my $entry = $self->getentry( $i );
-	# For efficiency just find each MSB object
-	my $msb = $entry->msb;
-	next unless defined $msb;
-	$msbs{ $msb } = $msb unless exists $msbs{$msb};
-      }
-      # Now register the current entry
-      my $curentry = $self->curentry;
-      for my $msb (values %msbs) {
-	$msb->refentry( $curentry );
-      }
-    }
-  }
-
-  # Do the cut
-  my @cut = $self->SUPER::cutq($startindex, $num);
-
-  # Decide whether the index should change
-  if (@cut) {
-    # Calculate the index of the last thing to be removed
-    my $endindex = $startindex + scalar(@cut) - 1;
-
-    # Decide whether we will need to change curindex
-    # Can not use cmpindex since we have the complication
-    # of endindex
-    my $newcur;
-    if ($cur <= $startindex) {
-      # No effect
-      $newcur = $cur;
-    } elsif ($cur > $startindex && $cur <= $endindex) {
-      # Curindex must be set to the startindex
-      $newcur = $startindex;
-
-    } else {
-      # Curindex must be decremented by the number of entries
-      # removed if the cut was above the current index.
-      $newcur = $cur - scalar(@cut);
+    # We need to go through each MSB that will be affected
+    # and register the current entry with it. This requires that
+    # we duplicate the code for defaulting $num...
+    # Problem is that the base class does the actual MSB cut
+    $num = 1 unless defined $num;
+    if ($num > 0) {
+        my $max = $self->maxindex;
+        # If max is not defined we probably have an empty queue
+        if (defined $max) {
+            my $end = $startindex + $num - 1;
+            $end = ($end > $max ? $max : $end);
+            my %msbs;
+            for my $i ($startindex .. $end) {
+                my $entry = $self->getentry($i);
+                # For efficiency just find each MSB object
+                my $msb = $entry->msb;
+                next unless defined $msb;
+                $msbs{$msb} = $msb unless exists $msbs{$msb};
+            }
+            # Now register the current entry
+            my $curentry = $self->curentry;
+            for my $msb (values %msbs) {
+                $msb->refentry($curentry);
+            }
+        }
     }
 
-    # Set the new index. This could be out of range
-    $self->curindex( $newcur );
-  }
+    # Do the cut
+    my @cut = $self->SUPER::cutq($startindex, $num);
 
-  return @cut;
+    # Decide whether the index should change
+    if (@cut) {
+        # Calculate the index of the last thing to be removed
+        my $endindex = $startindex + scalar(@cut) - 1;
+
+        # Decide whether we will need to change curindex
+        # Can not use cmpindex since we have the complication
+        # of endindex
+        my $newcur;
+        if ($cur <= $startindex) {
+            # No effect
+            $newcur = $cur;
+        }
+        elsif ($cur > $startindex && $cur <= $endindex) {
+            # Curindex must be set to the startindex
+            $newcur = $startindex;
+        }
+        else {
+            # Curindex must be decremented by the number of entries
+            # removed if the cut was above the current index.
+            $newcur = $cur - scalar(@cut);
+        }
+
+        # Set the new index. This could be out of range
+        $self->curindex($newcur);
+    }
+
+    return @cut;
 }
 
 =item B<cutmsb>
@@ -501,16 +503,16 @@ sub cutq {
 Remove all entries associated with the MSB in which the specified
 entry is a member. If no index is specified, assumes the current index.
 
-  @removed = $q->cutmsb();
-  @removed = $q->cutmsb( $index );
+    @removed = $q->cutmsb();
+    @removed = $q->cutmsb($index);
 
 =cut
 
 sub cutmsb {
-  my $self = shift;
-  my $refindex = shift;
-  $refindex = $self->curindex unless defined $refindex;
-  return $self->SUPER::cutmsb( $refindex );
+    my $self = shift;
+    my $refindex = shift;
+    $refindex = $self->curindex unless defined $refindex;
+    return $self->SUPER::cutmsb($refindex);
 }
 
 =item B<addback>
@@ -523,22 +525,22 @@ set to 0).
 =cut
 
 sub addback {
-  my $self = shift;
-  my @entries = @_;
+    my $self = shift;
+    my @entries = @_;
 
-  # Get the initial count
-  my $count = $self->countq;
+    # Get the initial count
+    my $count = $self->countq;
 
-  # Use base class
-  $self->SUPER::addback(@entries);
+    # Use base class
+    $self->SUPER::addback(@entries);
 
-  # Increment index if the queue was empty
-  # Not really needed since the index will automatically
-  # set itself to 0
-  $self->curindex(0)
-    if $count == 0;
+    # Increment index if the queue was empty
+    # Not really needed since the index will automatically
+    # set itself to 0
+    $self->curindex(0)
+        if $count == 0;
 
-  return;
+    return;
 }
 
 =item B<addfront>
@@ -547,31 +549,30 @@ Add some entries to the front of the queue. The index
 is modified such that the same entry is selected before
 and after this call.
 
-  $q->addfront(@entries);
+    $q->addfront(@entries);
 
 Works with an empty queue.
 
 =cut
 
 sub addfront {
-  my $self = shift;
-  my @entries = @_;
+    my $self = shift;
+    my @entries = @_;
 
-  # Use base class
-  $self->SUPER::addfront(@entries);
+    # Use base class
+    $self->SUPER::addfront(@entries);
 
-  # Increment index
-  $self->incindex(scalar(@entries));
+    # Increment index
+    $self->incindex(scalar(@entries));
 
-  return;
+    return;
 }
-
 
 =item B<shiftq>
 
 Removes the entry from position 0 and returns that entry.
 
-  $top = $q->shiftq;
+    $top = $q->shiftq;
 
 This is similar to the Perl shift() command.
 The current index is decremented by 1.
@@ -581,11 +582,11 @@ Returns undef if the queue is empty.
 =cut
 
 sub shiftq {
-  my $self = shift;
-  # shift automatically returns undef in empty array
-  my $old = $self->SUPER::shiftq;
-  $self->decindex;
-  return $old;
+    my $self = shift;
+    # shift automatically returns undef in empty array
+    my $old = $self->SUPER::shiftq;
+    $self->decindex;
+    return $old;
 }
 
 
@@ -594,7 +595,7 @@ sub shiftq {
 Removes the entry from the last position in the queue and returns
 it.
 
- $bottom = $q->popq;
+    $bottom = $q->popq;
 
 This is similar to the Perl pop() command.
 
@@ -605,71 +606,70 @@ Returns C<undef> if the queue is empty.
 =cut
 
 sub popq {
-  my $self = shift;
-  my $cur = $self->curindex;
-  return unless defined $cur;
-  my $max = $self->maxindex;
+    my $self = shift;
+    my $cur = $self->curindex;
+    return unless defined $cur;
+    my $max = $self->maxindex;
 
-  # Use the base method
-  my $bot = $self->SUPER::popq;
+    # Use the base method
+    my $bot = $self->SUPER::popq;
 
-  # Change the index if the old current index was the
-  # same as the old max
-  $self->curindex( $self->maxindex)
-    if $cur == $max;
+    # Change the index if the old current index was the
+    # same as the old max
+    $self->curindex($self->maxindex)
+        if $cur == $max;
 
-  return $bot;
+    return $bot;
 }
 
 =item B<insertq>
 
 Insert elements into the queue at the specified index.
 
-  $q->insertq(4, @entries);
+    $q->insertq(4, @entries);
 
 If the current index is less than the insertion point it is
 not changed. If the current index is greater than or equal
 to the insertion point the current index is incremented by
 the number of entries.
 
-
 =cut
 
 sub insertq {
-  my $self = shift;
-  my ($pos, @entries) = @_;
+    my $self = shift;
+    my ($pos, @entries) = @_;
 
-  # Get the current index
-  my $cur = $self->curindex;
+    # Get the current index
+    my $cur = $self->curindex;
 
-  # Do the insertion
-  $self->SUPER::insertq($pos, @entries);
+    # Do the insertion
+    $self->SUPER::insertq($pos, @entries);
 
-  # Modify the index if necessary
-  # Depends on whether the base class method
-  # invoked modified it via addback or addfront
-  # Need to change it if the index is the same
-  # as it was before and if the current index was
-  # larger than the specified position
-  # Calculate whether need to increment it
-  # Do not need to touch it (handled by addback)
-  # if the queue was empty prior to the insertion
-  if (defined $cur) {
-    if ( $cur >= $pos ) {
-      # in principal it should be different
-      # Get the new value
-      my $newcur = $self->curindex;
+    # Modify the index if necessary
+    # Depends on whether the base class method
+    # invoked modified it via addback or addfront
+    # Need to change it if the index is the same
+    # as it was before and if the current index was
+    # larger than the specified position
+    # Calculate whether need to increment it
+    # Do not need to touch it (handled by addback)
+    # if the queue was empty prior to the insertion
+    if (defined $cur) {
+        if ($cur >= $pos) {
+            # in principal it should be different
+            # Get the new value
+            my $newcur = $self->curindex;
 
-      # If the new index is the same as the old
-      # we need to fix it up (newcur can not be undef
-      # if cur was defined)
-      if ($newcur == $cur) {
-	$self->incindex( scalar(@entries) );
-      }
+            # If the new index is the same as the old
+            # we need to fix it up (newcur can not be undef
+            # if cur was defined)
+            if ($newcur == $cur) {
+                $self->incindex(scalar(@entries));
+            }
+        }
     }
-  }
 
-  return;
+    return;
 }
 
 =item B<get_for_observation>
@@ -680,9 +680,9 @@ Returns the entry at the position of the highlight.
 =cut
 
 sub get_for_observation {
-  my $self = shift;
-  $self->lastindex( $self->curindex );
-  return $self->curentry;
+    my $self = shift;
+    $self->lastindex($self->curindex);
+    return $self->curentry;
 }
 
 =item B<remaining_time>
@@ -690,28 +690,31 @@ sub get_for_observation {
 Time remaining on the queue. Returns the sum of all the entries from
 the currently selected entry to the end of the queue.
 
-  $time = $q->remaining_time;
+    $time = $q->remaining_time;
 
 Returns a Time::Seconds object.
 
 =cut
 
 sub remaining_time {
-  my $self = shift;
+    my $self = shift;
 
-  my $time = new Time::Seconds(0);
-  my $cur = $self->curindex;
-  return $time if !defined $cur;
+    my $time = new Time::Seconds(0);
+    my $cur = $self->curindex;
+    return $time if ! defined $cur;
 
-  for my $i ($cur .. $self->maxindex) {
+    for my $i ($cur .. $self->maxindex) {
+        my $e = $self->getentry($i);
+        my $t = $e->duration;
+        $time += $t if defined $t;
+    }
 
-    my $e = $self->getentry( $i );
-    my $t = $e->duration;
-    $time += $t if defined $t;
-  }
-
-  return $time;
+    return $time;
 }
+
+1;
+
+__END__
 
 =back
 
@@ -726,5 +729,3 @@ Tim Jenness E<lt>t.jenness@jach.hawaii.eduE<gt>
 All Rights Reserved.
 
 =cut
-
-1;

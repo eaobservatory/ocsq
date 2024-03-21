@@ -6,16 +6,16 @@ Queue - Generic Queue class containing Contents and Backend objects
 
 =head1 SYNOPSIS
 
-  use Queue;
+    use Queue;
 
-  $Q = new Queue;
+    $Q = new Queue;
 
-  $Q->contents->addback(@entries);
+    $Q->contents->addback(@entries);
 
-  $Q->stopq;
-  $Q->startq;
+    $Q->stopq;
+    $Q->startq;
 
-  $Q->backend->poll;
+    $Q->backend->poll;
 
 =head1 DESCRIPTION
 
@@ -46,25 +46,25 @@ The following methods are provided:
 This is the Queue constructor. It initalises Backend and Contents
 objects and associates them with the Queue.
 
-  $Q = new Queue;
+    $Q = new Queue;
 
 =cut
 
 sub new {
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
 
-  my $q = {};
+    my $q = {};
 
-  bless $q, $class;
+    bless $q, $class;
 
-  $q->{Contents} = new Queue::Contents;
-  $q->{Backend}  = new Queue::Backend;
+    $q->{Contents} = new Queue::Contents;
+    $q->{Backend} = new Queue::Backend;
 
-  # Make sure that the backend knows about the contents
-  $q->backend->qcontents($q->{Contents});
+    # Make sure that the backend knows about the contents
+    $q->backend->qcontents($q->{Contents});
 
-  return $q;
+    return $q;
 }
 
 =back
@@ -80,16 +80,18 @@ Return the object associated with the Queue::Contents.
 =cut
 
 sub contents {
-  my $self = shift;
-  if (@_) {
-    my $contents = shift;
-    if (UNIVERSAL::isa($contents, 'Queue::Contents')) {
-      $self->{Contents} = $contents;
-    } else {
-      warn "Argument supplied to contents() [$contents] is not a Queue::Contents object - ignoring\n" if $^W;
+    my $self = shift;
+    if (@_) {
+        my $contents = shift;
+        if (UNIVERSAL::isa($contents, 'Queue::Contents')) {
+            $self->{Contents} = $contents;
+        }
+        else {
+            warn "Argument supplied to contents() [$contents] is not a Queue::Contents object - ignoring\n"
+                if $^W;
+        }
     }
-  }
-  return $self->{Contents};
+    return $self->{Contents};
 }
 
 =item backend
@@ -99,16 +101,18 @@ Return the object associated with the Queue::Backend.
 =cut
 
 sub backend {
-  my $self = shift;
-  if (@_) {
-    my $be = shift;
-    if (UNIVERSAL::isa($be, 'Queue::Backend')) {
-      $self->{Backend} = $be;
-    } else {
-      warn "Argument supplied to backend() [$be] is not a Queue::Backend object - ignoring\n" if $^W;
+    my $self = shift;
+    if (@_) {
+        my $be = shift;
+        if (UNIVERSAL::isa($be, 'Queue::Backend')) {
+            $self->{Backend} = $be;
+        }
+        else {
+            warn "Argument supplied to backend() [$be] is not a Queue::Backend object - ignoring\n"
+                if $^W;
+        }
     }
-  }
-  return $self->{Backend};
+    return $self->{Backend};
 }
 
 =back
@@ -121,33 +125,33 @@ sub backend {
 
 Start the queue (ie set the qrunning() flag in the backend).
 
-  $Q->startq;
+    $Q->startq;
 
 =cut
 
 sub startq {
-  my $self = shift;
-  $self->backend->qrunning(1);
+    my $self = shift;
+    $self->backend->qrunning(1);
 }
 
 =item stopq
 
 Stop the queue (ie set the qrunning() flag in the backend).
 
-  $Q->stopq;
+    $Q->stopq;
 
 =cut
 
 sub stopq {
-  my $self = shift;
-  $self->backend->qrunning(0);
+    my $self = shift;
+    $self->backend->qrunning(0);
 }
 
-=back
-
-=cut
-
 1;
+
+__END__
+
+=back
 
 =head1 SEE ALSO
 

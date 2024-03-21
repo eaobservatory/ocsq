@@ -6,16 +6,16 @@ Queue::Entry::UKIRTSeq - Queue entry for UKIRT sequences
 
 =head1 SYNOPSIS
 
-  use Queue::Entry::UKIRTSeq;
+    use Queue::Entry::UKIRTSeq;
 
-  $entry = new Queue::Entry::UKIRTSeq('name', $seq_object );
-  $entry = new Queue::Entry::UKIRTSeq('name', $file );
+    $entry = new Queue::Entry::UKIRTSeq('name', $seq_object);
+    $entry = new Queue::Entry::UKIRTSeq('name', $file);
 
-  $entry->label($label);
-  $entry->configure('label',$seq_object);
-  $entry->entity($seq_object);
-  $text = $entry->string;
-  $entry->prepare;
+    $entry->label($label);
+    $entry->configure('label', $seq_object);
+    $entry->entity($seq_object);
+    $text = $entry->string;
+    $entry->prepare;
 
 =head1 DESCRIPTION
 
@@ -40,7 +40,7 @@ use Time::Seconds;
 
 use Queue::Backend::FailureReason;
 use UKIRT::Sequence;
-use UKIRT::SequenceError qw/ :try /;
+use UKIRT::SequenceError qw/:try/;
 
 use base qw/Queue::Entry/;
 
@@ -58,8 +58,8 @@ The sub-classed constructor is responsible for checking the second
 argument to see whether it is already a C<UKIRT::Sequence> object or
 if one needs to be created from a file name (if unblessed).
 
-  $entry = new Queue::Entry::UKIRTSeq( $label, $filename);
-  $entry = new Queue::Entry::UKIRTSeq( $label, $seq_object);
+    $entry = new Queue::Entry::UKIRTSeq($label, $filename);
+    $entry = new Queue::Entry::UKIRTSeq($label, $seq_object);
 
 Once the filename has been converted into a C<UKIRT::Sequence> object
 the constructor in the base class is called.
@@ -67,21 +67,23 @@ the constructor in the base class is called.
 =cut
 
 sub new {
-  my ($self, $label, $thing) = @_;
+    my ($self, $label, $thing) = @_;
 
-  # Check to see if thing is an object
-  my $entity;
-  if (UNIVERSAL::isa($thing, 'UKIRT::Sequence')) {
-    # looks okay
-    $entity = $thing;
-  } elsif (not ref($thing)) {
-    # treat it as a filename
-    $entity = new UKIRT::Sequence( File => $thing );
-  } else {
-    croak "Argument to constructor is neither a UKIRT::Sequence object nor a simple scalar filename";
-  }
+    # Check to see if thing is an object
+    my $entity;
+    if (UNIVERSAL::isa($thing, 'UKIRT::Sequence')) {
+        # looks okay
+        $entity = $thing;
+    }
+    elsif (not ref($thing)) {
+        # treat it as a filename
+        $entity = new UKIRT::Sequence(File => $thing);
+    }
+    else {
+        croak "Argument to constructor is neither a UKIRT::Sequence object nor a simple scalar filename";
+    }
 
-  return $self->SUPER::new($label, $entity);
+    return $self->SUPER::new($label, $entity);
 }
 
 =back
@@ -95,38 +97,38 @@ sub new {
 This method stores or retrieves the C<UKIRT::Sequence> object associated with
 the entry.
 
-  $seq = $entry->entity;
-  $entry->entity($seq);
+    $seq = $entry->entity;
+    $entry->entity($seq);
 
 =cut
 
 sub entity {
-  my $self = shift;
+    my $self = shift;
 
-  if (@_) {
-    my $seq = shift;
-    croak 'Queue::Entry::UKIRTSeq::entity: argument is not a UKIRT::Sequence'
-      unless UNIVERSAL::isa($seq, 'UKIRT::Sequence');
-    $self->SUPER::entity($seq);
-  }
-  return $self->SUPER::entity;
+    if (@_) {
+        my $seq = shift;
+        croak 'Queue::Entry::UKIRTSeq::entity: argument is not a UKIRT::Sequence'
+            unless UNIVERSAL::isa($seq, 'UKIRT::Sequence');
+        $self->SUPER::entity($seq);
+    }
+    return $self->SUPER::entity;
 }
 
 =item B<instrument>
 
 String describing the instrument associated with this queue entry.
 
-  $inst = $e->instrument();
+    $inst = $e->instrument();
 
 Delegated to the C<UKIRT::Sequence> C<getInstrument> method.
 
 =cut
 
 sub instrument {
-  my $self = shift;
-  my $entity = $self->entity;
-  return "UNKNOWN" unless defined $entity;
-  return $entity->getInstrument;
+    my $self = shift;
+    my $entity = $self->entity;
+    return "UNKNOWN" unless defined $entity;
+    return $entity->getInstrument;
 }
 
 =item B<telescope>
@@ -135,12 +137,12 @@ String describing the telescope associated with this queue entry.
 This is simply used for sanity checking the Queue Entry XML and
 returns "UKIRT" in this case.
 
- $tel = $e->telescope();
+    $tel = $e->telescope();
 
 =cut
 
 sub telescope {
-  return "UKIRT";
+    return "UKIRT";
 }
 
 =back
@@ -156,15 +158,15 @@ argument is a C<UKIRT::Sequence> object. The first argument is the entry
 label. This method must take two arguments.  There are no return
 arguments.
 
-  $entry->configure($label, $seq);
+    $entry->configure($label, $seq);
 
 =cut
 
 sub configure {
-  my $self = shift;
-  croak 'Usage: configure(label,UKIRT::Sequence)' if scalar(@_) != 2;
-  croak unless UNIVERSAL::isa($_[1], "UKIRT::Sequence");
-  $self->SUPER::configure(@_);
+    my $self = shift;
+    croak 'Usage: configure(label,UKIRT::Sequence)' if scalar(@_) != 2;
+    croak unless UNIVERSAL::isa($_[1], "UKIRT::Sequence");
+    $self->SUPER::configure(@_);
 }
 
 =item B<write_entry>
@@ -174,14 +176,14 @@ C<UKIRT::Sequence>. Returns the names of all the files that were
 created.  The first file in the returned list is the "primary" file
 that can be used to create a new C<Queue::Entry> object of this class.
 
-  @files = $e->write_entry();
+    @files = $e->write_entry();
 
 By default, uses the directory from which the sequence was read.  An
 optional argument can be used to specify a new output directory
 (useful when dumping the queue contents to a temporary location via
 XML (see L<Queue::EntryXMLIO/"writeXML">).
 
- @files = $e->write_entry( $outputdir );
+    @files = $e->write_entry($outputdir);
 
 An empty return list indicates an error occurred.
 
@@ -193,22 +195,23 @@ be returned and the directory argument will be ignored.
 =cut
 
 sub write_entry {
-  my $self = shift;
-  my $dir = shift;
+    my $self = shift;
+    my $dir = shift;
 
-  # Get the sequence itself
-  my $seq = $self->entity;
-  return () unless defined $seq;
+    # Get the sequence itself
+    my $seq = $self->entity;
+    return () unless defined $seq;
 
-  my @files;
-  if ($seq->modified) {
-    # Configure the output directory
-    my $out = $dir || $seq->inputdir();
-    @files = $seq->writeseq( $out );
-  } else {
-    @files = ($seq->inputfile);
-  }
-  return @files;
+    my @files;
+    if ($seq->modified) {
+        # Configure the output directory
+        my $out = $dir || $seq->inputdir();
+        @files = $seq->writeseq($out);
+    }
+    else {
+        @files = ($seq->inputfile);
+    }
+    return @files;
 }
 
 =item B<prepare>
@@ -229,7 +232,7 @@ Stores the name of this temporary file in the C<be_object()>.
 
 =back
 
-  $status = $entry->prepare;
+    $status = $entry->prepare;
 
 Returns undef if everything is okay. Returns a
 C<Queue::Backend::FailureReason> object if there was a problem that
@@ -242,59 +245,62 @@ backend object to retrieve it when it notices there was a problem.
 =cut
 
 sub prepare {
-  my $self = shift;
+    my $self = shift;
 
-  my $seq = $self->entity;
+    my $seq = $self->entity;
 
-  # Should return a reason here
-  return unless defined $seq;
+    # Should return a reason here
+    return unless defined $seq;
 
-  # Now verify that the sequence is okay and catch the exception
-  # We do a fixup and a verify here. Note that fixup tries to correct
-  # stuff that can be fixed without asking for more information
-  my $r;
-  try {
-    $seq->fixup;
-    $seq->verify;
-  } catch UKIRT::SequenceError::MissingTarget with {
-    # if the target is missing we cannot send this sequence
-    # so we need to package up the relevant information
-    # and pass it higher up
-    # The information we need from the sequence is just
-    #    MODE
-    #    WAVEBAND
-    $r = new Queue::Backend::FailureReason( 'MissingTarget',
-					    MODE => 'Unknown',
-					    # this returns a string in scalar
-					    # context
-					    WAVEBAND => $seq->getWaveBand,
-					    INSTRUMENT => $self->instrument,
-					    TELESCOPE => $self->telescope,
-					  );
-  } catch UKIRT::SequenceError with {
-    # all other sequence errors can be dealt with via a fixup [maybe]
-    $seq->fixup;
+    # Now verify that the sequence is okay and catch the exception
+    # We do a fixup and a verify here. Note that fixup tries to correct
+    # stuff that can be fixed without asking for more information
+    my $r;
+    try {
+        $seq->fixup;
+        $seq->verify;
+    }
+    catch UKIRT::SequenceError::MissingTarget with {
+        # if the target is missing we cannot send this sequence
+        # so we need to package up the relevant information
+        # and pass it higher up
+        # The information we need from the sequence is just
+        #    MODE
+        #    WAVEBAND
+        $r = new Queue::Backend::FailureReason(
+            'MissingTarget',
+            MODE => 'Unknown',
+            # this returns a string in scalar
+            # context
+            WAVEBAND => $seq->getWaveBand,
+            INSTRUMENT => $self->instrument,
+            TELESCOPE => $self->telescope,
+        );
+    }
+    catch UKIRT::SequenceError with {
+        # all other sequence errors can be dealt with via a fixup [maybe]
+        $seq->fixup;
 
-    # Just in case that did not work
-    $seq->verify;
+        # Just in case that did not work
+        $seq->verify;
+    }
+    otherwise {
+        # strange other error that we need to forward
+        my $E = shift;
+        $E->throw;
+    };
 
-  } otherwise {
-    # strange other error that we need to forward
-    my $E = shift;
-    $E->throw;
-  };
+    # if we ended up with a failure object we need to return it here
+    return $r if $r;
 
-  # if we ended up with a failure object we need to return it here
-  return $r if $r;
+    # Write the sequence
+    my @files = $self->write_entry();
+    return unless @files;
 
-  # Write the sequence
-  my @files = $self->write_entry();
-  return unless @files;
+    # Store the filename in the be_object
+    $self->be_object($files[0]);
 
-  # Store the filename in the be_object
-  $self->be_object( $files[0] );
-
-  return;
+    return;
 }
 
 =item B<getTarget>
@@ -302,13 +308,13 @@ sub prepare {
 Retrieve target information from the entry in the form of an C<Astro::Coords>
 object. Returns C<undef> if no target information is found.
 
- $c = $e->getTarget;
+    $c = $e->getTarget;
 
 =cut
 
 sub getTarget {
-  my $self = shift;
-  return $self->entity->getTarget;
+    my $self = shift;
+    return $self->entity->getTarget;
 }
 
 =item B<setTarget>
@@ -316,68 +322,68 @@ sub getTarget {
 Set target information associated with the entry. Requires an C<Astro::Coords>
 object.
 
-  $e->setTarget( $coords );
+    $e->setTarget($coords);
 
 =cut
 
 sub setTarget {
-  my $self = shift;
-  my $coords = shift;
-  $self->entity->setTarget($coords);
+    my $self = shift;
+    my $coords = shift;
+    $self->entity->setTarget($coords);
 }
 
 =item B<clearTarget>
 
 Clear target information associated with the entry.
 
-  $e->clearTarget();
+    $e->clearTarget();
 
 =cut
 
 sub clearTarget {
-  my $self = shift;
-  $self->entity->clearTarget;
+    my $self = shift;
+    $self->entity->clearTarget;
 }
 
 =item B<projectid>
 
 Returns the project ID associated with this entry.
 
-  $proj = $entry->projectid;
+    $proj = $entry->projectid;
 
 The base class always returns undef.
 
 =cut
 
 sub projectid {
-  my $self = shift;
-  return $self->entity->getProjectid;
+    my $self = shift;
+    return $self->entity->getProjectid;
 }
 
 =item B<msbid>
 
 Returns the MSB ID associated with this entry.
 
-  $msbid = $entry->msbid;
+    $msbid = $entry->msbid;
 
 =cut
 
 sub msbid {
-  my $self = shift;
-  return $self->entity->getMSBID;
+    my $self = shift;
+    return $self->entity->getMSBID;
 }
 
 =item B<msbtitle>
 
 Return the MSB title assicated with this entry.
 
-  my $msbtitle = $entry->msbtitle();
+    my $msbtitle = $entry->msbtitle();
 
 =cut
 
 sub msbtitle {
-  my $self = shift;
-  return $self->entity()->getMSBTitle();
+    my $self = shift;
+    return $self->entity()->getMSBTitle();
 }
 
 =back
@@ -390,30 +396,31 @@ sub msbtitle {
 
 Control how the entry is displayed in the queue summary.
 
- $string = $entry->string;
+    $string = $entry->string;
 
 =cut
 
 sub string {
-  my $self = shift;
-  my $seq = $self->entity;
-  my $posn = $self->msb_status;
-  my $project = $self->projectid;
-  $project = "NONE" unless defined $project;
-  my $projlen = 12;
-  $project = substr($project, 0, $projlen);
+    my $self = shift;
+    my $seq = $self->entity;
+    my $posn = $self->msb_status;
+    my $project = $self->projectid;
+    $project = "NONE" unless defined $project;
+    my $projlen = 12;
+    $project = substr($project, 0, $projlen);
 
-  # Duration
-  my $duration = $self->duration;
-  my $minutes;
-  if (defined $duration) {
-    $minutes = $duration->minutes;
-  } else {
-    $minutes = "0.00";
-  }
+    # Duration
+    my $duration = $self->duration;
+    my $minutes;
+    if (defined $duration) {
+        $minutes = $duration->minutes;
+    }
+    else {
+        $minutes = "0.00";
+    }
 
-  return sprintf("%-10s%-".$projlen."s %-14s%s %4.1f min",$self->status,
-		 $project,$posn,$seq->summary, $minutes);
+    return sprintf("%-10s%-" . $projlen . "s %-14s%s %4.1f min",
+        $self->status, $project, $posn, $seq->summary, $minutes);
 }
 
 =back
@@ -422,7 +429,7 @@ sub string {
 
 The destructor removes the temporary file created by the
 prepare() method (and stored in be_object()). The assumption
-is that the file is no longer needed once it has been sent 
+is that the file is no longer needed once it has been sent
 to the backend (the TODD).
 
 Note that if C<write_entry> creates more than one output file
@@ -436,15 +443,19 @@ files.
 =cut
 
 #sub DESTROY {
-#  my $self = shift;
-
-#  my $file = $self->be_object;
-
-#  if (defined $file) {
-#    print "UNLINK $file\n" if -e $file;
-#    unlink $file if -e $file;
-#  }
+#    my $self = shift;
+#
+#    my $file = $self->be_object;
+#
+#    if (defined $file) {
+#        print "UNLINK $file\n" if -e $file;
+#        unlink $file if -e $file;
+#    }
 #}
+
+1;
+
+__END__
 
 =head1 SEE ALSO
 
@@ -471,5 +482,3 @@ this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place,Suite 330, Boston, MA  02111-1307, USA
 
 =cut
-
-1;
