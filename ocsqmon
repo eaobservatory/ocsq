@@ -59,7 +59,8 @@ use lib "$FindBin::RealBin/lib";
 use Queue::JitDRAMA;
 use Tk;
 use Tk::OCSQMonitor;
-use OMP::General;
+use OMP::DB::Backend;
+use OMP::Util::Client;
 
 # Need to set up buffers
 # Buffer sizes
@@ -114,16 +115,20 @@ if (defined $tel && !$sim) {
     }
 }
 
+# Get OMP database backend object.
+my $db = OMP::DB::Backend->new();
+
 # Ask for the OMP user ID [but do not put up a popup]
 # The widget will ask for a user id when needed.
 # Use an eval block to trap database errors.
 my $OMP_User;
 eval {
-    my $OMP_User_Obj = OMP::General->determine_user();
+    my $OMP_User_Obj = OMP::Util::Client->determine_user($db);
     $OMP_User = $OMP_User_Obj->userid if defined $OMP_User_Obj;
 };
 
 my $QM = $MW->OCSQMonitor(
+    -dbbackend => $db,
     -qtask => 'OCSQUEUE' . $host,
     -user => \$OMP_User,
     -qcompletegeometryref => \$geometry_accept,

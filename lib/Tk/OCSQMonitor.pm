@@ -105,9 +105,9 @@ use Astro::SourcePlot qw/sourceplot/;
 use JAC::OCS::Config::TCS::BASE;
 use JAC::Audio;
 
-use OMP::General;
+use OMP::Util::Client;
 use OMP::DateTools;
-use OMP::UserServer;
+use OMP::DB::User;
 
 # We use DRAMA but we assume the queue gui is initialising DRAMA
 use Queue::JitDRAMA;
@@ -144,6 +144,9 @@ sub Populate {
     # merge with supplied arguments
     %$args = (%def, %$args);
 
+    croak "Must supply a database backend object"
+        unless exists $args->{'-dbbackend'};
+
     croak "Must supply a queue name [qtask]"
         unless exists $args->{'-qtask'};
 
@@ -152,6 +155,7 @@ sub Populate {
 
     # Configure options
     $w->ConfigSpecs(
+        -dbbackend => ['PASSIVE'],
         -qtask => ['PASSIVE'],
         -qwidth => ['PASSIVE'],
         -qheight => ['PASSIVE'],
@@ -169,6 +173,7 @@ sub Populate {
     # seems to when I try to update the value of -user in the Populate
     # routine - the value is overwritten with that provided on the command
     # line]
+    $w->configure('-dbbackend' => $args->{'-dbbackend'});
     $w->configure('-qtask' => $args->{'-qtask'});
     $w->configure('-qwidth' => $args->{'-qwidth'});
     $w->configure('-qheight' => $args->{'-qheight'});
@@ -1456,9 +1461,11 @@ sub msbcompletion {
         # Did we get a non-empty user ID?
         if ($$userid_gui =~ /\w/) {
             eval {
-                # Do what OMP::General::determine_user would do to validate the
+                # Do what OMP::Util::Client->determine_user would do to validate the
                 # newly supplied OMP user ID.
-                my $omp_user_obj = OMP::UserServer->getUser($$userid_gui);
+                my $db = $w->cget('-dbbackend');
+                $db->handle_checked();
+                my $omp_user_obj = OMP::DB::User->new(DB => $db)->getUser($$userid_gui);
                 $$userid = $omp_user_obj->userid() if defined $omp_user_obj;
                 _log_user_id(
                     'Tk::OCSQMonitor::msbcompletion - accept userid looked up',
@@ -1482,7 +1489,9 @@ sub msbcompletion {
     # Use an eval block to trap database errors.
     if (! defined $$userid || $$userid !~ /\w/) {
         eval {
-            my $OMP_User_Obj = OMP::General->determine_user($w);
+            my $db = $w->cget('-dbbackend');
+            $db->handle_checked();
+            my $OMP_User_Obj = OMP::Util::Client->determine_user($db, $w);
             $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
             _log_user_id('Tk::OCSQMonitor::msbcompletion - OMP prompt',
                 undef, $$userid);

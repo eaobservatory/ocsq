@@ -145,6 +145,8 @@ use JAC::Setup qw/drama its omp ocscfg ukirtseq/;
 use File::Spec;
 use Data::Dumper;
 
+use OMP::DB::Backend;
+
 # Work out where local software is
 use FindBin;
 use lib "$FindBin::RealBin/lib";
@@ -202,6 +204,9 @@ if ($sim || $local) {
     $localhost = 1;
 }
 
+# Get OMP database backend object.
+my $db = OMP::DB::Backend->new();
+
 # Start the DRAMA system and associate callbacks with actions
 my $DQUEUE = new Queue::Server::DRAMA(
     taskname => TASKNAME,
@@ -210,6 +215,7 @@ my $DQUEUE = new Queue::Server::DRAMA(
     simdb => $simdb,
     nocomplete => $simdb,
     verbose => $verbose,
+    dbbackend => $db,
 );
 
 $DQUEUE->addmessage(0, "Queue created at " . gmtime . "UT");

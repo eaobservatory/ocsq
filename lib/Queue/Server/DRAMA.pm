@@ -55,8 +55,7 @@ use Queue::EntryXMLIO qw/readXML/;
 use JAC::OCS::Config::TCS;
 
 use OMP::Config;
-use OMP::MSBServer;
-use OMP::Info::Comment;
+use OMP::DB::MSB;
 use OMP::Error qw/:try/;
 
 use vars qw/$VERSION/;
@@ -146,6 +145,10 @@ to 1 second.
 
 Turn on verbose debug messages. Default is false.
 
+=item dbbackend
+
+C<OMP::DB::Backend> object to be used to communicate with the database.
+
 =back
 
 Implemented as a singleton. The same object is returned regardless
@@ -172,6 +175,7 @@ sub new {
         maxwidth => MAXWIDTH,
         nentries => NENTRIES,
         last_active => undef,
+        dbbackend => undef,
     );
 
     # Now read the arguments and merge with default parameters
@@ -403,6 +407,17 @@ sub init_pars {
 =head2 Accessor Methods
 
 =over 4
+
+=item B<db>
+
+Get C<OMP::DB::Backend> object.
+
+=cut
+
+sub db {
+    my $self = shift;
+    return $self->{'dbbackend'};
+}
 
 =item B<nentries>
 
@@ -1733,19 +1748,26 @@ sub SUSPENDMSB {
     my $msbid = $entry->msbid;
     my $label = $entry->entity->getObsLabel;
 
+    # NOTE: it looks like this method was never fully implemented.
+    # These two additional values need to be provided:
+    my $userid = undef;
+    my $reason = undef;
+
     if ($proj && $msbid && $label) {
         my $msbtid = $entry->msbtid;
         try {
             # Suspend the MSB unless we are in simulate mode
-            my $msg;
+            my $msg = '';
             if ($Q->simdb) {
                 $msg = "[in simulation without modifying the DB]";
             }
             else {
                 # Check database connection.
-                OMP::MSBServer->dbConnection()->handle_checked();
-                OMP::MSBServer->suspendMSB($proj, $msbid, $label, $msbtid);
-                $msg = '';
+                my $db = $Q->db;
+                $db->handle_checked();
+                OMP::DB::MSB->new(
+                    DB => $db, ProjectID => $proj,
+                )->suspendMSB_comment($msbid, $label, $userid, $reason, $msbtid);
             }
 
             $Q->addmessage($status,
@@ -2203,17 +2225,19 @@ sub MSBCOMPLETE {
             try {
                 # file a comment to indicate that the MSB was rejected
                 # unless we are in simulation mode
-                my $msg;
+                my $msg = '';
                 if ($Q->simdb) {
                     $msg = "[in simulation without modifying the DB]";
                 }
                 else {
-                    $msg = '';
                     # Check database connection.
-                    OMP::MSBServer->dbConnection()->handle_checked();
+                    my $db = $Q->db;
+                    $db->handle_checked();
                     # This can be a local call since MSBID is not recalculated
-                    OMP::MSBServer->rejectMSB($projectid, $msbid,
-                        $donemsb->{userid}, $donemsb->{reason}, $msbtid);
+                    OMP::DB::MSB->new(
+                        DB => $db, ProjectID => $projectid,
+                    )->rejectMSB_comment(
+                        $msbid, $donemsb->{userid}, $donemsb->{reason}, $msbtid);
                 }
                 $Q->addmessage($status,
                     "MSB rejected for project $projectid $msg");
