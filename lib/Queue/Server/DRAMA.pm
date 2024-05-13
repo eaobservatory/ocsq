@@ -145,7 +145,7 @@ to 1 second.
 
 Turn on verbose debug messages. Default is false.
 
-=item dbbackend
+=item db
 
 C<OMP::DB::Backend> object to be used to communicate with the database.
 
@@ -175,7 +175,7 @@ sub new {
         maxwidth => MAXWIDTH,
         nentries => NENTRIES,
         last_active => undef,
-        dbbackend => undef,
+        db => undef,
     );
 
     # Now read the arguments and merge with default parameters
@@ -416,7 +416,10 @@ Get C<OMP::DB::Backend> object.
 
 sub db {
     my $self = shift;
-    return $self->{'dbbackend'};
+    if (@_) {
+        $self->{'DBBACKEND'} = shift;
+    }
+    return $self->{'DBBACKEND'};
 }
 
 =item B<nentries>

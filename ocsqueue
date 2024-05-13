@@ -215,7 +215,7 @@ my $DQUEUE = new Queue::Server::DRAMA(
     simdb => $simdb,
     nocomplete => $simdb,
     verbose => $verbose,
-    dbbackend => $db,
+    db => $db,
 );
 
 $DQUEUE->addmessage(0, "Queue created at " . gmtime . "UT");
