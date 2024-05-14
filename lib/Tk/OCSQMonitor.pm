@@ -1355,12 +1355,13 @@ sub respond_to_qcomplete {
     $NB->pack(-fill => 'both', -expand => 1);
 
     # A tab per MSB request
+    my $db = $w->cget('-dbbackend');
     foreach my $tstamp (keys %$details) {
         # Create the tab itself
         my $tab = $NB->add($tstamp, -label => "MSB" . $details->{$tstamp}->{QUEUEID});
 
         # create the tab contents
-        &create_msbcomplete_tab($tab, $Q, $userid, \$userid_gui, $geometry,
+        &create_msbcomplete_tab($tab, $Q, $db, $userid, \$userid_gui, $geometry,
             $tstamp, %{$details->{$tstamp}});
     }
 
@@ -1385,6 +1386,7 @@ sub respond_to_qcomplete {
 sub create_msbcomplete_tab {
     my $w = shift;
     my $Q = shift;
+    my $db = shift;
     my $userid = shift;
     my $userid_gui = shift;
     my $geometry = shift;
@@ -1411,7 +1413,7 @@ sub create_msbcomplete_tab {
     $butframe->Button(
         -text => "Accept",
         -command => [
-            \&msbcompletion, $w, $Q,
+            \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,
             $tstamp, 1, $Reason
         ]
@@ -1419,7 +1421,7 @@ sub create_msbcomplete_tab {
     $butframe->Button(
         -text => "Reject",
         -command => [
-            \&msbcompletion, $w, $Q,
+            \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,
             $tstamp, 0, $Reason
         ]
@@ -1427,7 +1429,7 @@ sub create_msbcomplete_tab {
     $butframe->Button(
         -text => "Took no Data",
         -command => [
-            \&msbcompletion, $w, $Q,
+            \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,
             $tstamp, -1, $Reason
         ]
@@ -1442,6 +1444,7 @@ sub create_msbcomplete_tab {
 sub msbcompletion {
     my $w = shift;
     my $Q = shift;
+    my $db = shift;
     my $userid = shift;
     my $userid_gui = shift;
     my $geometry = shift;
@@ -1463,7 +1466,6 @@ sub msbcompletion {
             eval {
                 # Do what OMP::Util::Client->determine_user would do to validate the
                 # newly supplied OMP user ID.
-                my $db = $w->cget('-dbbackend');
                 $db->handle_checked();
                 my $omp_user_obj = OMP::DB::User->new(DB => $db)->getUser($$userid_gui);
                 $$userid = $omp_user_obj->userid() if defined $omp_user_obj;
@@ -1489,7 +1491,6 @@ sub msbcompletion {
     # Use an eval block to trap database errors.
     if (! defined $$userid || $$userid !~ /\w/) {
         eval {
-            my $db = $w->cget('-dbbackend');
             $db->handle_checked();
             my $OMP_User_Obj = OMP::Util::Client->determine_user($db, $w);
             $$userid = $OMP_User_Obj->userid if defined $OMP_User_Obj;
