@@ -49,6 +49,10 @@ useful for testing error conditions.
 
 Never generate random errors.
 
+=item B<-obstime>
+
+Time to wait during observations.  Default is 1 + rand(5).
+
 =item B<-help>
 
 Print a small help message.
@@ -101,7 +105,7 @@ use lib "$FindBin::RealBin/lib";
 
 use Queue::JitDRAMA;
 
-my ($man, $help, $tel, $transdir, $awerr, $neerr);
+my ($man, $help, $tel, $transdir, $awerr, $neerr, $obstime);
 my $optstatus = GetOptions(
     "transdir=s" => \$transdir,
     "help" => \$help,
@@ -109,6 +113,7 @@ my $optstatus = GetOptions(
     "alwayserr" => \$awerr,
     'nevererr' => \$neerr,
     "telescope=s" => \$tel,
+    "obstime=s" => \$obstime,
 );
 
 die "Unknown option. Aborting\n" unless $optstatus;
@@ -218,8 +223,11 @@ sub observe {
         # Everything okay. Need to reschedule
         # Now set up the rescheduling for all actions
         # Using the code to set the delay
-        Jit::DelayRequest(int(rand(5) + 1), $status);
-        DRAMA::MsgOut($status, "Delaying");
+        my $delay = (defined $obstime)
+            ? $obstime
+            : (int(rand(5) + 1));
+        Jit::DelayRequest($delay, $status);
+        DRAMA::MsgOut($status, "Delaying for $delay seconds");
     }
     else {
         # This is a reschedule - just finish with a message
