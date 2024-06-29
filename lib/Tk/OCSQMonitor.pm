@@ -95,6 +95,9 @@ use Term::ANSIColor qw/colored/;
 use Tk::TextANSIColor;
 use File::Spec;
 use Data::Dumper;
+use DateTime;
+use DateTime::Duration;
+use DateTime::Format::Strptime;
 
 use Astro::Catalog;
 use Astro::Catalog::Item;
@@ -255,11 +258,25 @@ sub Populate {
     #  $Fr3->Button( -text => 'SUSPEND MSB',  -command => \&suspendmsb)->pack(-side => 'left');
 
     # Create a label for Queue status
-    $Fr1->Label(-text => 'Queue Status:')
+    $Fr1->Label(-text => 'Queue status:')
         ->grid(-row => 0, -column => 0, -sticky => 'w');
     my $Qstatus =
         $Fr1->Label(-textvariable => \$priv->{MONITOR}->{STATUS},)
         ->grid(-row => 0, -column => 1, -sticky => 'w');
+
+    $priv->{'CURRENT_TIMING'} = {
+        START => '',
+        DURATION => undef,
+        DURATION_TEXT => '',
+    };
+    $Fr1->Label(-text => 'current entry sent:'
+    )->grid(-row => 0, -column => 2, -sticky => 'w');
+    my $CurrSent = $Fr1->Label(
+        -textvariable => \$priv->{'MONITOR'}->{'CURRSENT'},
+    )->grid(-row => 0, -column => 3, -sticky => 'w');
+    my $CurrDuration = $Fr1->Label(
+        -textvariable => \$priv->{'CURRENT_TIMING'}->{'DURATION_TEXT'},
+    )->grid(-row => 0, -column => 4, -sticky => 'w');
 
     # We must be allowed to access the Q status widget
     $w->Advertise('_qstatus' => $Qstatus);
@@ -269,14 +286,16 @@ sub Populate {
         ->grid(-row => 3, -column => 0, -sticky => 'w');
     my $CurrStatus =
         $Fr1->Label(-textvariable => \$priv->{MONITOR}->{CURRENT},)
-        ->grid(-row => 3, -column => 1, -sticky => 'w');
+        ->grid(-row => 3, -column => 1, -columnspan => 4, -sticky => 'w');
 
     # Time remaining on the queue
-    $Fr1->Label(-text => 'Time on Queue (minutes):')
+    $Fr1->Label(-text => 'Time on queue:')
         ->grid(-row => 4, -column => 0, -sticky => 'w');
     my $TimeOnQueue =
         $Fr1->Label(-textvariable => \$priv->{MONITOR}->{TIMEONQUEUE},)
-        ->grid(-row => 4, -column => 1, -sticky => 'w');
+        ->grid(-row => 4, -column => 1, -sticky => 'e');
+    $Fr1->Label(-text => 'minutes')
+        ->grid(-row => 4, -column => 2, -columnspan => 3, -sticky => 'w');
 
     my $ContentsBox = $w->Scrolled(
         'Text',
@@ -535,7 +554,7 @@ sub init_queue_monitor {
     monitor(
         $w->cget("-qtask"),
         "START", "STATUS", "Queue",
-        "CURRENT",
+        "CURRENT", "CURRSENT", "CURRDURN",
         "INDEX",
         "FAILURE",
         "MSBCOMPLETED",
@@ -668,6 +687,30 @@ sub cvtsub {
             _play_sound($sound);
         }
     }
+    elsif ($param eq 'CURRDURN') {
+        my $timing = $priv->{'CURRENT_TIMING'};
+        if ($value) {
+            my $duration = DateTime::Duration->new(seconds => $value);
+            $timing->{'DURATION'} = $duration;
+        }
+        else {
+            $timing->{'DURATION'} = undef;
+        }
+        _update_current_timing($timing);
+    }
+    elsif ($param eq 'CURRSENT') {
+        my $timing = $priv->{'CURRENT_TIMING'};
+        if ($value) {
+            my $dt = DateTime::Format::Strptime->new(
+                pattern => '%F %T')->parse_datetime($value);
+            $timing->{'START'} = $dt;
+        }
+        else {
+            $timing->{'START'} = undef;
+        }
+        _update_current_timing($timing);
+    }
+
     return $value if not ref($value);
 
     # Assume we have a Sds
@@ -773,6 +816,26 @@ sub cvtsub {
     return $value;
 }
 
+# Update information regarding timing of the current observation: if
+# both start time and duration are available, calculate the estimated
+# completion time so that it can be shown in the GUI.
+
+sub _update_current_timing {
+    my $timing = shift;
+
+    my $start = $timing->{'START'};
+    my $duration = $timing->{'DURATION'};
+
+    if ($start and $duration) {
+        my $end = $start + $duration;
+        $timing->{'DURATION_TEXT'} = sprintf
+            'expected completion: %s',
+            $end->strftime('%T');
+    }
+    else {
+        $timing->{'DURATION_TEXT'} = '';
+    }
+}
 
 sub _monerror {
     my $w = shift;
