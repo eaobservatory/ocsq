@@ -107,6 +107,16 @@ Current position in the queue [INTEGER].
 
 As string describing the entry that is currently being observed.
 
+=item CURRSENT
+
+String representing the local time at which the current
+item started being observed.
+
+=item CURRDURN
+
+Estimated duration of the item which is currently being observed,
+in seconds. [INTEGER]
+
 =item TIMEONQUEUE
 
 The time (in minutes) remaining on the queue. [INTEGER]

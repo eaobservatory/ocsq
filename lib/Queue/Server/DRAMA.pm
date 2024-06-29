@@ -308,6 +308,16 @@ seconds).
 String representing the item on the queue that is currently being
 observed.
 
+=item CURRSENT
+
+String representing the local time at which the current
+item started being observed.
+
+=item CURRDURN
+
+Estimated duration of the item which is currently being observed,
+in seconds.
+
 =item Queue
 
 A string array of width C<maxwidth> characters and C<nentries> lines
@@ -358,6 +368,8 @@ sub init_pars {
     $sdp->Create("INDEX", "INT", 0);
     $sdp->Create("TIMEONQUEUE", "INT", 0);
     $sdp->Create("CURRENT", "STRING", 'None');
+    $sdp->Create("CURRSENT", "STRING", '');
+    $sdp->Create("CURRDURN", "INT", 0);
     $sdp->Create('SHIFTTYPE', 'STRING', '');
 
     my $queue_sds = Sds->Create("Queue", undef, Sds::STRUCT, 0, $status);
@@ -2669,7 +2681,7 @@ sub check_index_param_sync {
 
 =item B<update_current_param>
 
-Update the CURRENT parameter.
+Update the CURRENT, CURRSENT and CURRDURN parameters.
 
     update_current_param($status);
 
@@ -2684,23 +2696,33 @@ sub update_current_param {
     # Read the CURRENT parameter
     my $sdp = $Q->_params;
     my $curr = $sdp->GetString('CURRENT', $_[0]);
+    my $curr_sent = $sdp->GetString('CURRSENT', $_[0]);
+    my $curr_durn = $sdp->Geti('CURRDURN', $_[0]);
 
     # Read the last_sent to the backend
     my $last_sent = $Q->queue->backend->last_sent;
 
     # If nothing on set now to 'None'
     my $now;
+    my $time;
+    my $durn;
     if (defined $last_sent) {
         $now = $last_sent->string;
+        $durn = int($last_sent->duration->seconds);
+
+        $time = $Q->queue->backend->last_sent_time;
+        $time = '' unless defined $time;
     }
     else {
         $now = 'None';
+        $time = '';
+        $durn = 0;
     }
 
     # Compare
-    if ($now ne $curr) {
-        $sdp->PutString('CURRENT', $now, $_[0]);
-    }
+    $sdp->PutString('CURRENT', $now, $_[0]) if $now ne $curr;
+    $sdp->PutString('CURRSENT', $time, $_[0]) if $time ne $curr_sent;
+    $sdp->Puti('CURRDURN', $durn, $_[0]) if $durn != $curr_durn;
 }
 
 =item B<update_shift_type_param>
