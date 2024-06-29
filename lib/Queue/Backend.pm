@@ -38,6 +38,7 @@ use 5.006;
 use warnings;
 use strict;
 use Carp;
+use Time::Piece qw/localtime/;
 
 use constant GOOD_STATUS => 0;
 
@@ -68,6 +69,7 @@ sub new {
     $be->{QRunning} = 0;
     $be->{QContents} = undef;
     $be->{LastSent} = undef;
+    $be->{LastSentTime} = undef;
     $be->{FailReason} = undef;
     $be->{QComplete} = undef;
     $be->{MSBComplete} = undef;
@@ -128,6 +130,9 @@ This returns the most recent entry that has been sent to the backend.
 
 Must be a Queue::Entry object (or undef).
 
+If an entry is given, the current local time is recorded
+for subsequent retreival by the C<last_sent_time> method.
+
 =cut
 
 sub last_sent {
@@ -137,9 +142,12 @@ sub last_sent {
         if (! defined $e) {
             # If we are not defined - that is okay too
             $self->{LastSent} = undef;
+            $self->{LastSentTime} = undef;
         }
         elsif (UNIVERSAL::isa($e, 'Queue::Entry')) {
             $self->{LastSent} = $e;
+            my $time = localtime;
+            $self->{LastSentTime} = $time->strftime('%F %T');
         }
         else {
             warn "Argument supplied to Queue::Backend::last_sent [$e] is not a Queue::Entry object"
@@ -147,6 +155,18 @@ sub last_sent {
         }
     }
     return $self->{LastSent};
+}
+
+=item last_sent_time
+
+Returns the time at which the C<last_sent> method was passed
+a queue entry.  (Local time string.)
+
+=cut
+
+sub last_sent_time {
+    my $self = shift;
+    return $self->{LastSentTime};
 }
 
 =item B<failure_reason>
