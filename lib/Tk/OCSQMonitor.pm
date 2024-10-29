@@ -1245,8 +1245,9 @@ sub create_fail_gui {
         elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
             my $waveband = $details->{'WAVEBAND'};
 
-            if (abs($waveband - 658.0062510) < 0.001) {
-                # Use D-band (H2O) sources.
+            if (($details->{'INSTRUMENT'} eq 'FE_KUNTUR')
+                    and (abs($waveband - 691.4730763) > 0.001)) {
+                # Use D-band specific (e.g. H2O) sources.
                 $cat->filter_by_cb(source_is_type('d'));
             }
             else {
