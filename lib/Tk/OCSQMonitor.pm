@@ -1475,7 +1475,7 @@ sub create_msbcomplete_tab {
     # Now add on the buttons on the bottom
     my $butframe = $w->Frame->pack;
     $butframe->Button(
-        -text => "Accept",
+        -text => "Accept MSB",
         -command => [
             \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,
@@ -1483,7 +1483,7 @@ sub create_msbcomplete_tab {
         ]
     )->pack(-side => 'left');
     $butframe->Button(
-        -text => "Reject",
+        -text => "Reject MSB",
         -command => [
             \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,
@@ -1491,7 +1491,7 @@ sub create_msbcomplete_tab {
         ]
     )->pack(-side => 'left');
     $butframe->Button(
-        -text => "Took no Data",
+        -text => "Ignore MSB",
         -command => [
             \&msbcompletion, $w, $Q, $db,
             $userid, $userid_gui, $geometry,

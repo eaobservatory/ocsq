@@ -115,7 +115,7 @@ Do not store MSB completion parameters in the parameter system. Simply
 log the fact we would have completed an MSB. This allows the queue to
 run without forcing the user to deal with MSBs. During engineering tests
 it is usually annoying for a MSB accept popup to appear only for the observer
-to click on "Took No Data". This will disable the queue monitor popup.
+to click on "Ignore MSB". This will disable the queue monitor popup.
 
 =item taskname
 
@@ -2049,7 +2049,7 @@ Tri-valued:
 
     0 - reject
     +ve - accept MSB
-    -ve - remove MSB without action "took no data"
+    -ve - remove MSB without action ("Ignore MSB")
 
 =item USERID
 
@@ -2268,7 +2268,7 @@ sub MSBCOMPLETE {
         }
         else {
             $Q->addmessage($status,
-                "Removing MSB without notifying OMP database [took no data]");
+                "Removing MSB without notifying OMP database [ignore MSB]");
         }
 
         # Return if we have bad status
