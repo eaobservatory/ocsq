@@ -1694,6 +1694,9 @@ Currently returns true if the comment doesn't seem to include
 a type code.  This ensures that planets will appear in the
 pointing catalog for all types of instrument.
 
+Multiple type codes can be specified to find sources matching any
+of them, e.g. 'dD'.
+
 =cut
 
 sub source_is_type {
@@ -1708,7 +1711,11 @@ sub source_is_type {
 
         my $code = $1;
 
-        return -1 != index $code, $type;
+        foreach my $char (split //, $type) {
+            return 1 unless -1 == index $code, $char;
+        }
+
+        return 0;
     };
 }
 

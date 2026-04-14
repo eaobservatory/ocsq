@@ -6,7 +6,7 @@ use strict;
 
 use JAC::Setup qw/drama omp/;
 
-use Test::More tests => 5;
+use Test::More tests => 6;
 use Astro::Catalog;
 
 require_ok('Tk::OCSQMonitor');
@@ -34,6 +34,12 @@ $cat->reset_list();
 $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('w'));
 
 cat_names($cat, [qw/UUPeg oCeti XPav/]);
+
+$cat->reset_list();
+
+$cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('lw'));
+
+cat_names($cat, [qw/UUPeg CRL2688 oCeti XPav/]);
 
 sub cat_names {
     my $cat = shift;
