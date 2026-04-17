@@ -337,7 +337,7 @@ sub addFailureContext {
         # interested in a calibrator (in which case we stop since we know
         # the list of calibrators)
         my $index = $q->curindex;
-        my ($target, $iscal, $havemissing);
+        my ($target, $comment, $iscal, $havemissing);
         while (defined(my $entry = $q->getentry($index))) {
             # Abort if we hit an MSB boundary on the previous loop
             # NeedNextTarget does not care about MSB boundaries
@@ -352,7 +352,10 @@ sub addFailureContext {
             # if it is a target we *know* the coordinates rather than
             # simply guessing them
             $target = $entry->getTarget;
-            last if $target;
+            if ($target) {
+                $comment = $entry->getTargetComment;
+                last;
+            }
 
             # See if we have a calibrator
             $iscal = $entry->iscal;
@@ -393,7 +396,10 @@ sub addFailureContext {
 
                 # retrieve the target
                 $target = $entry->getTarget;
-                last if $target;
+                if ($target) {
+                    $comment = $entry->getTargetComment;
+                    last;
+                }
 
                 # See if we have a calibrator
                 $iscal = $entry->iscal;
@@ -416,7 +422,7 @@ sub addFailureContext {
                 # we can fix up the entry unless we found
                 # an entry with a missing target and need to fill
                 # that in first
-                $curentry->setTarget($target);
+                $curentry->setTarget($target, $comment);
 
                 # Is this a SCUBA-2 setup observation?  If so, try
                 # to adjust the slew time.
