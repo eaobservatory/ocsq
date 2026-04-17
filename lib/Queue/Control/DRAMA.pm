@@ -397,6 +397,10 @@ Astro::Coords or JAC::OCS::Config::TCS (or ::BASE) object
 The tag name is assumed to be SCIENCE if an Astro::Coords
 is supplied.
 
+If selected from a catalog, then an Astro::Coords object
+including the catalog comment text is useful as it allows
+the comment to be included in the message.
+
 =item NOAUTOSTART
 
 If true, do not automatically start the queue afterwards.
@@ -422,6 +426,7 @@ sub modentry {
     my $targ = $mods{TARGET};
 
     my $tcsxml;
+    my $comment = '';
     if (blessed($targ)) {
         # we want to create a TCS config object from any of the
         # three supported object types so that we can stringify
@@ -434,6 +439,10 @@ sub modentry {
 
         # create the XML
         $tcsxml = "$tcs";
+
+        if (eval {$targ->can('comment')}) {
+            $comment = $targ->comment;
+        }
     }
     else {
         # assume we are given a string
@@ -457,6 +466,7 @@ sub modentry {
     $arg->Puti("INDEX", $index, $status);
     $arg->Puti("PROPAGATE", ($mods{PROPAGATE} ? 1 : 0), $status);
     $arg->PutString("TARGET", $tcsxml, $status);
+    $arg->PutString('COMMENT', $comment, $status);
 
     if ($status->Ok) {
         obey($self->qtask, "MODENTRY", $arg, \%obeyargs);

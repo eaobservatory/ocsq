@@ -667,6 +667,7 @@ sub propsrc {
     return unless $entry;
 
     my $c = $entry->getTarget;
+    my $comment = $entry->getTargetComment;
 
     # do not check the current observation although we can set
     # the "foundcal" flag if the current observation is a cal
@@ -721,7 +722,7 @@ sub propsrc {
         }
 
         # set the target
-        $thisentry->setTarget($c);
+        $thisentry->setTarget($c, $comment);
 
         $index ++;
     }

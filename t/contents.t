@@ -2,7 +2,7 @@
 
 # Test Queue::Contents
 
-use Test::More tests => 108;
+use Test::More tests => 109;
 
 require_ok('Queue::Contents::Indexed');
 require_ok('Queue::Contents::PasteBuff');
@@ -32,6 +32,11 @@ $q = new Queue::Contents::Indexed(@entries);
 ok($q, "Populated queue defined");
 is($q->countq, scalar(@entries), "Check count");
 is($q->curindex, 0, "Default index position");
+
+# Test propsrc method (only comment since using entry superclass).
+$entries[0]->setTarget('TARGET', 'COMMENT');
+$q->propsrc(0);
+is($entries[5]->getTargetComment, 'COMMENT');
 
 # Increment the index
 print "# Index manipulations\n";

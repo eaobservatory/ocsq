@@ -464,7 +464,7 @@ Set target information associated with the entry. Requires an
 C<Astro::Coords>, C<JAC::OCS::Config::TCS::BASE>, or
 C<JAC::OCS::Config::TCS> object
 
-    $e->setTarget($coords);
+    $e->setTarget($coords, $comment);
 
 If the entry currently only has a SCIENCE tag the position
 will be modified to that in the supplied argument. If the
@@ -481,6 +481,9 @@ because they have an absolute position).
 sub setTarget {
     my $self = shift;
     my $coords = shift;
+    my $comment = shift;
+
+    $self->SUPER::setTarget($coords, $comment);
 
     # get the TCS specification
     my $tcs = $self->entity->tcs;
@@ -507,6 +510,8 @@ Clear target information associated with the entry.
 
 sub clearTarget {
     my $self = shift;
+
+    $self->SUPER::clearTarget();
 
     # get the TCS specification
     my $tcs = $self->entity->tcs;

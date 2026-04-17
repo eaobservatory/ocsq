@@ -1507,6 +1507,10 @@ The entry target information should be modified. This argument is
 a string consisting of TCS XML. All TAGS will be read and stored in the
 entry.
 
+=item COMMENT
+
+The catalog comment text associated with the given target, if available.
+
 =back
 
 The status of the entry matches that of the one it replaces
@@ -1536,6 +1540,7 @@ sub MODENTRY {
 
     my $index = $sds{INDEX};
     my $prop = $sds{PROPAGATE};
+    my $comment = $sds{'COMMENT'};
 
     my $tcs;
     if (exists $sds{TARGET}) {
@@ -1554,7 +1559,7 @@ sub MODENTRY {
     my $curr = $Q->queue->contents->getentry($index);
 
     # Synchronize target information
-    $curr->setTarget($tcs);
+    $curr->setTarget($tcs, $comment);
 
     # if we are propogating source information we need to do it now
     $Q->queue->contents->propsrc($index)

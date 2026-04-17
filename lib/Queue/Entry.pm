@@ -82,7 +82,9 @@ sub new {
     my $proto = shift;
     my $class = ref($proto) || $proto;
 
-    my $frame = {};  # Anon hash
+    my $frame = {
+        TargetComment => undef,
+    };
     $frame->{Entity} = undef;
     $frame->{Label} = undef;
     $frame->{BE} = undef;
@@ -440,6 +442,17 @@ sub getTarget {
     return undef;
 }
 
+=item B<getTargetComment>
+
+Retreives the comment which was set along with the target, if any.
+
+=cut
+
+sub getTargetComment {
+    my $self = shift;
+    return $self->{'TargetComment'};
+}
+
 =item B<targetIsCurrentAz>
 
 Returns true if the target corresponds to the current location of the telescope
@@ -471,12 +484,17 @@ sub targetIsFollowingAz {
 Set target information associated with the entry. Requires an C<Astro::Coords>
 object.
 
-    $e->setTarget($coords);
+    $e->setTarget($coords, $comment);
 
 =cut
 
 sub setTarget {
     my $self = shift;
+    my $coords = shift;
+    my $comment = shift;
+
+    $self->{'TargetComment'} = $comment;
+
     return undef;
 }
 
@@ -490,6 +508,9 @@ Clear target information associated with the entry.
 
 sub clearTarget {
     my $self = shift;
+
+    undef $self->{'TargetComment'};
+
     return undef;
 }
 
