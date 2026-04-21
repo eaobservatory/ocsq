@@ -36,13 +36,14 @@ use 5.006;
 use warnings;
 use strict;
 use Carp;
+use Term::ANSIColor;
 use Time::Seconds;
 
 use Queue::Backend::FailureReason;
 use JAC::OCS::Config 1.04;
 use JAC::OCS::Config::Error qw/:try/;
 
-use base qw/Queue::Entry/;
+use base qw/Queue::Entry Queue::Entry::OCSCfgXML::Patch/;
 
 =head1 METHODS
 
@@ -295,16 +296,26 @@ sub write_entry {
 =item B<prepare>
 
 This method should be used to prepare the entry for sending to the
-backend (in this case the JCMT instrument task). It does two things:
+backend (in this case the JCMT instrument task). It does four things:
 
 =over 4
 
 =item 1
 
+Calls the C<get_patched_entity> method from
+the C<Queue::Entry::OCSCfgXML::Patch> mix-in class.
+
+=item 2
+
+Calls the (patched) entity's C<fixup> and C<verify> methods
+(i.e. from C<JAC::OCS::Config>).
+
+=item 3
+
 Writes the sequence to disk in the form of a OCS configuration XML and
 configs. See the C<write_entry> method.
 
-=item 2
+=item 4
 
 Stores the name of this temporary file in the C<be_object()>.
 
@@ -326,7 +337,9 @@ Otherwise we need to add exception handling throughout the queue.
 sub prepare {
     my $self = shift;
 
-    my $cfg = $self->entity;
+    my ($cfg, @patch_messages) = $self->get_patched_entity;
+    $self->addWarningMessage(colored('PATCH: ', 'red') . $_)
+        foreach @patch_messages;
 
     # Should return a reason here
     return unless defined $cfg;
@@ -334,7 +347,6 @@ sub prepare {
     # Now verify that the configuration is okay and catch the exception
     # We do a fixup and a verify here. Note that fixup tries to correct
     # stuff that can be fixed without asking for more information
-    use Term::ANSIColor;
     print colored("About to prepare\n", "red");
     my $r;
     try {
