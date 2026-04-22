@@ -1242,18 +1242,13 @@ sub create_fail_gui {
             # Use W-band (SiO) sources.
             $cat->filter_by_cb(source_is_type('w'));
         }
+        elsif ($details->{'INSTRUMENT'} eq 'FE_KUNTUR') {
+            # Use D-band CO 6-5 [d] or H2O maser [D] sources.
+            $cat->filter_by_cb(source_is_type('dD'));
+        }
         elsif ($details->{'INSTRUMENT'} =~ /^FE_/) {
-            my $waveband = $details->{'WAVEBAND'};
-
-            if (($details->{'INSTRUMENT'} eq 'FE_KUNTUR')
-                    and (abs($waveband - 691.4730763) > 0.001)) {
-                # Use D-band specific (e.g. H2O) sources.
-                $cat->filter_by_cb(source_is_type('d'));
-            }
-            else {
-                # Use general line (CO) sources.
-                $cat->filter_by_cb(source_is_type('l'));
-            }
+            # Use general line (CO) sources.
+            $cat->filter_by_cb(source_is_type('l'));
         }
     }
 
