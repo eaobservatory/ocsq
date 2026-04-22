@@ -38,6 +38,8 @@ sub comment_matches_type {
     my $include_typeless = shift;
     my $comment = shift;
 
+    return 0 unless defined $comment;
+
     unless ($comment =~ /^\[(\w+)\]/) {
         return $include_typeless;
     }
