@@ -116,6 +116,7 @@ use OMP::DB::User;
 use Queue::JitDRAMA;
 use Queue::Control::DRAMA;
 use Queue::Constants;
+use Queue::Util qw/comment_matches_type/;
 use FindBin;
 
 use Time::Piece qw/gmtime/;
@@ -1700,17 +1701,7 @@ sub source_is_type {
     return sub {
         my $comment = shift->coords()->comment();
 
-        unless ($comment =~ /^\[(\w+)\]/) {
-            return 1;
-        }
-
-        my $code = $1;
-
-        foreach my $char (split //, $type) {
-            return 1 unless -1 == index $code, $char;
-        }
-
-        return 0;
+        return comment_matches_type($type, 1, $comment);
     };
 }
 

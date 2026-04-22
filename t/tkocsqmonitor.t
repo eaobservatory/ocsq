@@ -17,29 +17,29 @@ my $cat = new Astro::Catalog(
     ReadOpt => {incplanets => 0}
 );
 
-cat_names($cat, [qw/PVCep UUPeg CRL2688 oCeti XPav/]);
+cat_names($cat, [qw/PVCep UUPeg CRL2688 oCeti XPav Typeless/]);
 
 $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('c'));
 
-cat_names($cat, [qw/PVCep CRL2688 oCeti XPav/]);
+cat_names($cat, [qw/PVCep CRL2688 oCeti XPav Typeless/]);
 
 $cat->reset_list();
 
 $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('l'));
 
-cat_names($cat, [qw/CRL2688 oCeti/]);
+cat_names($cat, [qw/CRL2688 oCeti Typeless/]);
 
 $cat->reset_list();
 
 $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('w'));
 
-cat_names($cat, [qw/UUPeg oCeti XPav/]);
+cat_names($cat, [qw/UUPeg oCeti XPav Typeless/]);
 
 $cat->reset_list();
 
 $cat->filter_by_cb(Tk::OCSQMonitor::source_is_type('lw'));
 
-cat_names($cat, [qw/UUPeg CRL2688 oCeti XPav/]);
+cat_names($cat, [qw/UUPeg CRL2688 oCeti XPav Typeless/]);
 
 sub cat_names {
     my $cat = shift;
@@ -53,3 +53,4 @@ UUPeg           21 31 04.160 + 11 09 13.30 RJ    n/a     n/a     n/a  LSR  RADIO
 CRL2688         21 02 18.750 + 36 41 37.80 RJ  -   35.4  5.9    80.0  LSR  RADIO [cl] c Secondary flux calibrator
 oCeti           02 19 20.803 - 02 58 43.54 RJ  +   46.5 43.1    19.0  LSR  RADIO [clw] pm
 XPav            20 11 46.030 - 59 56 12.70 RJ  -   21.0  1.2     n/a  LSR  RADIO [cw]
+Typeless        12 34 56.789 + 12 34 56.78 RJ  -    0.0  0.0     n/a  LSR  RADIO Typeless
