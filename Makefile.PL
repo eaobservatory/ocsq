@@ -14,6 +14,7 @@ WriteMakefile(
         'Test::More' => 0,
         'DRAMA' => 0,
         'Jit' => 1.18,
+        'JCMT::TCS::Pong' => 0,
     },
     'dist' => {
         COMPRESS => 'gzip -9f',
